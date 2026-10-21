@@ -34,6 +34,11 @@ export function App() {
     <div className="app" data-source={v.kind} data-role={v.role}>
       <Header view={v} route={route} />
       <main className="main">
+        {v.notice && (
+          <div className="linkbar notice" data-testid="notice" role="status">
+            {v.notice}<button className="btn small" type="button" onClick={() => session.dismissNotice()}>OK</button>
+          </div>
+        )}
         {v.role === 'member' && !v.join && <LinkStatusView view={v} session={session} />}
         {page}
       </main>

@@ -4,7 +4,7 @@ import { EMPTY_COACH, EMPTY_SCOUT, type LiveSnapshot } from '@csbot/protocol';
 import { describe, expect, it } from 'vitest';
 import {
   formatCode, HOST_ID, inviteUrl, isRoomCode, isRoomKey, MemoryNetwork, newRoomCode, newRoomKey, newSavedRoom, parseInvite,
-  RoomClient, RoomHost, type ClientState, type SavedRoom,
+  RoomClient, RoomHost, ROOM_TTL_MS, roomExpiresAt, takeoverRoom, type ClientState, type SavedRoom,
 } from '../src/index.ts';
 
 const CODE = 'K7P2QX', KEY = 'abcdefghijklmnopqrstuv12';
@@ -383,6 +383,66 @@ describe('squad markers', () => {
     k.client.sendGsi({ ...p, player: { ...p.player!, state: { ...p.player!.state!, health: 0 } } });
     await flush();
     expect(host.screen().live.squad!.find(m => m.slot === slot)!.state).toBe('dead');
+  });
+});
+
+describe('host handover', () => {
+  it('a desktop member takes over when the host drops; everyone follows; the old host steps down on return', async () => {
+    const net = new MemoryNetwork();
+    const flush = async () => { for (let i = 0; i < 8; i++) { await net.settle(); await new Promise(r => setTimeout(r, 1)); } };
+    const saved = newSavedRoom(CODE, KEY, 1000);
+    const hostA = new RoomHost({ transport: net.transport({ code: CODE, key: KEY, role: 'host' }), room: saved, hostName: 'rdx', clientId: 'dev-rdx', throttleMs: 0 });
+    hostA.setLive(hostLiveAtFreeze2());
+    const join = (id: string, name: string, device: 'web' | 'desktop') => {
+      const client = new RoomClient({ transport: net.transport({ code: CODE, key: KEY, role: 'member' }), clientId: id, name, device });
+      const states: ClientState[] = [];
+      client.subscribe(st => states.push(st));
+      return { client, last: () => states[states.length - 1]! };
+    };
+    const kairo = join('client-kairo', 'kairo', 'desktop'), nyx = join('client-nyx', 'nyx', 'web');
+    await flush(); hostA.approve('client-kairo'); hostA.approve('client-nyx'); await flush();
+    expect(nyx.last().screen!.room!.epoch).toBe(0);
+    expect(nyx.last().screen!.room!.hostClientId).toBe('dev-rdx');
+    const savedA = hostA.savedRoom;
+
+    // rdx's PC drops: members keep the last screen, the host shows offline.
+    (hostA as unknown as { o: { transport: { leave(): void } } }).o.transport.leave();
+    await flush();
+    expect(nyx.last().status).toBe('host-offline');
+    expect(nyx.last().screen!.live.call).toBeDefined();
+
+    // kairo takes over from his last room view: same code and key, one epoch up.
+    const view = kairo.last().screen!.room!;
+    const takeover = takeoverRoom(view, KEY, 5000);
+    expect(takeover.epoch).toBe(1);
+    expect(takeover.approved.map(m => m.id).sort()).toEqual(['client-nyx', 'dev-rdx']);
+    kairo.client.leave();
+    const hostB = new RoomHost({ transport: net.transport({ code: CODE, key: KEY, role: 'host' }), room: takeover, hostName: 'kairo', clientId: 'client-kairo', throttleMs: 0 });
+    hostB.setLive(hostLiveAtFreeze2());
+    await flush();
+    // nyx follows the new host without asking again.
+    expect(nyx.last().status).toBe('approved');
+    expect(nyx.last().screen!.room!.epoch).toBe(1);
+    expect(nyx.last().screen!.room!.hostName).toBe('rdx'); // the host's in-game name from the snapshot
+
+    // rdx's csbot comes back with the old room (epoch 0): nyx tells it, and it steps down.
+    let superseded: number | undefined;
+    const hostA2 = new RoomHost({ transport: net.transport({ code: CODE, key: KEY, role: 'host' }), room: savedA, hostName: 'rdx', clientId: 'dev-rdx', throttleMs: 0, onSuperseded: e => { superseded = e; } });
+    hostA2.setLive(hostLiveAtFreeze2());
+    await flush();
+    expect(superseded).toBe(1);
+    expect(nyx.last().screen!.room!.epoch).toBe(1);
+    // rdx rejoins as a member under his device id: already approved by the new host.
+    const rdx = join('dev-rdx', 'rdx', 'desktop');
+    await flush();
+    expect(rdx.last().status).toBe('approved');
+    expect(rdx.last().screen!.room!.epoch).toBe(1);
+  });
+
+  it('rooms expire a day after their last use', () => {
+    const r = newSavedRoom(CODE, KEY, 1000);
+    expect(roomExpiresAt(r)).toBe(1000 + ROOM_TTL_MS);
+    expect(roomExpiresAt({ ...r, lastActiveAt: 50_000 })).toBe(50_000 + ROOM_TTL_MS);
   });
 });
 

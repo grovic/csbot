@@ -7,7 +7,7 @@
 // UI components only read `SessionView`; everything they render comes from a ScreenState.
 
 import {
-  DEFAULT_INVITE_BASE, HOST_ID, inviteUrl, newClientId, newRoomCode, newRoomKey, newSavedRoom, parseInvite,
+  DEFAULT_INVITE_BASE, HOST_ID, inviteUrl, newClientId, newRoomCode, newRoomKey, newSavedRoom, parseInvite, roomExpiresAt, takeoverRoom,
   RoomClient, RoomHost, type Invite, type SavedRoom,
 } from '@csbot/room';
 import { trysteroTransport } from '@csbot/room/trystero';
@@ -47,6 +47,8 @@ export interface SessionView {
   signaling: 'nostr' | 'ws';
   /** Member: the network couldn't connect to the host directly (strict NAT, blocked WebRTC). */
   netError?: string;
+  /** A one-off message about the room (it expired, hosting moved). */
+  notice?: string;
   /**
    * Scouting from this PC's own source (demo, or the desktop host). In a room members get it in
    * `screen.scout` instead; read both through `scoutOf(view)`.
@@ -139,7 +141,14 @@ export class Session {
     const { win } = this;
     if (this.bridge) {
       const saved = read<SavedRoom>(localStorage, LS.hostRoom);
-      if (saved?.code && saved.key) { this.startHost(saved, read<string>(localStorage, LS.hostName) ?? 'Host'); return; }
+      if (saved?.code && saved.key) {
+        if (Date.now() < roomExpiresAt(saved)) { this.startHost(saved, read<string>(localStorage, LS.hostName) ?? 'Host'); return; }
+        // A day without use: the room is gone, and its invite link with it.
+        write(localStorage, LS.hostRoom, undefined);
+        this.startSolo();
+        this.set({ notice: 'Your room expired after a day without use. Create a new one to get a fresh invite link.' });
+        return;
+      }
       const member = read<string>(localStorage, LS.memberRoom);
       if (member && parseInvite(member)) { this.startMember(member, rememberedName() || 'Player', 'desktop'); return; }
       if (/^#\/?r\//.test(win.location.hash)) {
@@ -382,7 +391,15 @@ export class Session {
     this.reset({ role: 'host', kind: 'desktop', device: 'desktop', code: room.code, inviteLink: this.inviteFor(room, this.pageSignal) });
     const transport = trysteroTransport({ code: room.code, key: room.key, role: 'host', ...(signaling ? { signaling } : {}) });
     const host = new RoomHost({
-      transport, room, hostName, onSave: r => write(localStorage, LS.hostRoom, r),
+      transport, room, hostName, onSave: r => write(localStorage, LS.hostRoom, r), clientId: clientId(),
+      // A member took over while this PC was away: rejoin the same room as a member.
+      onSuperseded: () => {
+        write(localStorage, LS.hostRoom, undefined);
+        const link = this.inviteFor(room, this.pageSignal);
+        write(localStorage, LS.memberRoom, link);
+        this.startMember(link, this.lastLive?.me?.name || hostName, 'desktop');
+        this.set({ notice: 'Another member took over hosting while your csbot was away. You rejoined as a member.' });
+      },
       // Members' questions go to this PC's coach with who asked (it applies their quota).
       onAsk: (from, text) => (b.askCoach ? b.askCoach(text, from) : Promise.resolve({ ok: false, error: "The host's coach isn't available." })),
       // Members' intel goes into this PC's tracker with who saw it.
@@ -424,6 +441,33 @@ export class Session {
   remove(id: string) { this.host?.remove(id); }
   setPermissions(p: Partial<RoomPermissions>) { this.host?.setPermissions(p); }
   setTournament(on: boolean) { this.host?.setTournament(on); }
+
+  /**
+   * A desktop member can take over hosting when the host has been offline a while (and the admin
+   * allows it): the room keeps its code, key and members, and the economy read continues from this
+   * PC's own game data.
+   */
+  canTakeOver(now = Date.now()): boolean {
+    const v = this.view, room = v.screen?.room;
+    return v.role === 'member' && v.device === 'desktop' && !!this.bridge && v.link?.status === 'host-offline'
+      && now - v.link.since >= 10_000 && !!room && room.permissions.handover !== false && !!this.memberLink && !!parseInvite(this.memberLink);
+  }
+
+  takeOver(): string | undefined {
+    if (!this.canTakeOver()) return 'Taking over needs the desktop app, an offline host for 10 s, and the admin allowing handover.';
+    const room = this.view.screen!.room!;
+    const inv = parseInvite(this.memberLink!)!;
+    const saved = takeoverRoom(room, inv.key);
+    const name = this.lastLive?.me?.name || room.members.find(m => m.id === room.you)?.name || rememberedName() || 'Host';
+    write(localStorage, LS.memberRoom, undefined);
+    write(localStorage, LS.hostRoom, saved);
+    write(localStorage, LS.hostName, name);
+    this.startHost(saved, name);
+    this.set({ notice: `You're hosting room ${room.code} now. Members rejoin by themselves.` });
+    return undefined;
+  }
+
+  dismissNotice(): void { this.set({ notice: undefined }); }
 
   /** Admin: any member (or HOST_ID). Member: their own slot, when allowed. */
   setSlot(memberId: string, slot: string | null): void {

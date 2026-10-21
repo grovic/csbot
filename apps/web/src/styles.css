@@ -526,3 +526,5 @@ ul.steps.sm li{font-size:12px;padding:3px 9px}
 .checkin .err{color:#f0a5a0}
 .mapkey .k-spot{display:inline-block;width:10px;height:10px;border-radius:50%;border:2px solid #7fb0ef;background:rgba(57,135,229,.35);margin-right:5px;vertical-align:-1px}
 .mapkey .k-rot{display:inline-block;width:10px;height:10px;border-radius:50%;border:2px solid #f2bd4b;background:rgba(242,189,75,.25);margin-right:5px;vertical-align:-1px}
+.linkbar.notice{border-color:var(--line2);background:var(--sunken);color:var(--ink)}
+.linkbar .btn{margin-left:auto}
