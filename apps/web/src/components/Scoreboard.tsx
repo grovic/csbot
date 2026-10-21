@@ -1,6 +1,7 @@
-import type { LiveSnapshot, PlayerRow, RoundRecord, Side } from '@csbot/protocol';
+import type { LiveSnapshot, PlayerRow, RoundRecord, ScoutView, Side } from '@csbot/protocol';
 import { fmt$ } from '../format.ts';
 import { ReasonIcon } from './Icons.tsx';
+import { elo, kd, PartyBadge, roleText, ThreatBar } from './ScoutBits.tsx';
 
 const OT_HALF = 3;
 const HOW = { elimination: 'elimination', bomb: 'bomb exploded', defuse: 'bomb defused', time: 'time ran out' } as const;
@@ -63,7 +64,28 @@ function SourceCell({ r }: { r: PlayerRow }) {
   return <span className="srcd spec" title="Last seen while you watched this teammate after dying"><i />seen R{r.seenRound ?? '?'}</span>;
 }
 
-export function Scoreboard({ snap, inRoom = false }: { snap: LiveSnapshot; inRoom?: boolean }) {
+function EnemyPlayers({ scout }: { scout: ScoutView }) {
+  return (
+    <div className="tw">
+      <table className="t enemy-tbl" data-testid="enemy-players">
+        <thead><tr><th>Player</th><th>Role</th><th className="r">Level · ELO</th><th className="r">K/D</th><th>Threat</th></tr></thead>
+        <tbody>
+          {scout.them.players.map(p => (
+            <tr key={p.id} data-nick={p.nickname}>
+              <td>{p.nickname}<PartyBadge party={p.party} /></td>
+              <td>{roleText(p) ? <span className="role">{roleText(p)}</span> : <span className="muted">–</span>}</td>
+              <td className="r">{p.level ?? '–'} · {elo(p.elo)}</td>
+              <td className="r">{kd(p.stats.kd)}</td>
+              <td><ThreatBar p={p} label={false} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export function Scoreboard({ snap, inRoom = false, scout }: { snap: LiveSnapshot; inRoom?: boolean; scout?: ScoutView }) {
   const m = snap.match;
   if (!m) return null;
   const played = m.history.length;
@@ -113,8 +135,10 @@ export function Scoreboard({ snap, inRoom = false }: { snap: LiveSnapshot; inRoo
               {e ? <>Est. {fmt$(e.lo)}–{fmt$(e.hi)} each · loss streak {e.streak}{e.saved ? ' · saved last round' : ''}</> : <>Money estimate starts at freeze time</>}
               <span className="chip est">estimate</span>
             </div>
-            <div>Enemy profiles (role, level, threat) arrive with scouting in M3.</div>
-            <div className="muted small">The game doesn't send enemy stats to players. Their full scoreboard comes from the demo after the match.</div>
+            {scout?.them.players.length
+              ? <EnemyPlayers scout={scout} />
+              : <div>Scout the match on the <a href="#/scout">Scout</a> page to see who you're playing: role, level, ELO and threat.</div>}
+            <div className="muted small">{scout?.them.players.length ? 'Profiles from scouting (FACEIT and Steam). ' : ''}The game doesn't send enemy stats to players. Their full scoreboard comes from the demo after the match.</div>
           </div>
         </div>
       </div>

@@ -34,7 +34,7 @@ function NoRoom({ view, session }: { view: SessionView; session: Session }) {
         <p className="lead">Paste the invite link from your admin. Your own game data goes to their room from this PC.</p>
         <div className="joinrow">
           <input className="inp" data-testid="join-link-input" value={link} onChange={e => setLink(e.target.value)} placeholder="https://…/#/r/CODE?k=…" spellCheck={false} />
-          <input className="inp name" data-testid="join-link-name" value={name} onChange={e => setName(e.target.value)} placeholder="Your name" maxLength={24} />
+          <input className="inp name" data-testid="join-link-name" value={name} onChange={e => setName(e.target.value)} placeholder="Your FACEIT nickname" maxLength={24} />
           <button className="btn primary" type="submit" data-testid="join-link-submit" disabled={!link.trim()}>Join</button>
         </div>
         {err && <div className="result err">{err}</div>}

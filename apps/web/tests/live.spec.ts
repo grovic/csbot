@@ -126,8 +126,8 @@ test('settings in the browser explains hosting', async ({ page }) => {
 });
 
 test('placeholder pages', async ({ page }) => {
-  const errors = await open(page, 'at=live-2&pause=1', '#/scout');
-  await expect(page.getByTestId('placeholder')).toContainText('Coming in M3');
+  const errors = await open(page, 'at=live-2&pause=1', '#/debrief');
+  await expect(page.getByTestId('placeholder')).toContainText('Coming in M6');
   await page.goto('./?at=live-2&pause=1#/coach');
   await expect(page.getByTestId('placeholder')).toContainText('Coming in M5');
   expect(errors).toEqual([]);

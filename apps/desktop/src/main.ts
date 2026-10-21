@@ -3,13 +3,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { app, BrowserWindow, ipcMain, Menu, screen, session, shell, type IpcMainInvokeEvent } from 'electron';
-import type { CfgInstallResult } from '@csbot/protocol';
+import { app, BrowserWindow, ipcMain, Menu, safeStorage, screen, session, shell, type IpcMainInvokeEvent } from 'electron';
+import type { CfgInstallResult, ScoutView } from '@csbot/protocol';
 import { detectCs2, installCfg } from './cs2.ts';
 import { Host, sessionFileName } from './host.ts';
 import { loadSettings, readEnv, saveSettings, type Settings } from './settings.ts';
 import { rendererUrlFor, samePage } from './urls.ts';
 import { loadWindowState, restorableBounds, saveWindowState } from './window-state.ts';
+import { claudeCommand, detectClaude, runAnalyst } from './scout/claude.ts';
+import { FileStore } from './scout/file-cache.ts';
+import { KEY_SERVICES, Secrets, type KeyService } from './scout/secrets.ts';
+import { ScoutService } from './scout/service.ts';
 
 const env = readEnv();
 if (env.userData) app.setPath('userData', path.resolve(env.userData));
@@ -24,6 +28,10 @@ else run();
 function run(): void {
   let win: BrowserWindow | null = null;
   let host: Host | null = null;
+  let scout: ScoutService | null = null;
+  /** Names of the members in this host's room (set by the renderer that runs the room). */
+  let roomRoster: string[] = [];
+  let scoutCache: FileStore | null = null;
   let settings: Settings;
   const appDir = app.getAppPath();
   const webIndex = path.resolve(appDir, '..', 'web', 'dist', 'index.html');
@@ -61,6 +69,7 @@ function run(): void {
   // Stop the GSI server and flush the recording before exiting. A second app.quit() is ignored
   // while a quit is in progress, so finish with app.exit(), with a timeout in case cleanup stalls.
   app.on('will-quit', e => {
+    scoutCache?.flush();
     if (!host) return;
     e.preventDefault();
     const h = host;
@@ -93,6 +102,49 @@ function run(): void {
     // Our own guarded GSI, for a desktop member to forward to the room host it joined.
     host.onGsi(p => {
       for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('csbot:gsi', p);
+    });
+
+    // Scouting (M3). Keys are encrypted with the OS keychain and stay in this process.
+    const userData = app.getPath('userData');
+    const secrets = new Secrets(userData, safeStorage);
+    scoutCache = new FileStore(path.join(userData, 'cache', 'scout.json'));
+    const claude = claudeCommand();
+    scout = new ScoutService({
+      keys: secrets,
+      cache: scoutCache,
+      analyst: { detect: async () => (await detectClaude(claude)).found, run: v => runAnalyst(v, claude) },
+      ourSteamId: () => host?.latest().me?.steamid,
+      // The host is the admin; room members are matched by FACEIT nickname (they join under it).
+      roomSteamIds: () => {
+        const me = host?.latest().me?.steamid;
+        return { ...(me ? { [me]: 'admin' as const } : {}), ...Object.fromEntries(roomRoster.map(n => [n.toLowerCase(), 'member' as const])) };
+      },
+    });
+    const sendScout = (v: ScoutView) => {
+      for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('csbot:scout', v);
+    };
+    scout.onChange(sendScout);
+    void scout.init();
+    ipcMain.handle('csbot:scoutLatest', e => { guard(e); return scout?.current; });
+    ipcMain.handle('csbot:scoutMatch', async (e, linkOrId: unknown) => {
+      guard(e);
+      if (typeof linkOrId !== 'string' || linkOrId.length > 500) return { ok: false, error: 'Paste a FACEIT match link.' };
+      return scout ? scout.scoutMatch(linkOrId) : { ok: false, error: 'csbot is shutting down' };
+    });
+    ipcMain.handle('csbot:scoutSample', async e => { guard(e); await scout?.scoutSample(); });
+    ipcMain.handle('csbot:runScoutReport', async e => { guard(e); return scout ? scout.runReport() : { ok: false, error: 'csbot is shutting down' }; });
+    ipcMain.on('csbot:setRoomRoster', (e, members: unknown) => {
+      if (!isOurs(e.senderFrame?.url ?? '')) return;
+      const names = Array.isArray(members) ? members.flatMap(m => (m && typeof m === 'object' && typeof (m as { name?: unknown }).name === 'string' ? [(m as { name: string }).name.slice(0, 32)] : [])).slice(0, 16) : [];
+      roomRoster = names;
+      scout?.relabelRoom();
+    });
+    ipcMain.handle('csbot:setApiKey', (e, service: unknown, key: unknown) => {
+      guard(e);
+      if (!KEY_SERVICES.includes(service as KeyService) || (key !== null && typeof key !== 'string')) return { ok: false, error: 'Invalid request.' };
+      const r = secrets.set(service as KeyService, key as string | null);
+      if (r.ok) { log(`${service} key ${key === null ? 'cleared' : 'saved'}`); scout?.refreshSources(); }
+      return r;
     });
 
     ipcMain.handle('csbot:latest', e => { guard(e); return host?.latest(); });
@@ -160,6 +212,7 @@ function run(): void {
     });
     w.webContents.on('did-finish-load', () => {
       if (host) w.webContents.send('csbot:snapshot', host.latest());
+      if (scout) w.webContents.send('csbot:scout', scout.current);
     });
     if (!app.isPackaged) {
       w.webContents.on('before-input-event', (_e, input) => {

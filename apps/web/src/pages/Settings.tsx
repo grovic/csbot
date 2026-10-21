@@ -1,6 +1,7 @@
 import { CFG_FILE_NAME, PLAYER_COMPONENTS } from '@csbot/gsi';
-import type { CfgInstallResult, CsbotBridge, HostInfo, LiveSnapshot } from '@csbot/protocol';
+import type { CfgInstallResult, CsbotBridge, DataSourceState, HostInfo, LiveSnapshot, ScoutView } from '@csbot/protocol';
 import { useCallback, useEffect, useState } from 'react';
+import type { Session } from '../data/session.ts';
 import type { SourceKind } from '../data/source.ts';
 
 const ago = (at: number | undefined, now: number) => {
@@ -104,6 +105,79 @@ function BrowserCard({ member }: { member: boolean }) {
   );
 }
 
+const KEY_STATE: Record<DataSourceState, string> = {
+  live: 'connected', 'missing-key': 'no key yet', error: "the key didn't work", sample: 'using the sample match', off: 'off',
+};
+const CLAUDE_STATE: Record<DataSourceState, string> = {
+  live: 'found on this PC', off: 'not installed on this PC', error: 'the last call failed', sample: 'the demo shows a recorded briefing', 'missing-key': 'not signed in',
+};
+const stateCls = (st: DataSourceState) => (st === 'live' ? 'ok' : st === 'sample' ? 'sample' : st === 'error' || st === 'missing-key' ? 'warn' : 'off');
+
+function KeyRow({ service, label, help, state, session }: { service: 'faceit' | 'steam'; label: string; help: React.ReactNode; state: DataSourceState; session: Session }) {
+  const [val, setVal] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState<{ ok: boolean; text: string }>();
+  const save = async (key: string | null) => {
+    setBusy(true); setRes(undefined);
+    const r = await session.setApiKey(service, key);
+    setBusy(false);
+    if (r.ok) { setVal(''); setRes({ ok: true, text: key ? 'Saved on this PC.' : 'Key removed.' }); }
+    else setRes({ ok: false, text: r.error ?? 'Could not save the key.' });
+  };
+  return (
+    <div className="keyrow">
+      <span className="kname">{label}</span>
+      <div>
+        <div className="krow">
+          <span className={'srcchip ' + stateCls(state)} data-testid={`source-${service}`} data-state={state}><i />{KEY_STATE[state]}</span>
+          <span className="muted small">{help}</span>
+        </div>
+        <form className="krow" style={{ marginTop: 6 }} onSubmit={e => { e.preventDefault(); if (val.trim()) void save(val.trim()); }}>
+          <input className="inp" type="password" autoComplete="off" spellCheck={false} value={val} onChange={e => setVal(e.target.value)}
+            placeholder={state === 'live' ? 'Paste a new key to replace it' : `Paste your ${label} API key`} aria-label={`${label} API key`} data-testid={`key-${service}`} />
+          <button className="btn primary" type="submit" disabled={busy || !val.trim()} data-testid={`key-${service}-save`}>Save</button>
+          {state !== 'missing-key' && state !== 'off' && <button className="btn" type="button" disabled={busy} onClick={() => void save(null)} data-testid={`key-${service}-clear`}>Clear</button>}
+        </form>
+        {res && <div className={'result ' + (res.ok ? 'ok' : 'err')}>{res.text}</div>}
+      </div>
+    </div>
+  );
+}
+
+function DataSources({ scout, session, host }: { scout: ScoutView; session: Session; host: boolean }) {
+  const s = scout.sources;
+  return (
+    <div className="card" data-testid="data-sources">
+      <div className="card-h"><h3>Data sources</h3><span className="muted small">scouting</span></div>
+      {host ? (
+        <>
+          <KeyRow service="faceit" label="FACEIT" state={s.faceit} session={session}
+            help={<>rosters and stats · free key at <a href="https://developers.faceit.com/" target="_blank" rel="noreferrer">developers.faceit.com</a></>} />
+          <KeyRow service="steam" label="Steam" state={s.steam} session={session}
+            help={<>account age, bans, CS2 hours · free key at <a href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noreferrer">steamcommunity.com/dev/apikey</a></>} />
+          <div className="keyrow">
+            <span className="kname">Claude Code</span>
+            <div className="krow">
+              <span className={'srcchip ' + stateCls(s.claude)} data-testid="source-claude" data-state={s.claude}><i />{CLAUDE_STATE[s.claude]}</span>
+              <span className="muted small">writes the briefing with your own Claude Code login</span>
+            </div>
+          </div>
+          <p className="note">Keys are stored encrypted on this PC and only used by this app. They never go to the room or to teammates.</p>
+        </>
+      ) : (
+        <>
+          <p style={{ margin: 0, color: 'var(--ink2)' }}>Scouting runs on the host's desktop app: it holds the FACEIT and Steam keys and runs Claude Code. This screen shows what the host shares.</p>
+          <div className="krow" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+            <span className={'srcchip ' + stateCls(s.faceit)} data-testid="source-faceit" data-state={s.faceit}><i />FACEIT · {KEY_STATE[s.faceit]}</span>
+            <span className={'srcchip ' + stateCls(s.steam)} data-testid="source-steam" data-state={s.steam}><i />Steam · {KEY_STATE[s.steam]}</span>
+            <span className={'srcchip ' + stateCls(s.claude)} data-testid="source-claude" data-state={s.claude}><i />Claude Code · {CLAUDE_STATE[s.claude]}</span>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 const FAIR = [
   'Live data only from official Valve GSI',
   'No memory reading, injection or in-game overlay',
@@ -113,12 +187,13 @@ const FAIR = [
   'Enemy money and positions are always labeled estimates',
 ];
 
-export function Settings({ snap, kind }: { snap?: LiveSnapshot; kind: SourceKind }) {
+export function Settings({ snap, kind, scout, session }: { snap?: LiveSnapshot; kind: SourceKind; scout: ScoutView; session: Session }) {
   const bridge = kind === 'desktop' ? window.csbot : undefined;
   return (
     <div className="grid2" data-testid="settings">
       {bridge ? <HostCard bridge={bridge} /> : <BrowserCard member={kind === 'member'} />}
       <GsiStatus snap={snap} />
+      <div style={{ gridColumn: '1/-1' }}><DataSources scout={scout} session={session} host={session.canScout} /></div>
       <div className="card" style={{ gridColumn: '1/-1' }}>
         <div className="card-h"><h3>Fair play</h3></div>
         <div className="fair">{FAIR.map(f => <div key={f}><span className="ic ok">✓</span>{f}</div>)}</div>

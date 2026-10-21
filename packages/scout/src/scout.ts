@@ -19,7 +19,7 @@ export interface ScoutInput {
   platform: 'faceit' | 'sample';
   /** Our own Steam ID (from GSI), to know which faction is "us". */
   ourSteamId?: string;
-  /** Steam IDs (or nicknames for the sample) of room members → their room role. Others on our side are randoms. */
+  /** Room members by Steam ID or nickname (case-insensitive) → their room role. Others on our side are randoms. */
   room?: Record<string, 'admin' | 'member'>;
   mapPool?: string[];
 }
@@ -61,8 +61,9 @@ export async function scoutFaceitMatch(deps: ScoutDeps, input: ScoutInput): Prom
   }
 
   const map = match.voting?.map?.pick?.[0];
+  const roomByKey = new Map(Object.entries(input.room ?? {}).map(([k, v]) => [k.toLowerCase(), v]));
   const roomOf = (p: { nick: string; steamid?: string }): ScoutPlayer['room'] =>
-    input.room?.[p.steamid ?? ''] ?? input.room?.[p.nick] ?? 'random';
+    (p.steamid ? roomByKey.get(p.steamid) : undefined) ?? roomByKey.get(p.nick.toLowerCase()) ?? 'random';
   const players = fetched.map(f => {
     const sid = f.player?.games?.cs2?.game_player_id ?? f.r.game_player_id;
     const p = buildPlayer({

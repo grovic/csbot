@@ -199,8 +199,13 @@ export interface CsbotBridge {
   scoutMatch?(linkOrId: string): Promise<{ ok: boolean; error?: string }>;
   /** Load the fictional sample match (no keys needed). */
   scoutSample?(): Promise<void>;
-  /** Run (or re-run) the AI scouting report on the host's Claude Code. */
-  runScoutReport?(): Promise<void>;
+  /** Run (or re-run) the AI scouting report on the host's Claude Code. Refusals (budget, no Claude) come back as errors. */
+  runScoutReport?(): Promise<{ ok: boolean; error?: string }>;
+  /**
+   * Who's in this host's room, so scouting can tell room members from randoms. Matched against
+   * FACEIT nicknames (case-insensitive): members should join under their FACEIT name.
+   */
+  setRoomRoster?(members: { name: string }[]): void;
   /** Save or clear an API key (stored encrypted on this PC; never sent to the room). */
   setApiKey?(service: 'faceit' | 'steam', key: string | null): Promise<{ ok: boolean; error?: string }>;
 }

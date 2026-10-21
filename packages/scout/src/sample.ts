@@ -139,6 +139,9 @@ export function sampleSteam(): SteamApi {
 /** Steam ID of a sample player (tests and the demo use it to say which one is "us"). */
 export const sampleSteamId = (nick: string) => { const i = PLAYERS.findIndex(p => p.nick === nick); return i >= 0 ? steamid(i) : undefined; };
 
+/** "You" in the sample: rdx, the host. */
+export const SAMPLE_ME = sampleSteamId('rdx')!;
+
 /**
  * A real Claude Code (opus, high effort) report on the sample match, recorded 2026-10-21 in 16.9 s.
  * The demo shows it so the Scout page looks like the real thing without spending anyone's plan.

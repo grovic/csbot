@@ -11,8 +11,9 @@ import {
   RoomClient, RoomHost, type Invite, type SavedRoom,
 } from '@csbot/room';
 import { trysteroTransport } from '@csbot/room/trystero';
-import type { CsbotBridge, LinkStatus, LiveSnapshot, RoomPermissions, ScreenState } from '@csbot/protocol';
+import { EMPTY_SCOUT, type CsbotBridge, type LinkStatus, type LiveSnapshot, type RoomPermissions, type ScoutView, type ScreenState } from '@csbot/protocol';
 import { demoRoom } from './demoRoom.ts';
+import { demoScout } from './demoScout.ts';
 import { demoSource, readDemoOptions } from './demo.ts';
 import { signalFromLink, signalFromPage, toSignaling } from './signal.ts';
 import { noneSource, type SourceKind } from './source.ts';
@@ -42,6 +43,16 @@ export interface SessionView {
   signaling: 'nostr' | 'ws';
   /** Member: the network couldn't connect to the host directly (strict NAT, blocked WebRTC). */
   netError?: string;
+  /**
+   * Scouting from this PC's own source (demo, or the desktop host). In a room members get it in
+   * `screen.scout` instead; read both through `scoutOf(view)`.
+   */
+  scout?: ScoutView;
+}
+
+/** The scouting this screen shows: from the room when joined, else this PC's own. */
+export function scoutOf(v: SessionView): ScoutView {
+  return v.screen?.scout ?? v.scout ?? EMPTY_SCOUT;
 }
 
 const LS = {
@@ -132,9 +143,18 @@ export class Session {
 
   private startSource(which: 'demo' | 'none'): void {
     const src = which === 'demo' ? demoSource(readDemoOptions(this.win.location.search)) : noneSource();
-    this.reset({ role: which, kind: which });
+    this.reset({ role: which, kind: which, ...(which === 'demo' ? { scout: { ...EMPTY_SCOUT, status: 'loading' as const } } : {}) });
+    let alive = true;
+    this.stops.push(() => { alive = false; });
+    if (which === 'demo') {
+      void demoScout().then(s => {
+        if (!alive) return;
+        this.set({ scout: s, ...(this.view.screen ? { screen: { ...this.view.screen, scout: s } } : {}) });
+      });
+    }
     this.stops.push(src.subscribe(live => {
-      const screen: ScreenState = which === 'demo' ? { live, room: demoRoom(live.match?.map) } : { live };
+      const scout = this.view.scout?.status === 'ready' ? this.view.scout : undefined;
+      const screen: ScreenState = which === 'demo' ? { live, room: demoRoom(live.match?.map), ...(scout ? { scout } : {}) } : { live };
       this.set({ screen, receivedAt: Date.now(), rate: src.rate() });
     }));
   }
@@ -142,7 +162,53 @@ export class Session {
   private startSolo(): void {
     const b = this.bridge!;
     this.reset({ role: 'solo', kind: 'desktop', device: 'desktop' });
-    this.stops.push(b.onSnapshot(live => { this.lastLive = live; this.set({ screen: { live }, receivedAt: Date.now(), rate: 1 }); }));
+    this.watchOwnScout();
+    this.stops.push(b.onSnapshot(live => {
+      this.lastLive = live;
+      this.set({ screen: { live, ...(this.view.scout ? { scout: this.view.scout } : {}) }, receivedAt: Date.now(), rate: 1 });
+    }));
+  }
+
+  /** Desktop solo/host: this PC's scouting, from the main process. */
+  private watchOwnScout(onScout?: (s: ScoutView) => void): void {
+    const b = this.bridge;
+    if (!b?.onScout) return;
+    this.stops.push(b.onScout(s => {
+      onScout?.(s);
+      this.set({ scout: s, ...(this.view.screen ? { screen: { ...this.view.screen, scout: s } } : {}) });
+    }));
+  }
+
+  // ---------------------------------------------------------------- scouting (desktop solo / host)
+
+  /** This screen can start scouting (the desktop app, not joined to someone else's room). */
+  get canScout(): boolean {
+    return !!this.bridge?.scoutSample && (this.view.role === 'solo' || this.view.role === 'host');
+  }
+
+  /** Scout a FACEIT match from its room link. Returns an error message to show, if any. */
+  async scoutMatch(link: string): Promise<string | undefined> {
+    if (!this.canScout || !this.bridge?.scoutMatch) return 'Scouting runs in the csbot desktop app.';
+    try {
+      const r = await this.bridge.scoutMatch(link.trim());
+      return r.ok ? undefined : r.error ?? 'Could not scout that match.';
+    } catch (e) {
+      return String((e as Error)?.message ?? e);
+    }
+  }
+
+  async scoutSample(): Promise<void> { if (this.canScout) await this.bridge!.scoutSample!(); }
+  /** Returns a refusal (budget used, no Claude Code) as an error message to show next to the button. */
+  async runScoutReport(): Promise<string | undefined> {
+    if (!this.canScout) return undefined;
+    const r = await this.bridge!.runScoutReport?.();
+    return r && !r.ok ? r.error ?? 'The briefing could not run.' : undefined;
+  }
+
+  /** Save (or clear with null) an API key on this PC. Never echoes the key back. */
+  async setApiKey(service: 'faceit' | 'steam', key: string | null): Promise<{ ok: boolean; error?: string }> {
+    if (!this.bridge?.setApiKey) return { ok: false, error: 'API keys are stored by the csbot desktop app.' };
+    try { return await this.bridge.setApiKey(service, key); } catch (e) { return { ok: false, error: String((e as Error)?.message ?? e) }; }
   }
 
   // ---------------------------------------------------------------- hosting (desktop)
@@ -163,8 +229,17 @@ export class Session {
     const transport = trysteroTransport({ code: room.code, key: room.key, role: 'host', ...(signaling ? { signaling } : {}) });
     const host = new RoomHost({ transport, room, hostName, onSave: r => write(localStorage, LS.hostRoom, r) });
     this.host = host;
+    // Scouting goes to every member on each update (and to joiners on approval).
+    this.watchOwnScout(s => host.setScout(s));
     this.stops.push(b.onSnapshot(live => { this.lastLive = live; host.setLive(live); }));
-    this.stops.push(host.subscribe(screen => this.set({ screen, receivedAt: Date.now(), rate: 1 })));
+    // Tell the host process who's in the room, so scouting labels members vs randoms.
+    let roster = '';
+    this.stops.push(host.subscribe(screen => {
+      const names = (screen.room?.members ?? []).filter(m => m.role !== 'admin').map(m => m.name);
+      const key = JSON.stringify(names);
+      if (key !== roster) { roster = key; b.setRoomRoster?.(names.map(name => ({ name }))); }
+      this.set({ screen, receivedAt: Date.now(), rate: 1 });
+    }));
     this.leaveNet = () => transport.leave();
   }
 
