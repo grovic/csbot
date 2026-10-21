@@ -4,6 +4,7 @@
 
 import type { FaceitApi, FaceitHistoryItem, FaceitMatch, FaceitPlayer, FaceitPlayerStats } from './faceit.ts';
 import type { SteamApi, SteamBans, SteamSummary } from './steam.ts';
+import { ApiError } from './http.ts';
 
 export const SAMPLE_MATCH_ID = '1-00000000-0000-4000-8000-000000000001';
 export const SAMPLE_POOL = ['de_mirage', 'de_ancient', 'de_nuke', 'de_anubis', 'de_inferno', 'de_dust2', 'de_train'] as const;
@@ -86,7 +87,7 @@ function history(p: SamplePlayer): FaceitHistoryItem[] {
     return {
       match_id: id, started_at: NOW / 1000 - (k + 1) * 86_400, finished_at: NOW / 1000 - (k + 1) * 86_400 + 2400, status: 'FINISHED', game_mode: '5v5',
       playing_players: mates.map(pid),
-      teams: { faction1: { players: mates.map(n => ({ player_id: pid(n), nickname: n })) }, faction2: { players: [] } },
+      teams: { faction1: { nickname: `team_${p.nick}`, players: mates.map(n => ({ player_id: pid(n), nickname: n })) }, faction2: { nickname: `team_opp${k}`, players: [] } },
       results: { winner: k % 3 ? 'faction1' : 'faction2' },
     };
   });
@@ -109,12 +110,14 @@ export function sampleMatch(): FaceitMatch {
 
 const byId = new Map(PLAYERS.map((p, i) => [pid(p.nick), { p, i }]));
 const bySteam = new Map(PLAYERS.map((p, i) => [steamid(i), { p, i }]));
-const missing = (what: string) => Object.assign(new Error(`sample: no ${what}`), { status: 404 });
+/** Same error the real client throws for an unknown id: a FACEIT 404. */
+const missing = (what: string) => new ApiError('FACEIT', 404, `sample: no ${what}`);
 
 export function sampleFaceit(): FaceitApi {
   return {
     match: async id => { if (id !== SAMPLE_MATCH_ID) throw missing(`match ${id}`); return sampleMatch(); },
     player: async id => { const x = byId.get(id); if (!x) throw missing(`player ${id}`); return faceitPlayer(x.p, x.i); },
+    playerByNickname: async nick => { const x = [...byId.values()].find(v => v.p.nick.toLowerCase() === nick.toLowerCase()); if (!x) throw missing(`nickname ${nick}`); return faceitPlayer(x.p, x.i); },
     playerBySteamId: async sid => { const x = bySteam.get(sid); if (!x) throw missing(`steam ${sid}`); return faceitPlayer(x.p, x.i); },
     stats: async id => { const x = byId.get(id); if (!x) throw missing(`stats ${id}`); return faceitStats(x.p); },
     history: async (id, limit = 20) => { const x = byId.get(id); if (!x) throw missing(`history ${id}`); return { items: history(x.p).slice(0, limit) }; },

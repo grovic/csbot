@@ -144,6 +144,41 @@ function KeyRow({ service, label, help, state, session }: { service: 'faceit' | 
   );
 }
 
+/** Your FACEIT nickname: lists your recent matches on the Scout page and spots a live one. */
+function NicknameRow({ scout, session }: { scout: ScoutView; session: Session }) {
+  const [nick, setNick] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string>();
+  const a = scout.account;
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nick.trim()) return;
+    setBusy(true); setErr(undefined);
+    const r = await session.setFaceitNickname(nick.trim());
+    setBusy(false);
+    if (r.ok) setNick(''); else setErr(r.error);
+  };
+  return (
+    <div className="keyrow">
+      <span className="kname">Your FACEIT</span>
+      <div>
+        <div className="krow">
+          {a?.status === 'ok'
+            ? <span className="srcchip ok" data-testid="faceit-account" data-state="ok"><i />{a.nickname}{a.level ? ` · lvl ${a.level}` : ''}{a.elo ? ` · ${a.elo.toLocaleString('en-US')} ELO` : ''}</span>
+            : <span className="srcchip" data-testid="faceit-account" data-state={a?.status ?? 'none'}><i />{a ? (a.status === 'not-found' ? `${a.nickname}: not found` : a.nickname) : 'not set'}</span>}
+          <span className="muted small">your recent matches on Scout; a live one gets scouted by itself</span>
+        </div>
+        <form className="joinrow" onSubmit={save} style={{ marginTop: 6 }}>
+          <input className="inp" value={nick} onChange={e => setNick(e.target.value)} placeholder="Your FACEIT nickname" maxLength={32} data-testid="faceit-nickname" />
+          <button className="btn" type="submit" disabled={busy || !nick.trim()} data-testid="faceit-nickname-save">{busy ? 'Checking…' : 'Save'}</button>
+          {a && <button className="btn" type="button" onClick={() => void session.setFaceitNickname(null)}>Clear</button>}
+        </form>
+        {(err || a?.error) && <div className="result err">{err ?? a?.error}</div>}
+      </div>
+    </div>
+  );
+}
+
 function DataSources({ scout, session, host }: { scout: ScoutView; session: Session; host: boolean }) {
   const s = scout.sources;
   return (
@@ -162,6 +197,7 @@ function DataSources({ scout, session, host }: { scout: ScoutView; session: Sess
               <span className="muted small">writes the briefing with your own Claude Code login</span>
             </div>
           </div>
+          <NicknameRow scout={scout} session={session} />
           <p className="note">Keys are stored encrypted on this PC and only used by this app. They never go to the room or to teammates.</p>
         </>
       ) : (

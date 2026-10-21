@@ -205,6 +205,12 @@ export class Session {
     return r && !r.ok ? r.error ?? 'The briefing could not run.' : undefined;
   }
 
+  /** The host's FACEIT nickname (public): recent matches and live-match detection. */
+  async setFaceitNickname(nickname: string | null): Promise<{ ok: boolean; error?: string }> {
+    if (!this.bridge?.setFaceitNickname) return { ok: false, error: 'This needs the csbot desktop app.' };
+    try { return await this.bridge.setFaceitNickname(nickname); } catch (e) { return { ok: false, error: String((e as Error)?.message ?? e) }; }
+  }
+
   /** Save (or clear with null) an API key on this PC. Never echoes the key back. */
   async setApiKey(service: 'faceit' | 'steam', key: string | null): Promise<{ ok: boolean; error?: string }> {
     if (!this.bridge?.setApiKey) return { ok: false, error: 'API keys are stored by the csbot desktop app.' };

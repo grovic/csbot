@@ -36,7 +36,7 @@ export async function launchApp(extraEnv: Record<string, string> = {}): Promise<
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined && k !== 'ELECTRON_RUN_AS_NODE') env[k] = v;
   // A fake Steam root with no CS2 in it: detection never looks at the real game folder.
   fs.mkdirSync(path.join(dir, 'Steam'), { recursive: true });
-  Object.assign(env, { CSBOT_HIDDEN: '1', CSBOT_USER_DATA: path.join(dir, 'userData'), CSBOT_GSI_PORT: '0', CSBOT_STEAM_PATH: path.join(dir, 'Steam') }, extraEnv);
+  Object.assign(env, { CSBOT_HIDDEN: '1', CSBOT_USER_DATA: path.join(dir, 'userData'), CSBOT_GSI_PORT: '0', CSBOT_STEAM_PATH: path.join(dir, 'Steam'), CSBOT_KEY_CHECK: 'off' }, extraEnv);
   const app = await electron.launch({ executablePath: electronPath as unknown as string, args: [appDir], env });
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');

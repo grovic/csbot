@@ -43,6 +43,31 @@ function ScoutForm({ session, compact = false }: { session: Session; compact?: b
   );
 }
 
+/** The host's recent FACEIT matches: one click scouts any of them; a live one is marked. */
+function RecentList({ scout, session, compact = false }: { scout: ScoutView; session: Session; compact?: boolean }) {
+  const [busy, setBusy] = useState<string>();
+  const [err, setErr] = useState<string>();
+  const recent = scout.recent ?? [];
+  if (!recent.length) return null;
+  const pick = async (id: string) => { setBusy(id); setErr(undefined); const e = await session.scoutMatch(id); setBusy(undefined); if (e) setErr(e); };
+  return (
+    <div className={'recent' + (compact ? ' compact' : '')} data-testid="recent-matches">
+      <div className="muted small">Your recent FACEIT matches{scout.account?.nickname ? ` (${scout.account.nickname})` : ''}</div>
+      <div className="recent-list">
+        {recent.map(m => (
+          <button key={m.id} type="button" className={'recent-m' + (m.live ? ' live' : '') + (scout.matchId === m.id ? ' on' : '')} disabled={!!busy}
+            onClick={() => void pick(m.id)} data-testid="recent-match" data-id={m.id} data-live={m.live ? '1' : '0'}>
+            {m.live ? <span className="rb live">LIVE</span> : m.won === undefined ? <span className="rb">–</span> : <span className={'rb ' + (m.won ? 'w' : 'l')}>{m.won ? 'W' : 'L'}</span>}
+            <span className="vs">{m.vs ? `vs ${m.vs}` : m.status.toLowerCase()}</span>
+            <span className="muted small">{busy === m.id ? 'scouting…' : m.startedAt ? new Date(m.startedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''}</span>
+          </button>
+        ))}
+      </div>
+      {err && <div className="result err">{err}</div>}
+    </div>
+  );
+}
+
 function Empty({ view, session, scout }: { view: SessionView; session: Session; scout: ScoutView }) {
   if (view.role === 'member') {
     return (
@@ -70,6 +95,8 @@ function Empty({ view, session, scout }: { view: SessionView; session: Session; 
       <div className="sub">Paste the link of your FACEIT match room. csbot looks up all ten players (FACEIT and Steam), compares the map pool and writes a briefing.</div>
       {scout.status === 'error' && scout.error && <div className="result err" data-testid="scout-error">{scout.error}</div>}
       <ScoutForm session={session} />
+      <RecentList scout={scout} session={session} />
+      {!noKey && !scout.account && <p className="note">Add your FACEIT nickname in <a href="#/settings">Settings</a> to list your recent matches here; a live match then gets scouted by itself.</p>}
       {noKey && <p className="note">Real matches need your FACEIT API key: <a href="#/settings">Settings → Data sources</a>. The sample match works without one.</p>}
       <p className="note">Premier doesn't publish rosters; csbot learns opponents from the demo after the match.</p>
     </div>
@@ -319,6 +346,7 @@ export function Scout({ view, session }: { view: SessionView; session: Session }
             <details className="another">
               <summary>Scout another match</summary>
               <ScoutForm session={session} compact />
+              <RecentList scout={scout} session={session} compact />
             </details>
           )}
         </div>

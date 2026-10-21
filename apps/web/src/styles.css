@@ -377,3 +377,16 @@ details.another[open] summary{margin-bottom:8px}
 .keyrow .kname{font-weight:650;padding-top:4px}
 .keyrow .krow{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .keyrow .krow .inp{flex:1 1 200px}
+
+/* recent FACEIT matches (Scout) */
+.recent { margin-top: 14px; display: grid; gap: 6px; }
+.recent-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.recent-m { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel2); color: var(--ink); cursor: pointer; font: inherit; }
+.recent-m:hover:not(:disabled) { border-color: var(--ai); }
+.recent-m.on { border-color: var(--ai); }
+.recent-m.live { border-color: var(--good); }
+.recent-m .rb { font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 4px; background: var(--line2); }
+.recent-m .rb.w { background: var(--ct); }
+.recent-m .rb.l { background: var(--t); }
+.recent-m .rb.live { background: var(--good); }
+.recent-m .vs { font-weight: 600; }

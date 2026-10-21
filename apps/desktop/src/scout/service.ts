@@ -3,10 +3,10 @@
 // Pure Node (no Electron import): unit-tested with sample clients and a fake analyst.
 
 import {
-  ApiError, faceitClient, parseFaceitMatch, SAMPLE_MATCH_ID, sampleFaceit, sampleSteam, sampleSteamId, scoutFaceitMatch, steamClient, withReport,
+  ApiError, faceitClient, parseFaceitMatch, recentFromHistory, SAMPLE_MATCH_ID, sampleFaceit, sampleSteam, sampleSteamId, scoutFaceitMatch, steamClient, withReport,
   type CacheStore, type FaceitApi, type SteamApi,
 } from '@csbot/scout';
-import { EMPTY_SCOUT, type DataSourceState, type ScoutReport, type ScoutView } from '@csbot/protocol';
+import { EMPTY_SCOUT, type DataSourceState, type RecentMatch, type ScoutReport, type ScoutView } from '@csbot/protocol';
 import type { AnalystResult } from './claude.ts';
 import type { KeyService } from './secrets.ts';
 
@@ -37,6 +37,7 @@ export interface ScoutServiceOptions {
 export const ERRORS = {
   badLink: "That doesn't look like a FACEIT match link. Open your match room on faceit.com and copy its address.",
   noKey: 'Add your FACEIT API key in Settings, or try the sample match.',
+  noKeyAccount: 'Add your FACEIT API key first: csbot looks your account up with it.',
   auth: 'FACEIT refused your API key. Check it in Settings.',
   notFound: 'FACEIT has no match with that link. Copy the link from your match room.',
   rateLimit: 'FACEIT is limiting requests right now. Try again in a minute.',
@@ -60,6 +61,11 @@ export class ScoutService {
   /** Last good report per match: re-scouting (fresh data) keeps it instead of spending another call. */
   private reports = new Map<string, ScoutReport>();
   private reportBusy = false;
+  /** The host's FACEIT account and recent matches: kept across scouts (merged into every view). */
+  private account?: NonNullable<ScoutView['account']> & { playerId?: string };
+  private recent?: RecentMatch[];
+  /** Live matches already scouted automatically (never twice). */
+  private autoScouted = new Set<string>();
 
   constructor(o: ScoutServiceOptions) {
     this.o = { now: Date.now, autoReport: true, manualRuns: 2, ...o };
@@ -108,6 +114,64 @@ export class ScoutService {
     const room = new Map(Object.entries(this.o.roomSteamIds?.() ?? {}).map(([k, v]) => [k.toLowerCase(), v]));
     const players = this.view.us.players.map(p => ({ ...p, room: (p.steamid ? room.get(p.steamid) : undefined) ?? room.get(p.nickname.toLowerCase()) ?? 'random' as const }));
     this.set({ ...this.view, us: { ...this.view.us, players } });
+  }
+
+  /**
+   * The host's FACEIT nickname (null clears it). Looks the account up, then lists recent matches.
+   * Needs a FACEIT key; the nickname itself is public and stored in plain settings.
+   */
+  async setNickname(nickname: string | null): Promise<{ ok: boolean; error?: string }> {
+    const nick = nickname?.trim();
+    if (!nick) { this.account = undefined; this.recent = undefined; this.set({ ...this.view }); return { ok: true }; }
+    const faceit = this.faceit();
+    if (!faceit?.playerByNickname) {
+      this.account = { nickname: nick, status: 'error', error: ERRORS.noKeyAccount };
+      this.set({ ...this.view });
+      return { ok: false, error: ERRORS.noKeyAccount };
+    }
+    try {
+      const p = await faceit.playerByNickname(nick);
+      const g = p.games?.cs2;
+      this.account = { nickname: p.nickname, status: 'ok', playerId: p.player_id, ...(g?.skill_level ? { level: g.skill_level } : {}), ...(g?.faceit_elo ? { elo: g.faceit_elo } : {}) };
+      this.set({ ...this.view });
+      await this.refreshRecent();
+      return { ok: true };
+    } catch (e) {
+      const notFound = e instanceof ApiError && e.kind === 'not-found';
+      if (e instanceof ApiError && e.kind === 'auth') this.markAuthError('faceit');
+      this.account = { nickname: nick, status: notFound ? 'not-found' : 'error', ...(notFound ? {} : { error: this.explain(e) }) };
+      this.recent = undefined;
+      this.set({ ...this.view });
+      return { ok: false, error: notFound ? `FACEIT has no player called "${nick}".` : this.explain(e) };
+    }
+  }
+
+  /**
+   * Refresh the recent list (the host calls this every minute). A match that shows up live and
+   * wasn't scouted yet gets scouted automatically, once.
+   */
+  async refreshRecent(): Promise<void> {
+    const faceit = this.faceit();
+    const id = this.account?.playerId;
+    if (!faceit || !id) return;
+    try {
+      this.recent = recentFromHistory(id, await faceit.history(id, 6));
+    } catch (e) {
+      if (e instanceof ApiError && e.kind === 'auth') this.markAuthError('faceit');
+      return;
+    }
+    this.set({ ...this.view });
+    const live = this.recent.find(m => m.live);
+    if (live && !this.autoScouted.has(live.id) && this.view.matchId !== live.id && this.view.status !== 'loading') {
+      this.autoScouted.add(live.id);
+      await this.scoutMatch(live.id);
+    }
+  }
+
+  private faceit(): FaceitApi | undefined {
+    const key = this.o.keys.get('faceit');
+    if (!key) return undefined;
+    return (this.o.makeFaceit ?? (k => faceitClient({ apiKey: k, ...(this.o.cache ? { cache: this.o.cache } : {}) })))(key);
   }
 
   /** Manual (re-)run from the Scout page. */
@@ -209,6 +273,10 @@ export class ScoutService {
   }
 
   private set(v: ScoutView): void {
+    const { playerId: _id, ...account } = this.account ?? ({} as NonNullable<ScoutService['account']>);
+    v = { ...v, ...(this.account ? { account } : {}), ...(this.recent ? { recent: this.recent } : {}) };
+    if (!this.account) delete v.account;
+    if (!this.recent) delete v.recent;
     this.view = v;
     for (const cb of this.listeners) { try { cb(v); } catch { /* a bad listener must not break scouting */ } }
   }

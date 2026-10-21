@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ANALYST_SCHEMA, analystInput, ApiError, faceitClient, MemoryStore, parseAnalyst, parseFaceitMatch, SAMPLE_MATCH_ID, sampleFaceit,
+  ANALYST_SCHEMA, analystInput, ApiError, faceitClient, MemoryStore, parseAnalyst, parseFaceitMatch, recentFromHistory, SAMPLE_MATCH_ID, sampleFaceit,
   sampleSteam, sampleSteamId, scoutFaceitMatch, steamClient, withReport, type FetchLike,
 } from '../src/index.ts';
 
@@ -83,6 +83,19 @@ describe('scouting the sample match', () => {
   });
 });
 
+describe('recent matches', () => {
+  it('lists recent matches with result, opponent and live status', async () => {
+    const f = sampleFaceit();
+    const me = await f.playerByNickname!('RDX');
+    const recent = recentFromHistory(me.player_id, await f.history(me.player_id, 20), 5);
+    expect(recent).toHaveLength(5);
+    expect(recent[0]).toMatchObject({ status: 'FINISHED', live: false, vs: 'team_opp0', won: false });
+    expect(recent[1]!.won).toBe(true);
+    const live = recentFromHistory('p', { items: [{ match_id: '1-x', status: 'ONGOING', teams: { faction1: { players: [{ player_id: 'p' }] }, faction2: { nickname: 'team_live' } } }] });
+    expect(live[0]).toMatchObject({ live: true, vs: 'team_live' });
+  });
+});
+
 describe('API clients', () => {
   const fakeFetch = (routes: Record<string, () => { status: number; body?: unknown; headers?: Record<string, string> }>, seen: { url: string; headers?: Record<string, string> }[] = []): FetchLike =>
     async (url, init) => {
@@ -120,6 +133,17 @@ describe('API clients', () => {
     const err = (await c.bans(['1']).catch(e => e)) as ApiError;
     expect(err.kind).toBe('auth');
     expect(err.message).not.toContain('SECRETKEY');
+  });
+
+  it('checks keys with one cheap call', async () => {
+    const seen: { url: string }[] = [];
+    const ok = faceitClient({ apiKey: 'good', retryDelayMs: 0, fetch: fakeFetch({ '/games?offset=0&limit=1': () => ({ status: 200, body: { items: [] } }) }, seen) });
+    await expect(ok.ping!()).resolves.toBeUndefined();
+    expect(seen[0]!.url).toBe('https://open.faceit.com/data/v4/games?offset=0&limit=1');
+    const bad = steamClient({ apiKey: 'BADKEY', retryDelayMs: 0, fetch: fakeFetch({ GetSupportedAPIList: () => ({ status: 403 }) }) });
+    const err = (await bad.ping!().catch(e => e)) as ApiError;
+    expect(err.kind).toBe('auth');
+    expect(err.message).not.toContain('BADKEY');
   });
 
   it('reads FACEIT room links and ids', () => {

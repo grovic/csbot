@@ -156,3 +156,63 @@ test('desktop host: scout a match, the sample, the briefing and the API keys', a
   await page.getByTestId('data-sources').screenshot({ path: path.join(SCREENS, 'settings-data-sources.png') });
   expect(errors).toEqual([]);
 });
+
+test('desktop host: your FACEIT nickname lists recent matches, one click scouts one', async ({ page }) => {
+  const errors = watchErrors(page);
+  const base: ScoutView = { ...EMPTY_SCOUT, sources: { faceit: 'live', steam: 'live', claude: 'live' } };
+  const withAccount: ScoutView = {
+    ...base,
+    account: { nickname: 'rdx', status: 'ok', level: 9, elo: 2050 },
+    recent: [
+      { id: '1-00000000-0000-4000-8000-0000000000aa', status: 'ONGOING', live: true, vs: 'team_kappa', startedAt: Date.UTC(2026, 9, 21, 20) },
+      { id: '1-00000000-0000-4000-8000-0000000000bb', status: 'FINISHED', live: false, won: true, vs: 'team_delta', startedAt: Date.UTC(2026, 9, 20, 21) },
+    ],
+  };
+  await page.addInitScript(([base, withAccount]) => {
+    type Cb = (x: unknown) => void;
+    const calls: string[] = [];
+    const cbs = new Set<Cb>();
+    let current: unknown = base;
+    const w = window as unknown as Record<string, unknown>;
+    w.__calls = calls;
+    const snap = { v: 1, seq: 1, at: Date.now(), scoreboard: [], ticker: [], connection: { gsi: 'waiting', payloads: 0, source: 'game', guardDropped: 0 } };
+    w.csbot = {
+      onSnapshot: (cb: Cb) => { cb(snap); return () => {}; },
+      onScout: (cb: Cb) => { cbs.add(cb); cb(current); return () => cbs.delete(cb); },
+      getInfo: async () => ({ version: '0.1.0', gsiUrl: 'http://127.0.0.1:47400', cfgStatus: 'current', recordingsDir: 'C:\csbot\recordings' }),
+      installCfg: async () => ({ ok: true }), openRecordings: async () => {},
+      scoutMatch: async (id: string) => { calls.push('match:' + id); return { ok: true }; },
+      scoutSample: async () => {}, runScoutReport: async () => ({ ok: true }), setApiKey: async () => ({ ok: true }),
+      setFaceitNickname: async (nick: string | null) => {
+        calls.push('nick:' + nick);
+        if (nick === 'nobody') return { ok: false, error: 'FACEIT has no player called "nobody".' };
+        current = withAccount; for (const cb of cbs) cb(current); return { ok: true };
+      },
+    };
+  }, [base, withAccount] as const);
+  const calls = () => page.evaluate(() => (window as unknown as { __calls: string[] }).__calls);
+
+  await page.goto('./#/scout');
+  await expect(page.getByTestId('scout-empty')).toContainText('Add your FACEIT nickname');
+  await page.evaluate(() => { location.hash = '#/settings'; });
+  await expect(page.getByTestId('faceit-account')).toHaveAttribute('data-state', 'none');
+  await page.getByTestId('faceit-nickname').fill('nobody');
+  await page.getByTestId('faceit-nickname-save').click();
+  await expect(page.getByTestId('data-sources')).toContainText('no player called "nobody"');
+  await page.getByTestId('faceit-nickname').fill('rdx');
+  await page.getByTestId('faceit-nickname-save').click();
+  await expect(page.getByTestId('faceit-account')).toHaveAttribute('data-state', 'ok');
+  await expect(page.getByTestId('faceit-account')).toContainText('rdx · lvl 9 · 2,050 ELO');
+
+  await page.evaluate(() => { location.hash = '#/scout'; });
+  const items = page.getByTestId('recent-match');
+  await expect(items).toHaveCount(2);
+  await expect(items.first()).toHaveAttribute('data-live', '1');
+  await expect(items.first()).toContainText('LIVE');
+  await expect(items.nth(1)).toContainText('vs team_delta');
+  await shot(page, 'scout-recent', false);
+  await items.nth(1).click();
+  await expect.poll(calls).toContain('match:1-00000000-0000-4000-8000-0000000000bb');
+  expect(await calls()).toEqual(['nick:nobody', 'nick:rdx', 'match:1-00000000-0000-4000-8000-0000000000bb']);
+  expect(errors).toEqual([]);
+});

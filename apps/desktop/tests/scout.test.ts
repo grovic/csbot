@@ -229,6 +229,48 @@ describe('room labels', () => {
   });
 });
 
+describe('your FACEIT account and recent matches', () => {
+  it('needs a key, finds the account, lists recent matches', async () => {
+    const none = new ScoutService({ keys: keys(), autoReport: false });
+    expect((await none.setNickname('rdx')).ok).toBe(false);
+    expect(none.current.account!.status).toBe('error');
+
+    const svc = new ScoutService({ keys: keys({ faceit: 'faceit-key-0000000000' }), makeFaceit: () => sampleFaceit(), autoReport: false });
+    expect((await svc.setNickname('RDX')).ok).toBe(true);
+    expect(svc.current.account).toMatchObject({ nickname: 'rdx', status: 'ok', level: 9, elo: 2050 });
+    expect(svc.current.account).not.toHaveProperty('playerId'); // internal id stays on the host
+    expect(svc.current.recent).toHaveLength(6);
+    // Scouting keeps the account and the list.
+    await svc.scoutSample();
+    expect(svc.current.recent).toHaveLength(6);
+    expect((await svc.setNickname('nobody-here')).error).toMatch(/no player called/);
+    expect(svc.current.account!.status).toBe('not-found');
+  });
+
+  it('scouts a match that turns live, once', async () => {
+    const f = sampleFaceit();
+    let live = false;
+    const faceit: FaceitApi = {
+      ...f,
+      history: async id => {
+        const h = await f.history(id, 6);
+        return live ? { items: [{ match_id: '1-00000000-0000-4000-8000-000000000001', status: 'ONGOING', teams: { faction1: { players: [{ player_id: id }] } } }, ...h.items] } : h;
+      },
+    };
+    const svc = new ScoutService({ keys: keys({ faceit: 'faceit-key-0000000000' }), makeFaceit: () => faceit, autoReport: false });
+    await svc.setNickname('rdx');
+    expect(svc.current.status).toBe('idle');
+    live = true;
+    await svc.refreshRecent();
+    expect(svc.current.status).toBe('ready');
+    expect(svc.current.matchId).toBe('1-00000000-0000-4000-8000-000000000001');
+    expect(svc.current.recent![0]!.live).toBe(true);
+    const fetchedAt = svc.current.fetchedAt;
+    await svc.refreshRecent();
+    expect(svc.current.fetchedAt).toBe(fetchedAt); // not scouted again
+  });
+});
+
 describe('claude runner (fake binary)', () => {
   const cmd = () => claudeCommand({ CSBOT_CLAUDE_BIN: FAKE });
   const sampleView = async () => {

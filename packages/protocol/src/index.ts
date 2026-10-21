@@ -206,6 +206,8 @@ export interface CsbotBridge {
    * FACEIT nicknames (case-insensitive): members should join under their FACEIT name.
    */
   setRoomRoster?(members: { name: string }[]): void;
+  /** The host's FACEIT nickname: lists their recent matches and spots a live one. null clears it. */
+  setFaceitNickname?(nickname: string | null): Promise<{ ok: boolean; error?: string }>;
   /** Save or clear an API key (stored encrypted on this PC; never sent to the room). */
   setApiKey?(service: 'faceit' | 'steam', key: string | null): Promise<{ ok: boolean; error?: string }>;
 }
