@@ -134,7 +134,7 @@ function HotkeysCard({ bridge }: { bridge: CsbotBridge }) {
       {hk && hk.keys.length > 0 && (
         <ul className="hotkeys" data-testid="hotkeys-list" data-enabled={on ? '1' : '0'}>
           {hk.keys.map(k => (
-            <li key={k.key}><kbd>{k.key}</kbd><span>{k.zoneName} {k.kind === 'clear' ? 'clear' : 'seen'}</span>{k.kind === 'sighting' && <span className="muted small">press 1-5× for the count</span>}</li>
+            <li key={k.key}><kbd>{k.key}</kbd><span>{k.kind === 'checkin' ? k.zoneName : `${k.zoneName} ${k.kind === 'clear' ? 'clear' : 'seen'}`}</span>{k.kind === 'sighting' && <span className="muted small">press 1-5× for the count</span>}{k.kind === 'checkin' && <span className="muted small">your marker, in a room</span>}</li>
           ))}
         </ul>
       )}

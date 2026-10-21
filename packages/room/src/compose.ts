@@ -31,6 +31,7 @@ export function personalize(live: LiveSnapshot, rows: readonly PlayerRow[], p: P
     delete out.call;
     delete out.forecast;
     delete out.setupSpots;
+    delete out.squad;
   }
   return out;
 }

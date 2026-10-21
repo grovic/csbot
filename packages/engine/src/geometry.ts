@@ -151,11 +151,32 @@ function graphOf(geo: MapGeo) {
  * ends with `*` (e.g. `palace*`). The route ends at the last zone's hub.
  */
 export function routeThrough(geo: MapGeo, from: 'T' | 'CT', zones: readonly string[]): Waypoint[] {
-  const nz = geo.zones.length;
+  const start = from === 'T' ? geo.zones.length : geo.zones.length + 1;
+  return walkFrom(geo, start, [[geo.nodes[start]![0], geo.nodes[start]![1], 0]], 0, zones);
+}
+
+/**
+ * A walking route from any map point (a player's spot) through zones in order: first to the hub of
+ * the zone the point is in (or the nearest hub), then on the walking graph as in routeThrough.
+ */
+export function routeFrom(geo: MapGeo, from: Point, zones: readonly string[]): Waypoint[] {
+  const here = zoneAt(geo, from[0], from[1]);
+  let start = here ? geo.zones.indexOf(here) : -1;
+  if (start < 0) {
+    let best = Infinity;
+    geo.zones.forEach((_, i) => { const n = geo.nodes[i]!; const d = Math.hypot(n[0] - from[0], n[1] - from[1]); if (d < best) { best = d; start = i; } });
+  }
+  const hub = geo.nodes[start]!;
+  // Straight to the hub at about knife speed (map units per second vary by map: use the world scale).
+  const toHub = Math.hypot(hub[0] - from[0], hub[1] - from[1]) / (geo.world.s * 250);
+  const out: Waypoint[] = [[from[0], from[1], 0]];
+  if (toHub > 0.05) out.push([hub[0], hub[1], Math.round(toHub * 10) / 10]);
+  return walkFrom(geo, start, out, toHub, zones);
+}
+
+function walkFrom(geo: MapGeo, start: number, out: Waypoint[], t0: number, zones: readonly string[]): Waypoint[] {
   const { adj, members } = graphOf(geo);
-  const start = from === 'T' ? nz : nz + 1;
-  const out: Waypoint[] = [[geo.nodes[start]![0], geo.nodes[start]![1], 0]];
-  let at = start, t = 0;
+  let at = start, t = t0;
   zones.forEach((step, k) => {
     const id = step.replace(/\*$/, '');
     const z = geo.zones.findIndex(x => x.id === id);

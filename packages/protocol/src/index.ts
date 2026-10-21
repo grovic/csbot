@@ -172,8 +172,33 @@ export interface LiveSnapshot {
   scoreboard: PlayerRow[];
   /** Intel logged this round, oldest first. */
   intel?: IntelView[];
+  /** Our squad on the map, in a room: planned spots, check-ins, rotations and deaths. */
+  squad?: SquadMarker[];
   /** Newest first. */
   ticker: TickerItem[];
+}
+
+/**
+ * A teammate's marker. Positions are planned or reported, never read from the game: players don't
+ * get teammates' positions from GSI, so a marker is where the call puts them or where they say they are.
+ */
+export type SquadState = 'planned' | 'spot' | 'rotating' | 'dead';
+export interface SquadMarker {
+  /** Playbook slot (matches SetupSpot.player and CallView.jobs keys). */
+  slot: string;
+  /** The member in the slot, or the slot's label when nobody holds it. */
+  name: string;
+  /** No room member holds the slot (a random in gather mode). */
+  open?: boolean;
+  state: SquadState;
+  /** Where the marker sits (map units). For a rotation, where it started. */
+  at: readonly [number, number];
+  label: string;
+  /** Rotating: the site and the route from `at` as [x, y, seconds]. */
+  to?: 'A' | 'B';
+  route?: readonly (readonly [number, number, number])[];
+  /** When the state began (epoch ms); a rotation's progress runs from here. */
+  since?: number;
 }
 
 /** Host-side info the desktop shell exposes to its own renderer (not sent to the room). */
@@ -195,7 +220,7 @@ export interface HostInfo {
    * Numpad intel hotkeys (desktop, off by default: a global hotkey takes the key away from the game).
    * Pressing a sighting key n times within 1.5 s logs n enemies; a clear key logs the zone clear.
    */
-  intelHotkeys?: { enabled: boolean; keys: { key: string; zone: string; zoneName: string; kind: 'sighting' | 'clear' }[]; error?: string };
+  intelHotkeys?: { enabled: boolean; keys: { key: string; zone: string; zoneName: string; kind: 'sighting' | 'clear' | 'checkin' }[]; error?: string };
   /** Auto-update (installed copies only). */
   update?: { version: string; state: 'off' | 'checking' | 'up-to-date' | 'downloading' | 'ready' | 'error'; available?: string; error?: string };
 }
@@ -218,6 +243,8 @@ export interface CsbotBridge {
    * room forwards them to that room's host.
    */
   onGsi?(cb: (payload: Record<string, unknown>) => void): () => void;
+  /** Squad check-ins from this PC's hotkeys (Num4/5/6): the renderer sends them to the room. */
+  onCheckIn?(cb: (state: 'spot' | 'rotate', site?: 'A' | 'B') => void): () => void;
   /** Scouting for the current match (M3). Called with the latest view right away. */
   onScout?(cb: (s: ScoutView) => void): () => void;
   /** Scout a FACEIT match from its room link or id. */

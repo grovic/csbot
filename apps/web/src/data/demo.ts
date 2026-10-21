@@ -4,7 +4,25 @@
 import { GEOS, MatchTracker } from '@csbot/engine';
 import { FULL_MATCH, syntheticMatch, toGameState, type RecordedPayload } from '@csbot/gsi';
 import type { LiveSnapshot } from '@csbot/protocol';
+import { composeSquad, type CheckIn, type SlotInfo } from '@csbot/room';
+import { demoRoom } from './demoRoom.ts';
 import type { SnapshotSource } from './source.ts';
+
+/**
+ * The demo room's squad: the fictional teammates check in on their spots a few seconds into each live
+ * round, and the viewer (rdx, slot a) checks in with the map buttons.
+ */
+function withSquad(s: LiveSnapshot, mine: Map<string, CheckIn>, liveAt: number | undefined): LiveSnapshot {
+  const room = demoRoom(s.match?.map);
+  const bySlot = new Map<string, SlotInfo>(room.members.filter(m => m.slot).map(m => [m.slot!, { name: m.name }]));
+  const phase = s.match?.clock.phase;
+  if ((phase === 'live' || phase === 'bomb') && liveAt !== undefined && s.at - liveAt > 4000) {
+    for (const slot of ['short', 'rotator']) { const i = bySlot.get(slot); if (i) i.checkIn = { state: 'spot', at: liveAt + 4000 }; }
+  }
+  for (const [slot, c] of mine) { const i = bySlot.get(slot); if (i) i.checkIn = c; }
+  const squad = composeSquad(s, bySlot);
+  return squad ? { ...s, squad } : s;
+}
 
 export interface DemoOptions {
   /** Virtual seconds per real second. */
@@ -76,8 +94,18 @@ export function demoSource(opts: DemoOptions = {}): SnapshotSource {
       tracker.ingest(toGameState(r.p, r.t));
     }
   };
+  // The viewer's own check-ins this round, and when the round went live (for the teammates' check-ins).
+  const mine = new Map<string, CheckIn>();
+  let squadRound = 0, liveAt: number | undefined;
+  const snap = () => {
+    const s = tracker.snapshot(virtualNow);
+    const round = s.match?.round ?? 0;
+    if (round !== squadRound) { squadRound = round; mine.clear(); liveAt = undefined; }
+    if ((s.match?.clock.phase === 'live' || s.match?.clock.phase === 'bomb') && liveAt === undefined) liveAt = s.match.clock.phase === 'live' ? virtualNow - ((s.forecast?.liveT ?? 0) * 1000) : virtualNow;
+    return withSquad(s, mine, liveAt);
+  };
   const emit = () => {
-    last = tracker.snapshot(virtualNow);
+    last = snap();
     for (const cb of subs) cb(last);
   };
 
@@ -110,6 +138,13 @@ export function demoSource(opts: DemoOptions = {}): SnapshotSource {
   return {
     kind: 'demo',
     rate: () => (paused ? 0 : speed),
+    checkIn(slot, state, site) {
+      const phase = last?.match?.clock.phase;
+      if (phase !== 'freezetime' && phase !== 'live' && phase !== 'bomb') return { ok: false, error: 'Check-ins are for the round in progress.' };
+      mine.set(slot, { state, ...(site ? { site } : {}), at: virtualNow });
+      emit();
+      return { ok: true };
+    },
     addIntel(zone, count, by) {
       // At the demo's own clock, so it lands in the round being shown (paused or not).
       const r = tracker.addIntel({ zone, count, by, at: virtualNow });
@@ -118,7 +153,7 @@ export function demoSource(opts: DemoOptions = {}): SnapshotSource {
     },
     subscribe(cb) {
       subs.add(cb);
-      if (!last) last = tracker.snapshot(virtualNow);
+      if (!last) last = snap();
       cb(last);
       if (!timer) { realLast = Date.now(); timer = setInterval(tick, 250); }
       return () => {

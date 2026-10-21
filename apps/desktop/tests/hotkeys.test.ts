@@ -51,6 +51,7 @@ describe('intel hotkeys: registration', () => {
   it('has Num7/8/9 sightings and Num1/2/3 clears on Mirage, nothing on maps without a model', () => {
     expect(hotkeysFor('de_mirage').map(d => `${d.key}:${d.zone}:${d.kind}`)).toEqual([
       'Num7:aramp:sighting', 'Num8:topmid:sighting', 'Num9:bapps:sighting', 'Num1:aramp:clear', 'Num2:topmid:clear', 'Num3:bapps:clear',
+      'Num5:On my spot:checkin', 'Num4:Rotating → A:checkin', 'Num6:Rotating → B:checkin',
     ]);
     expect(hotkeysFor('de_vertigo')).toEqual([]);
   });
@@ -62,7 +63,7 @@ describe('intel hotkeys: registration', () => {
     hk.setMap('de_mirage');
     expect(sc.registered.size).toBe(0); // off by default
     hk.setEnabled(true);
-    expect([...sc.registered.keys()].sort()).toEqual(['num1', 'num2', 'num3', 'num7', 'num8', 'num9']);
+    expect([...sc.registered.keys()].sort()).toEqual(['num1', 'num2', 'num3', 'num4', 'num5', 'num6', 'num7', 'num8', 'num9']);
     expect(hk.status()).toMatchObject({ enabled: true, keys: expect.arrayContaining([{ key: 'Num9', zone: 'bapps', zoneName: 'B Apps', kind: 'sighting' }]) });
     sc.registered.get('num3')!(); // Num3: B Apps clear
     expect(logs).toEqual([['bapps', 0]]);
@@ -70,7 +71,7 @@ describe('intel hotkeys: registration', () => {
     expect(sc.registered.size).toBe(0);
     expect(hk.status()).toEqual({ enabled: true, keys: [], error: 'No map model for this map yet.' });
     hk.setMap('de_mirage');
-    expect(sc.registered.size).toBe(6);
+    expect(sc.registered.size).toBe(9);
     hk.setEnabled(false);
     expect(sc.registered.size).toBe(0);
     hk.setEnabled(true);
@@ -89,7 +90,22 @@ describe('intel hotkeys: registration', () => {
     const hk = new IntelHotkeys({ shortcuts: sc, log: () => {} });
     hk.setMap('de_mirage');
     hk.setEnabled(true);
-    expect(registered.size).toBe(5);
+    expect(registered.size).toBe(8);
     expect(hk.status().error).toBe('Num8 is taken by another app.');
+  });
+});
+
+describe('squad check-in hotkeys', () => {
+  it('Num5 checks in on my spot, Num4 / Num6 rotate to A / B', () => {
+    const sc = fakeShortcuts();
+    const got: string[] = [];
+    const hk = new IntelHotkeys({ shortcuts: sc, log: () => {}, checkIn: (state, site) => got.push(site ? `${state}:${site}` : state) });
+    hk.setMap('de_dust2');
+    hk.setEnabled(true);
+    sc.registered.get('num5')!();
+    sc.registered.get('num4')!();
+    sc.registered.get('num6')!();
+    expect(got).toEqual(['spot', 'rotate:A', 'rotate:B']);
+    expect(hk.status().keys.filter(k => k.kind === 'checkin').map(k => k.zoneName)).toEqual(['On my spot', 'Rotating → A', 'Rotating → B']);
   });
 });

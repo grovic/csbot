@@ -227,6 +227,13 @@ Every source of teammate positions we considered:
 
 Randoms show their planned spot and a "random" tag, unless a dead room member is watching them. In that case they go live too.
 
+*Built (M4e):*
+- In a room, every slot's marker is shown to everyone: planned (dashed), on spot (solid), rotating (moving along the route to the site with a countdown) and dead (✕).
+- Players check in with "On my spot" and "Rotating → A / B" buttons under the map, or Num5 / Num4 / Num6 on the desktop app.
+- Deaths come from each player's own GSI shared through the room.
+- Check-ins reset every round.
+- Slots nobody in the room plays stay on their planned spot.
+
 **Fair play:** these are only our own team's positions, which every teammate already sees on their in-game radar. Enemy data never enters the room, and the room-wide guard drops `allplayers_*` from every device.
 
 ### 3.8 Host failure and handover

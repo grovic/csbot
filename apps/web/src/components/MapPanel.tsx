@@ -1,7 +1,8 @@
-import { GEOS, gridCells, heatGrid, MAPS, slotsFor, zoneAt, type GeoZone, type MapGeo } from '@csbot/engine';
-import type { IntelView, LiveSnapshot, RoomView } from '@csbot/protocol';
+import { GEOS, gridCells, heatGrid, MAPS, positionOnRoute, slotsFor, zoneAt, type GeoZone, type MapGeo } from '@csbot/engine';
+import type { IntelView, LiveSnapshot, RoomView, SquadMarker } from '@csbot/protocol';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { clockStr, mapName } from '../format.ts';
+import { useTicker } from '../hooks.ts';
 
 const G = 160;
 /** Intel pins fade over this many seconds (they stay visible, dimmed, for the rest of the round). */
@@ -266,12 +267,70 @@ function IntelLayer({ geo, view: v, block, onIntel, clockLeft }: { geo: MapGeo; 
   );
 }
 
-export function MapPanel({ snap, room, intelBlock, onIntel }: {
+/** Our squad: planned (dashed), on their spot (solid), rotating along the route with a countdown, dead (✕). */
+function SquadMarkers({ squad, view, youHandle, hostNow }: { squad: SquadMarker[]; view: View; youHandle?: string; hostNow: () => number }) {
+  const moving = squad.some(m => m.state === 'rotating');
+  useTicker(200, moving);
+  const now = hostNow();
+  return (
+    <>
+      {squad.map(m => {
+        const me = m.slot === youHandle;
+        let at: readonly [number, number] = m.at, text = m.label, arrived = false;
+        if (m.state === 'rotating' && m.route?.length && m.since !== undefined) {
+          const t = Math.max(0, (now - m.since) / 1000);
+          const end = m.route[m.route.length - 1]![2];
+          at = positionOnRoute(m.route, t);
+          arrived = t >= end;
+          text = arrived ? `at ${m.to}` : `→ ${m.to} · ${Math.ceil(end - t)} s`;
+        }
+        if (m.state === 'dead') text = 'dead';
+        if (m.state === 'spot') text = `${m.label} · on spot`;
+        const cls = 'mk ' + m.state + (arrived ? ' arrived' : '') + (me ? ' me' : '') + (m.open ? ' open' : '');
+        const who = me ? 'You' : m.name;
+        return (
+          <div key={m.slot} className={cls} style={pos(view, at[0], at[1])}
+            title={`${who} · ${m.state === 'planned' ? `${m.label} · planned spot` : text}${m.open ? ' · not in the room' : ''}`}
+            data-testid={me ? 'marker-you' : 'marker'} data-slot={m.slot} data-state={m.state}>
+            <i>{m.state === 'dead' ? '✕' : me ? 'YOU' : ''}</i>
+            <span>{me ? text : `${m.name} · ${text}`}</span>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+/** "On my spot" and rotations for our own marker, in a room. */
+function CheckInBar({ block, onCheckIn }: { block?: string; onCheckIn: (state: 'spot' | 'rotate', site?: 'A' | 'B') => Promise<string | undefined> }) {
+  const [err, setErr] = useState<string>();
+  const go = async (state: 'spot' | 'rotate', site?: 'A' | 'B') => {
+    const e = await onCheckIn(state, site);
+    setErr(e);
+    if (e) setTimeout(() => setErr(undefined), 4000);
+  };
+  return (
+    <div className="checkin" data-testid="checkin">
+      <span className="muted small">Your marker</span>
+      <button type="button" className="btn small" disabled={!!block} title={block} onClick={() => void go('spot')} data-testid="checkin-spot">On my spot</button>
+      <button type="button" className="btn small" disabled={!!block} title={block} onClick={() => void go('rotate', 'A')} data-testid="checkin-a">Rotating → A</button>
+      <button type="button" className="btn small" disabled={!!block} title={block} onClick={() => void go('rotate', 'B')} data-testid="checkin-b">Rotating → B</button>
+      {err && <span className="err small" role="alert" data-testid="checkin-error">{err}</span>}
+    </div>
+  );
+}
+
+export function MapPanel({ snap, room, intelBlock, onIntel, receivedAt, rate = 1, checkInBlock, onCheckIn }: {
   snap: LiveSnapshot;
   room?: RoomView;
   /** Why intel can't be logged right now (undefined = it can). */
   intelBlock?: string;
   onIntel?: (zone: string, count: number) => Promise<string | undefined>;
+  /** When this snapshot arrived and how fast host time runs (rotations move on the host's clock). */
+  receivedAt?: number;
+  rate?: number;
+  checkInBlock?: string;
+  onCheckIn?: (state: 'spot' | 'rotate', site?: 'A' | 'B') => Promise<string | undefined>;
 }) {
   const m = snap.match;
   const geo = m?.map ? GEOS[m.map] : undefined;
@@ -311,7 +370,10 @@ export function MapPanel({ snap, room, intelBlock, onIntel }: {
         {onIntel && <IntelLayer geo={geo} view={view} {...(intelBlock ? { block: intelBlock } : {})} onIntel={onIntel} {...(clockLeft !== undefined ? { clockLeft } : {})} />}
         <div className="map-html">
           <Labels geo={geo} view={view} />
-          {spots.map(s => {
+          {snap.squad ? (
+            <SquadMarkers squad={snap.squad} view={view} {...(snap.youHandle ? { youHandle: snap.youHandle } : {})}
+              hostNow={() => snap.at + (receivedAt !== undefined ? (Date.now() - receivedAt) * rate : 0)} />
+          ) : spots.map(s => {
             const me = s.player === snap.youHandle;
             return (
               <div key={s.player} className={'mk' + (me ? ' me' : '')} style={pos(view, s.at[0], s.at[1])}
@@ -343,7 +405,10 @@ export function MapPanel({ snap, room, intelBlock, onIntel }: {
           : <span className="chip est" data-testid="forecast-basis" data-basis="prior" title="From the enemy buy read only. Click a zone during the round to log intel.">from the buy read</span>)}
       </div>
       {onIntel && !intelBlock && <div className="maphint muted small">Click where you see enemies. Everyone's forecast updates.</div>}
-      {spots.length > 0 && (
+      {onCheckIn && room && <CheckInBar {...(checkInBlock ? { block: checkInBlock } : {})} onCheckIn={onCheckIn} />}
+      {snap.squad ? (
+        <div className="mapkey"><span><i className="k-plan" />planned</span><span><i className="k-spot" />on spot</span><span><i className="k-rot" />rotating</span><span>✕ dead</span><span className="muted">reported by each player, not game data</span></div>
+      ) : spots.length > 0 && (
         <div className="mapkey">{snap.youHandle && <span><i className="k-you" />your planned spot</span>}<span><i className="k-plan" />{snap.youHandle ? "teammates' planned spots (playbook)" : 'planned spots (playbook)'}</span></div>
       )}
     </div>

@@ -19,9 +19,19 @@ export interface HotkeyDef {
   accelerator: string;
   /** What the user reads, e.g. "Num7". */
   key: string;
+  /** Intel keys: the zone. Check-in keys: what the key says ("On my spot", "Rotating → A"). */
   zone: string;
-  kind: 'sighting' | 'clear';
+  kind: 'sighting' | 'clear' | 'checkin';
+  /** Check-in keys: on my spot, or rotating to a site. */
+  checkIn?: { state: 'spot' | 'rotate'; site?: 'A' | 'B' };
 }
+
+/** Squad check-ins (rooms): Num5 on my spot, Num4 / Num6 rotating to A / B. Same on every map. */
+const CHECKIN_KEYS: readonly HotkeyDef[] = [
+  { accelerator: 'num5', key: 'Num5', zone: 'On my spot', kind: 'checkin', checkIn: { state: 'spot' } },
+  { accelerator: 'num4', key: 'Num4', zone: 'Rotating → A', kind: 'checkin', checkIn: { state: 'rotate', site: 'A' } },
+  { accelerator: 'num6', key: 'Num6', zone: 'Rotating → B', kind: 'checkin', checkIn: { state: 'rotate', site: 'B' } },
+];
 
 /** Entry zones per map, A approach / mid / B approach, in Num7/8/9 (sighting) and Num1/2/3 (clear) order. */
 export const HOTKEY_ZONES: Readonly<Record<string, readonly [string, string, string]>> = {
@@ -40,10 +50,11 @@ export function hotkeysFor(map: string | undefined): HotkeyDef[] {
   return [
     ...zones.map((zone, i) => ({ accelerator: `num${7 + i}`, key: `Num${7 + i}`, zone, kind: 'sighting' as const })),
     ...zones.map((zone, i) => ({ accelerator: `num${1 + i}`, key: `Num${1 + i}`, zone, kind: 'clear' as const })),
+    ...CHECKIN_KEYS,
   ];
 }
 
-const zoneName = (map: string | undefined, zone: string) => (map ? GEOS[map]?.zones.find(z => z.id === zone)?.name : undefined) || zone;
+const zoneName = (map: string | undefined, def: Pick<HotkeyDef, 'zone' | 'kind'>) => (def.kind === 'checkin' ? def.zone : (map ? GEOS[map]?.zones.find(z => z.id === def.zone)?.name : undefined) || def.zone);
 
 export interface TimerApi {
   set(fn: () => void, ms: number): unknown;
@@ -99,9 +110,11 @@ export class IntelHotkeys {
   private failed: string[] = [];
   private readonly agg: IntelAggregator;
   private readonly shortcuts: ShortcutApi;
+  private readonly checkIn: (state: 'spot' | 'rotate', site?: 'A' | 'B') => void;
 
-  constructor(o: { shortcuts: ShortcutApi; log: (zone: string, count: number) => void; windowMs?: number; timers?: TimerApi }) {
+  constructor(o: { shortcuts: ShortcutApi; log: (zone: string, count: number) => void; checkIn?: (state: 'spot' | 'rotate', site?: 'A' | 'B') => void; windowMs?: number; timers?: TimerApi }) {
     this.shortcuts = o.shortcuts;
+    this.checkIn = o.checkIn ?? (() => {});
     this.agg = new IntelAggregator(o.log, { ...(o.windowMs !== undefined ? { windowMs: o.windowMs } : {}), ...(o.timers ? { timers: o.timers } : {}) });
   }
 
@@ -136,7 +149,7 @@ export class IntelHotkeys {
     // Keys for the current map (none before the first match, or on a map without a model).
     return {
       enabled: this.enabled,
-      keys: defs.map(d => ({ key: d.key, zone: d.zone, zoneName: zoneName(this.map, d.zone), kind: d.kind })),
+      keys: defs.map(d => ({ key: d.key, zone: d.zone, zoneName: zoneName(this.map, d), kind: d.kind })),
       ...(error ? { error } : {}),
     };
   }
@@ -149,7 +162,8 @@ export class IntelHotkeys {
     if (!this.enabled) return;
     for (const def of hotkeysFor(this.map)) {
       let ok = false;
-      try { ok = this.shortcuts.register(def.accelerator, () => this.agg.press(def)); } catch { ok = false; }
+      const press = def.checkIn ? () => this.checkIn(def.checkIn!.state, def.checkIn!.site) : () => this.agg.press(def);
+      try { ok = this.shortcuts.register(def.accelerator, press); } catch { ok = false; }
       if (ok) this.registered.push(def.accelerator);
       else this.failed.push(def.key);
     }

@@ -87,6 +87,8 @@ export const MemberMessage = z.discriminatedUnion('t', [
   z.object({ t: z.literal('rename'), name }),
   /** Intel: a zone and how many enemies were seen there (0 = clear). The host checks the intel permission. */
   z.object({ t: z.literal('intel'), zone: z.string().min(1).max(32).regex(/^[a-z0-9_]+$/), count: z.number().int().min(0).max(5) }),
+  /** Squad check-in for the member's own slot: on my spot, or rotating to a site. */
+  z.object({ t: z.literal('checkin'), state: z.enum(['spot', 'rotate']), site: z.enum(['A', 'B']).optional() }),
   /** A question for the coach (the host checks the ask permission and the member's quota). */
   z.object({ t: z.literal('ask'), text: z.string().trim().min(2).max(300) }),
   z.object({ t: z.literal('bye') }),

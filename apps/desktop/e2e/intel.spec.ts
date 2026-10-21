@@ -75,6 +75,7 @@ test('numpad hotkeys switch on and off, with the keys for the current map (never
   expect(info.intelHotkeys!.enabled).toBe(true);
   expect(info.intelHotkeys!.keys.map(k => `${k.key} ${k.zoneName} ${k.kind}`)).toEqual([
     'Num7 A Ramp sighting', 'Num8 Top Mid sighting', 'Num9 B Apps sighting', 'Num1 A Ramp clear', 'Num2 Top Mid clear', 'Num3 B Apps clear',
+    'Num5 On my spot checkin', 'Num4 Rotating → A checkin', 'Num6 Rotating → B checkin',
   ]);
   const settings = JSON.parse(fs.readFileSync(path.join(host.dir, 'userData', 'settings.json'), 'utf8')) as { intelHotkeys?: boolean };
   expect(settings.intelHotkeys).toBe(true);
