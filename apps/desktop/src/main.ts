@@ -125,7 +125,13 @@ function run(): void {
       for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('csbot:scout', v);
     };
     scout.onChange(sendScout);
-    void scout.init().then(() => { if (settings.faceitNickname) void scout?.setNickname(settings.faceitNickname); });
+    void scout.init().then(async () => {
+      if (process.env.CSBOT_KEY_CHECK !== 'off') {
+        const k = await scout?.verifyKeys();
+        if (k) log(`saved keys: faceit ${k.faceit ?? 'none'}, steam ${k.steam ?? 'none'}`);
+      }
+      if (settings.faceitNickname) void scout?.setNickname(settings.faceitNickname);
+    });
     // Recent FACEIT matches every minute: a match that turns live gets scouted on its own.
     setInterval(() => { void scout?.refreshRecent(); }, 60_000).unref();
     ipcMain.handle('csbot:setFaceitNickname', async (e, nickname: unknown) => {
@@ -207,6 +213,7 @@ function run(): void {
       minWidth: 900,
       minHeight: 600,
       backgroundColor: '#0b0f14',
+      icon: path.join(app.getAppPath(), 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
       title: 'csbot',
       show: false,
       paintWhenInitiallyHidden: true,

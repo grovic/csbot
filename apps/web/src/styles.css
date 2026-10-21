@@ -19,7 +19,7 @@ code{font:12px ui-monospace,"Cascadia Code",Consolas,monospace;color:#c7ccd4}
 /* header */
 .hdr{display:grid;grid-template-columns:auto auto 1fr auto;align-items:center;gap:10px 18px;padding:10px 16px;border-bottom:1px solid var(--line);background:#121418;position:sticky;top:0;z-index:10}
 .brand{display:flex;align-items:center;gap:8px;font-weight:750;font-size:15px}
-.logo{display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--t-hi);transform:rotate(45deg)}
+.logo-mark{display:block;flex:none}
 .nav{justify-self:start;display:flex;gap:2px;background:var(--sunken);border:1px solid var(--line);border-radius:8px;padding:3px;flex-wrap:wrap}
 .nav a{border-radius:6px;padding:5px 13px;color:var(--muted);font-weight:600;font-size:13px;display:flex;align-items:center;gap:7px;text-decoration:none}
 .nav a:hover{color:var(--ink2)}
