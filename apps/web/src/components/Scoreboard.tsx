@@ -1,4 +1,5 @@
 import type { LiveSnapshot, PlayerRow, RoundRecord, ScoutView, Side } from '@csbot/protocol';
+import { lossBonus } from '@csbot/engine';
 import { fmt$ } from '../format.ts';
 import { ReasonIcon } from './Icons.tsx';
 import { elo, kd, PartyBadge, roleText, ThreatBar } from './ScoutBits.tsx';
@@ -132,7 +133,7 @@ export function Scoreboard({ snap, inRoom = false, scout }: { snap: LiveSnapshot
           <div className="team-h">{theirs && <span className={'side-tag ' + theirs.toLowerCase()}>{theirs}</span>}Enemy<span className="n">{m.score.them}</span></div>
           <div className="enemy-box" data-testid="enemy-box">
             <div className="money">
-              {e ? <>Est. {fmt$(e.lo)}–{fmt$(e.hi)} each · loss streak {e.streak}{e.saved ? ' · saved last round' : ''}</> : <>Money estimate starts at freeze time</>}
+              {e ? <>Est. {fmt$(e.lo)}–{fmt$(e.hi)} each · next loss pays {fmt$(lossBonus(e.streak + 1))}{e.saved ? ' · saved last round' : ''}</> : <>Money estimate starts at freeze time</>}
               <span className="chip est">estimate</span>
             </div>
             {scout?.them.players.length

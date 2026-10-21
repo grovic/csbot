@@ -587,6 +587,7 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
 8. **Electron footprint** on a gaming PC (RAM/CPU during a match).
    - **Done: go,** with a hidden window: 268 MB private memory and 0.2% CPU while hosting (`tools/spikes/electron-footprint`). To re-measure with a visible window during a real match.
 9. **Economy rules** checked against demo truth.
+   - *Status:* partly done with a real GSI recording (competitive de_dust2, 2026-10-21, kept on the owner's PC only). Players never get `round_wins`. The half's last round ends in an `intermission` payload and the match's last in a `gameover` one. An exploded bomb is never reported. Each half starts at loss-bonus level 1, so a lost pistol round pays $1,900. The tracker now handles all four: 23 of 23 rounds are recorded with the right winner. Enemy money still needs demo truth.
    - *Status:* needs demo files, same as spike 6.
 
 ### Milestones

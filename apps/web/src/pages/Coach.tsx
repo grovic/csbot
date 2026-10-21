@@ -158,7 +158,7 @@ function Economy({ live }: { live?: LiveSnapshot }) {
           <div className="muted">The estimate starts with the first round.</div>
         ) : (
           <>
-            <div className="teamline">per player · from scores, loss streaks and round results</div>
+            <div className="teamline">per player · from scores, loss bonus levels and round results</div>
             <div className="econ-big">{fmt$(e.lo)} – {fmt$(e.hi)}</div>
             <div className="band">
               <div className="axis" />
@@ -168,8 +168,8 @@ function Economy({ live }: { live?: LiveSnapshot }) {
               <span className="tl2" style={{ left: `${X(4100)}%` }}>full buy $4.1k</span>
             </div>
             <div className="teamline" style={{ margin: '8px 0' }}>
-              Loss streak <span className="pips">{[0, 1, 2, 3, 4].map(i => <i key={i} className={i < e.streak ? 'on' : ''} />)}</span>
-              next loss pays {fmt$(lossBonus(Math.min(5, e.streak + 1)))}{e.saved ? ' · saved last round' : ''}
+              Loss bonus level <span className="pips">{[0, 1, 2, 3, 4].map(i => <i key={i} className={i < e.streak ? 'on' : ''} />)}</span>
+              next loss pays {fmt$(lossBonus(e.streak + 1))}{e.saved ? ' · saved last round' : ''}
             </div>
             <div className="bars" style={{ ['--lw' as string]: '64px' }}>
               {(['eco', 'force', 'half', 'full'] as const).map(k => <BarRow key={k} label={BUY_LABEL[k]} v={e.buy[k]} max={k === top} />)}

@@ -54,6 +54,13 @@ export interface SyntheticOptions {
   lean?: boolean;
   /** Rounds per half (12 in competitive). */
   halfLength?: number;
+  /**
+   * End rounds the way CS2 sent them to a player in a real match (2026-10-21): map.round already counts
+   * the finished round during "over"; the half's last round ends with one payload already in
+   * intermission; the match's last round ends with one gameover payload whose round.phase is
+   * "freezetime"; an exploded bomb isn't reported (round.bomb is cleared) and the bomb runs its 40 s.
+   */
+  cs2Ends?: boolean;
 }
 
 const other = (s: Side): Side => (s === 'CT' ? 'T' : 'CT');
@@ -63,7 +70,8 @@ export function syntheticMatch(o: SyntheticOptions = {}): RecordedPayload[] {
   const rounds = o.rounds ?? FIRST_HALF, tick = o.tick ?? 2;
   let t = o.start ?? Date.UTC(2026, 9, 21, 20, 0, 0);
   const out: RecordedPayload[] = [];
-  const score = { us: 0, them: 0 }, streak = { us: 0, them: 0 };
+  // consecutive_round_losses is CS2's loss-bonus level: each half starts at 1 (a lost pistol round pays $1,900).
+  const score = { us: 0, them: 0 }, streak = { us: 1, them: 1 };
   const roundWins: Record<string, string> = {};
   const stats = { kills: 0, assists: 0, deaths: 0, mvps: 0 };
   const mateStats = SYNTHETIC_MATES.map(() => ({ kills: 0, assists: 0, deaths: 0, mvps: 0, money: 800 }));
@@ -107,7 +115,7 @@ export function syntheticMatch(o: SyntheticOptions = {}): RecordedPayload[] {
     const r = i + 1;
     if (i > 0 && i % half === 0) {
       // Halftime: sides swap, money and loss bonus reset.
-      ourSide = other(ourSide); money = 800; rifle = false; streak.us = 0; streak.them = 0;
+      ourSide = other(ourSide); money = 800; rifle = false; streak.us = 1; streak.them = 1;
       for (const ms of mateStats) ms.money = 800;
     }
     const startMoney = money;
@@ -133,7 +141,8 @@ export function syntheticMatch(o: SyntheticOptions = {}): RecordedPayload[] {
       push(payload(r, 'live', { phase: 'live', endsIn: 115 - s }, dead ? { observe: mate } : { money: afterBuy, roundKills: kills }), tick * 4);
     }
     if (rd.planted) {
-      for (let s = 40; s > 20; s -= tick * 4) push(payload(r, 'live', { phase: 'bomb', endsIn: s }, dead ? { observe: mate, bomb: 'planted' } : { money: afterBuy, bomb: 'planted', roundKills: rd.kills ?? 0 }), tick * 4);
+      const bombEnds = o.cs2Ends && rd.reason === 'bomb' ? 0 : 20;
+      for (let s = 40; s > bombEnds; s -= tick * 4) push(payload(r, 'live', { phase: 'bomb', endsIn: s }, dead ? { observe: mate, bomb: 'planted' } : { money: afterBuy, bomb: 'planted', roundKills: rd.kills ?? 0 }), tick * 4);
     }
     const usWon = rd.winner === 'us';
     const winSide: Side = usWon ? ourSide : other(ourSide);
@@ -146,12 +155,20 @@ export function syntheticMatch(o: SyntheticOptions = {}): RecordedPayload[] {
       ms.money = Math.min(16000, Math.max(0, ms.money - 3800) + (usWon ? 3250 : 1900) + 300 * ((r + k) % 2));
     });
     money = Math.min(16000, afterBuy + (usWon ? (rd.reason === 'defuse' || rd.reason === 'bomb' ? 3500 : 3250) : 1400 + 500 * Math.max(0, streak.us - 1)) + (rd.kills ?? 0) * 300);
-    const bomb = rd.planted ? (rd.reason === 'defuse' ? 'defused' : rd.reason === 'bomb' ? 'exploded' : 'planted') : undefined;
+    const exploded = rd.planted && rd.reason === 'bomb';
+    const bomb = rd.planted ? (rd.reason === 'defuse' ? 'defused' : exploded ? (o.cs2Ends ? undefined : 'exploded') : 'planted') : undefined;
     const last = i === rounds.length - 1;
-    for (let s = 7; s > 0; s -= tick * 2) {
-      push(payload(r, 'over', { phase: 'over', endsIn: s }, dead ? { observe: mate, bomb, win: winSide } : { money, bomb, win: winSide, roundKills: rd.kills ?? 0 }), tick * 2);
+    const seen = (x: Extra): Extra => (dead ? { observe: mate, bomb: x.bomb, win: x.win, mapPhase: x.mapPhase } : x);
+    if (o.cs2Ends && last) {
+      push(payload(r + 1, 'freezetime', { phase: 'freezetime', endsIn: 0 }, seen({ money, win: winSide, mapPhase: 'gameover' })), tick);
+    } else if (o.cs2Ends && (i + 1) % half === 0) {
+      push(payload(r + 1, 'over', { phase: 'over', endsIn: 7 }, seen({ money, bomb, win: winSide, mapPhase: 'intermission' })), 7);
+    } else {
+      for (let s = 7; s > 0; s -= tick * 2) {
+        push(payload(o.cs2Ends ? r + 1 : r, 'over', { phase: 'over', endsIn: s }, seen({ money, bomb, win: winSide, roundKills: rd.kills ?? 0 })), tick * 2);
+      }
+      if (last) push(payload(r + 1, 'over', { phase: 'over', endsIn: 0 }, { money, win: winSide, mapPhase: 'gameover' }), tick);
     }
-    if (last) push(payload(r + 1, 'over', { phase: 'over', endsIn: 0 }, { money, win: winSide, mapPhase: 'gameover' }), tick);
   });
   return out;
 }

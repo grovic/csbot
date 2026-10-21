@@ -7,7 +7,7 @@
 // already on screen, so Claude's only has to be better, not first.
 
 import { z } from 'zod';
-import { PLAYBOOKS, slotsFor } from '@csbot/engine';
+import { lossBonus, PLAYBOOKS, slotsFor } from '@csbot/engine';
 import type { CallView, CoachAsker, CoachConfig, LiveSnapshot, ScoutView } from '@csbot/protocol';
 
 export const COACH_SYSTEM = `You are the live coach inside csbot, a second-screen companion for a Counter-Strike 2 squad.
@@ -66,7 +66,7 @@ export function matchFacts(live: LiveSnapshot, roster: readonly RosterEntry[], s
   };
   if (live.enemy) {
     const e = live.enemy;
-    facts.enemyEconomyEstimate = { perPlayer: `${money(e.lo)}-${money(e.hi)}`, read: e.read, buy: Object.fromEntries(Object.entries(e.buy).map(([k, v]) => [k, pct(v)])), lossStreak: e.streak, savedLastRound: e.saved };
+    facts.enemyEconomyEstimate = { perPlayer: `${money(e.lo)}-${money(e.hi)}`, read: e.read, buy: Object.fromEntries(Object.entries(e.buy).map(([k, v]) => [k, pct(v)])), lossBonusLevel: e.streak, nextLossPays: money(lossBonus(e.streak + 1)), savedLastRound: e.saved };
   }
   if (live.forecast) {
     const f = live.forecast;
