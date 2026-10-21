@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { isHalfStart, MatchTracker, phaseOf, youTile } from './match.ts';
 
 /** Feed a recording; return the snapshot taken right after each payload. */
-function run(rec: RecordedPayload[], t = new MatchTracker({ playbookHandle: 'rdx' })) {
+function run(rec: RecordedPayload[], t = new MatchTracker({ playbookHandle: 'a' })) {
   const snaps: LiveSnapshot[] = [];
   for (const { t: at, p } of rec) { t.ingest(toGameState(p, at)); snaps.push(t.snapshot(at)); }
   return { tracker: t, snaps, last: snaps[snaps.length - 1]! };

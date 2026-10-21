@@ -1,0 +1,21 @@
+{
+  "name": "@csbot/room",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./trystero": "./src/trystero.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@csbot/engine": "workspace:*",
+    "@csbot/gsi": "workspace:*",
+    "@csbot/protocol": "workspace:*",
+    "@trystero-p2p/ws-relay": "^0.26.0",
+    "trystero": "^0.26.0"
+  }
+}

@@ -186,4 +186,10 @@ export interface CsbotBridge {
   /** Writes csbot's GSI cfg into the detected CS2 cfg folder. Only ever on a user click. */
   installCfg(): Promise<CfgInstallResult>;
   openRecordings(): Promise<void>;
+  /**
+   * This PC's own GSI payloads, after the spectator guard. A desktop app that joins someone else's
+   * room forwards them to that room's host.
+   */
+  onGsi?(cb: (payload: Record<string, unknown>) => void): () => void;
 }
+export * from './room.ts';

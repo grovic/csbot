@@ -32,6 +32,19 @@ async function feed(payloads: GsiPayload[]) {
 }
 
 describe('host pipeline over HTTP', () => {
+  it('hands every guarded payload to onGsi listeners (what a desktop member forwards)', async () => {
+    const got: GsiPayload[] = [];
+    host.onGsi(p => got.push(p));
+    const [first] = syntheticMatch({ rounds: FIRST_HALF.slice(0, 1), lean: true }).map(r => r.p);
+    await feed([{ ...first!, allplayers: { x: {} }, bomb: { state: 'carried' } } as GsiPayload]);
+    expect(got).toHaveLength(1);
+    expect(got[0]!.allplayers).toBeUndefined();
+    expect(got[0]!.bomb).toBeUndefined();
+    expect(got[0]!.auth).toEqual({ token: 'redacted' });
+    expect(got[0]!.player?.name).toBe('rdx');
+  });
+
+
   it('writes runtime.json for tools and tests', () => {
     const rt = JSON.parse(fs.readFileSync(path.join(tmp, 'runtime.json'), 'utf8'));
     expect(rt.gsiUrl).toBe(host.gsiUrl);

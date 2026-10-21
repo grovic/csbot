@@ -10,7 +10,8 @@ function noForecastReason(s: LiveSnapshot): string {
   return 'No forecast this round';
 }
 
-function youFallback(s: LiveSnapshot): string {
+function youFallback(s: LiveSnapshot, webMember: boolean): string {
+  if (webMember && !s.me) return 'Share your own game data from the csbot desktop app';
   switch (s.match?.clock.phase) {
     case 'gameover': return 'Match over';
     case 'halftime': return 'Halftime · money resets';
@@ -19,7 +20,7 @@ function youFallback(s: LiveSnapshot): string {
   }
 }
 
-export function Tiles({ snap }: { snap: LiveSnapshot }) {
+export function Tiles({ snap, webMember = false }: { snap: LiveSnapshot; webMember?: boolean }) {
   const e = snap.enemy, f = snap.forecast, y = snap.youTile, planted = !!snap.match?.bombPlanted;
   const site = f ? (f.site.B >= f.site.A ? 'B' : 'A') : undefined;
   const sp = f && site ? f.site[site] : 0;
@@ -63,7 +64,7 @@ export function Tiles({ snap }: { snap: LiveSnapshot }) {
         {y ? (
           <><div className="vl">{y.value}</div><div className="sb">{y.sub}</div></>
         ) : (
-          <><div className="vl none">—</div><div className="sb">{youFallback(snap)}</div></>
+          <><div className="vl none">—</div><div className="sb">{youFallback(snap, webMember)}</div></>
         )}
       </div>
     </div>

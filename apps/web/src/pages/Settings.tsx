@@ -90,15 +90,16 @@ function HostCard({ bridge }: { bridge: CsbotBridge }) {
   );
 }
 
-function BrowserCard() {
+function BrowserCard({ member }: { member: boolean }) {
   return (
     <div className="card" data-testid="browser-card">
-      <div className="card-h"><h3>Hosting</h3><span className="muted small">browser</span></div>
+      <div className="card-h"><h3>{member ? 'This browser' : 'Hosting'}</h3><span className="muted small">browser</span></div>
       <p style={{ margin: 0, color: 'var(--ink2)' }}>
-        This is the web app. Reading CS2 needs the csbot desktop app on the gaming PC: it receives the game's GSI updates on localhost and runs the engine.
-        Joining your squad's room from the browser arrives in M2.
+        {member
+          ? "You joined a room: everything here comes from the host's csbot. A browser can't read your own game; install the csbot desktop app to share your money and stats with the room."
+          : "This is the web app. Reading CS2 needs the csbot desktop app on the gaming PC: it receives the game's GSI updates on localhost and runs the engine. Teammates join the host's room by opening the invite link."}
       </p>
-      <p className="note">Without a host, this page shows a demo: a fictional match replayed through the real engine.</p>
+      {!member && <p className="note">Without a host, this page shows a demo: a fictional match replayed through the real engine.</p>}
     </div>
   );
 }
@@ -116,7 +117,7 @@ export function Settings({ snap, kind }: { snap?: LiveSnapshot; kind: SourceKind
   const bridge = kind === 'desktop' ? window.csbot : undefined;
   return (
     <div className="grid2" data-testid="settings">
-      {bridge ? <HostCard bridge={bridge} /> : <BrowserCard />}
+      {bridge ? <HostCard bridge={bridge} /> : <BrowserCard member={kind === 'member'} />}
       <GsiStatus snap={snap} />
       <div className="card" style={{ gridColumn: '1/-1' }}>
         <div className="card-h"><h3>Fair play</h3></div>

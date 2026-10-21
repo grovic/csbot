@@ -63,7 +63,7 @@ function SourceCell({ r }: { r: PlayerRow }) {
   return <span className="srcd spec" title="Last seen while you watched this teammate after dying"><i />seen R{r.seenRound ?? '?'}</span>;
 }
 
-export function Scoreboard({ snap }: { snap: LiveSnapshot }) {
+export function Scoreboard({ snap, inRoom = false }: { snap: LiveSnapshot; inRoom?: boolean }) {
   const m = snap.match;
   if (!m) return null;
   const played = m.history.length;
@@ -98,7 +98,9 @@ export function Scoreboard({ snap }: { snap: LiveSnapshot }) {
                   </tr>
                 ))}
                 {snap.scoreboard.length < 5 && (
-                  <tr className="empty-row"><td colSpan={8}>Teammates show up when you watch them after dying. Room members share live rows from M2.</td></tr>
+                  <tr className="empty-row"><td colSpan={8}>{inRoom
+                    ? 'Teammates appear when they share their game data from the csbot desktop app, or when someone watches them after dying.'
+                    : 'Teammates appear when you watch them after dying, or live when they join your room with the desktop app.'}</td></tr>
                 )}
               </tbody>
             </table>
@@ -117,7 +119,8 @@ export function Scoreboard({ snap }: { snap: LiveSnapshot }) {
         </div>
       </div>
       <div className="legend">
-        <span className="srcd"><i />host GSI: this PC's own game data</span>
+        <span className="srcd"><i />host GSI: the host PC's own game data</span>
+        <span className="srcd link"><i />room: a member's own game data, shared from their desktop app</span>
         <span className="srcd spec"><i />seen while spectating a teammate after dying</span>
       </div>
     </div>

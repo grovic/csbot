@@ -33,6 +33,12 @@ importers:
         specifier: workspace:*
         version: link:../../packages/protocol
     devDependencies:
+      '@csbot/room':
+        specifier: workspace:*
+        version: link:../../packages/room
+      '@csbot/room-relay':
+        specifier: workspace:*
+        version: link:../../tools/room-relay
       '@playwright/test':
         specifier: ^1.64.1
         version: 1.64.1
@@ -54,6 +60,9 @@ importers:
       '@csbot/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@csbot/room':
+        specifier: workspace:*
+        version: link:../../packages/room
       react:
         specifier: ^19.3.1
         version: 19.3.1
@@ -61,6 +70,9 @@ importers:
         specifier: ^19.3.1
         version: 19.3.1(react@19.3.1)
     devDependencies:
+      '@csbot/room-relay':
+        specifier: workspace:*
+        version: link:../../tools/room-relay
       '@playwright/test':
         specifier: ^1.64.1
         version: 1.64.1
@@ -88,7 +100,29 @@ importers:
 
   packages/gsi: {}
 
-  packages/protocol: {}
+  packages/protocol:
+    dependencies:
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+
+  packages/room:
+    dependencies:
+      '@csbot/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@csbot/gsi':
+        specifier: workspace:*
+        version: link:../gsi
+      '@csbot/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@trystero-p2p/ws-relay':
+        specifier: ^0.26.0
+        version: 0.26.0
+      trystero:
+        specifier: ^0.26.0
+        version: 0.26.0
 
   tools/gsi-recorder:
     dependencies:
@@ -101,6 +135,12 @@ importers:
       '@csbot/gsi':
         specifier: workspace:*
         version: link:../../packages/gsi
+
+  tools/room-relay:
+    dependencies:
+      '@trystero-p2p/ws-relay':
+        specifier: ^0.26.0
+        version: 0.26.0
 
   tools/spikes/claude-latency:
     dependencies:
@@ -432,6 +472,9 @@ packages:
   '@trystero-p2p/nostr@0.26.0':
     resolution: {integrity: sha512-HArp9fonBkqFZgw3U2D823fCePQv7haKkvjtwbGRkWzy+Wo9G3cCDEnG/GENDWwzERHrhRcRacpFsFt4JpwRJQ==}
 
+  '@trystero-p2p/ws-relay@0.26.0':
+    resolution: {integrity: sha512-jV1zLCiJ0Tu3ZEExTPRTV5uynICgwI2yJqdT6VR0YPHEx5xPGkzEjh/ixkPM7/8Psbwwxa3UtGMsHTUXrBWqqA==}
+
   '@turbo/darwin-64@2.11.10':
     resolution: {integrity: sha512-By4idRap5+nLnMuRzLB4qkOPRlvNdyY1ne4VJYDyUoUB11H94k7uif9mbe3JT8JSNXs1D68uMcBj6hJ/jMQRvA==}
     cpu: [x64]
@@ -484,6 +527,9 @@ packages:
 
   '@types/react@19.3.0':
     resolution: {integrity: sha512-N0rFCuH9YoxG9/m61l9MfpJKfmLOVU0em7ipIz6TRgSSkvReLB9vL85GB+yr8Bs5leqpvg96JSwF4ZS1s4viQg==}
+
+  '@types/ws@8.18.2':
+    resolution: {integrity: sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w==}
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     resolution: {integrity: sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==}
@@ -1304,6 +1350,18 @@ packages:
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
 
+  ws@8.22.0:
+    resolution: {integrity: sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   zod-to-json-schema@3.25.2:
     resolution: {integrity: sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA==}
     peerDependencies:
@@ -1504,6 +1562,15 @@ snapshots:
       '@noble/secp256k1': 3.2.0
       '@trystero-p2p/core': 0.26.0
 
+  '@trystero-p2p/ws-relay@0.26.0':
+    dependencies:
+      '@trystero-p2p/core': 0.26.0
+      '@types/ws': 8.18.2
+      ws: 8.22.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
   '@turbo/darwin-64@2.11.10':
     optional: true
 
@@ -1546,6 +1613,10 @@ snapshots:
   '@types/react@19.3.0':
     dependencies:
       csstype: 3.2.3
+
+  '@types/ws@8.18.2':
+    dependencies:
+      '@types/node': 26.6.5
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     optional: true
@@ -2257,6 +2328,8 @@ snapshots:
   why-is-node-running@3.2.1: {}
 
   wrappy@1.0.2: {}
+
+  ws@8.22.0: {}
 
   zod-to-json-schema@3.25.2(zod@4.6.7):
     dependencies:

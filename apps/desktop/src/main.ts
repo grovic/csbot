@@ -8,6 +8,7 @@ import type { CfgInstallResult } from '@csbot/protocol';
 import { detectCs2, installCfg } from './cs2.ts';
 import { Host, sessionFileName } from './host.ts';
 import { loadSettings, readEnv, saveSettings, type Settings } from './settings.ts';
+import { rendererUrlFor, samePage } from './urls.ts';
 import { loadWindowState, restorableBounds, saveWindowState } from './window-state.ts';
 
 const env = readEnv();
@@ -15,7 +16,6 @@ if (env.userData) app.setPath('userData', path.resolve(env.userData));
 app.setAppUserModelId('app.csbot');
 
 const log = (...a: unknown[]) => console.log('[csbot]', ...a);
-const stripHash = (u: string) => u.split('#')[0]!;
 
 // The single-instance lock lives in userData, so test runs with their own dir never collide with the real app.
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -27,14 +27,10 @@ function run(): void {
   let settings: Settings;
   const appDir = app.getAppPath();
   const webIndex = path.resolve(appDir, '..', 'web', 'dist', 'index.html');
-  const rendererUrl = env.webUrl ?? pathToFileURL(webIndex).href;
+  const rendererUrl = rendererUrlFor(env.webUrl ?? pathToFileURL(webIndex).href, env.signal);
 
   /** Only our renderer may navigate or call the bridge. */
-  const isOurs = (url: string): boolean => {
-    if (!url) return false;
-    if (rendererUrl.startsWith('file:')) return stripHash(url) === stripHash(rendererUrl);
-    try { return new URL(url).origin === new URL(rendererUrl).origin; } catch { return false; }
-  };
+  const isOurs = (url: string): boolean => !!url && samePage(url, rendererUrl);
   const guard = (e: IpcMainInvokeEvent) => {
     if (!isOurs(e.senderFrame?.url ?? '')) throw new Error('csbot bridge: unknown sender');
   };
@@ -93,6 +89,10 @@ function run(): void {
     log(`GSI endpoint ${host.gsiUrl}`);
     host.onSnapshot(s => {
       for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('csbot:snapshot', s);
+    });
+    // Our own guarded GSI, for a desktop member to forward to the room host it joined.
+    host.onGsi(p => {
+      for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('csbot:gsi', p);
     });
 
     ipcMain.handle('csbot:latest', e => { guard(e); return host?.latest(); });

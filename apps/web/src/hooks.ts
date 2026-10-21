@@ -1,20 +1,17 @@
-import type { LiveSnapshot } from '@csbot/protocol';
-import { useEffect, useState } from 'react';
-import type { SnapshotSource } from './data/index.ts';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import type { Session, SessionView } from './data/session.ts';
 
-export interface Received { snap: LiveSnapshot; receivedAt: number }
-
-export function useSnapshot(source: SnapshotSource): Received | undefined {
-  const [state, set] = useState<Received>();
-  useEffect(() => source.subscribe(snap => set({ snap, receivedAt: Date.now() })), [source]);
-  return state;
+export function useSession(session: Session): SessionView {
+  return useSyncExternalStore(session.subscribe, session.getSnapshot);
 }
 
-export type Route = 'live' | 'scout' | 'debrief' | 'coach' | 'settings';
-const ROUTES: readonly Route[] = ['live', 'scout', 'debrief', 'coach', 'settings'];
+/** 'join' is an invite link (#/r/CODE?k=KEY). */
+export type Route = 'live' | 'scout' | 'debrief' | 'coach' | 'settings' | 'room' | 'join';
+const ROUTES: readonly Route[] = ['live', 'scout', 'debrief', 'coach', 'settings', 'room'];
 
 function parse(hash: string): Route {
-  const r = hash.replace(/^#\/?/, '').split(/[/?]/)[0] as Route;
+  const r = hash.replace(/^#\/?/, '').split(/[/?]/)[0] as Route | 'r';
+  if (r === 'r') return 'join';
   return ROUTES.includes(r) ? r : 'live';
 }
 

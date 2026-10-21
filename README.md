@@ -6,7 +6,11 @@ A second-screen companion for Counter-Strike 2 squads.
 
 ## Status
 
-**M1 (core host) is built:** the Electron host reads GSI, runs the economy engine, and shows the Live page. Scouting, rooms, the forecast from demos, Claude calls, and the debrief come in M2–M6 ([roadmap](docs/PROPOSAL.md#12-roadmap-v1-in-milestones)).
+**M1 (core host) and M2 (rooms) are built.**
+- **M1:** the Electron host reads GSI, runs the economy engine, and shows the Live page.
+- **M2:** the admin creates a room in the desktop app and shares an invite link. Teammates open it in a browser, or paste it into their own csbot, and see the same calls with their own job. Rooms are peer-to-peer: no account, no server.
+
+Scouting, the forecast from demos, Claude calls, and the debrief come in M3–M6 ([roadmap](docs/PROPOSAL.md#12-roadmap-v1-in-milestones)).
 
 | Piece | Where | Run it |
 |---|---|---|
@@ -15,6 +19,8 @@ A second-screen companion for Counter-Strike 2 squads.
 | Engine, GSI parsing, wire types | `packages/{engine,gsi,protocol}` | `pnpm test` |
 | Replay a recording or the synthetic match into a host | `tools/gsi-replayer` | see its README |
 | Record GSI without the app | `tools/gsi-recorder` | see its README |
+| Rooms: host, client, invite links, peer-to-peer transport | `packages/room` | `pnpm test` |
+| Optional self-hosted signaling (tests, or squads that want their own) | `tools/room-relay` | see the file header |
 | Spikes (M0) | `tools/spikes`, `tools/gsi-probe` | see each README |
 
 **Checks:**

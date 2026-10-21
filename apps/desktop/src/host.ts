@@ -34,6 +34,7 @@ export interface HostOptions {
 export interface RuntimeInfo { gsiUrl: string; token: string; pid: number }
 
 type Listener = (s: LiveSnapshot) => void;
+type GsiListener = (p: GsiPayload) => void;
 
 const pad = (n: number) => String(n).padStart(2, '0');
 export function sessionFileName(d = new Date()): string {
@@ -53,6 +54,7 @@ export class Host {
   private tracker: MatchTracker;
   private server?: GsiServer;
   private listeners = new Set<Listener>();
+  private gsiListeners = new Set<GsiListener>();
   private last?: LiveSnapshot;
   private lastEmit = 0;
   private trailing?: NodeJS.Timeout;
@@ -110,6 +112,15 @@ export class Host {
     return () => { this.listeners.delete(cb); };
   }
 
+  /**
+   * Every payload after the spectator guard, token redacted: the same object the recorder writes.
+   * A desktop app that joined someone else's room forwards these to that room's host.
+   */
+  onGsi(cb: GsiListener): () => void {
+    this.gsiListeners.add(cb);
+    return () => { this.gsiListeners.delete(cb); };
+  }
+
   latest(): LiveSnapshot {
     return this.last ?? this.emit();
   }
@@ -155,7 +166,11 @@ export class Host {
     this.side = ownSide(raw) ?? this.side;
     const { payload, dropped } = spectatorGuard(raw, { ourSide: this.side });
     if (dropped.length) this.tracker.noteGuardDrops(dropped.length);
-    this.record(payload, at);
+    const redacted: GsiPayload = payload.auth ? { ...payload, auth: { token: 'redacted' } } : payload;
+    this.record(redacted, at);
+    for (const l of this.gsiListeners) {
+      try { l(redacted); } catch { /* a bad listener must not break the pipeline */ }
+    }
     this.tracker.ingest(toGameState(payload, at));
     const wait = (this.o.throttleMs ?? 100) - (Date.now() - this.lastEmit);
     if (wait <= 0) this.emit();
@@ -164,7 +179,7 @@ export class Host {
 
   private record(p: GsiPayload, at: number): void {
     if (this.o.record === false || this.recStopped) return;
-    const line = toLine(p.auth ? { ...p, auth: { token: 'redacted' } } : p, at);
+    const line = toLine(p, at);
     const bytes = Buffer.byteLength(line);
     const max = this.o.maxRecordingBytes ?? 200 * 1024 * 1024;
     if (this.recBytes + bytes > max) { this.recStopped = true; return; }

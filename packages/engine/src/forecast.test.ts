@@ -66,7 +66,7 @@ describe('engine calls', () => {
   it('stack B on an eco and give every player a job', () => {
     const call = engineRoundCall(MIRAGE_PLAYBOOK, { lo: 1450, hi: 2800, streak: 1, saved: false }, ecoBuy);
     expect(call.setup).toBe('antieco');
-    expect(Object.keys(call.jobs).sort()).toEqual(['kairo', 'mbt', 'nyx', 'rdx', 'zeph']);
+    expect(Object.keys(call.jobs).sort()).toEqual(['a', 'awp', 'b', 'rotator', 'short']);
     expect(call.source).toBe('engine');
   });
   it('play standard on a full buy', () => {

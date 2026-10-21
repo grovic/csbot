@@ -100,6 +100,19 @@ test('GSI payloads reach the renderer as snapshots', async () => {
   await page.screenshot({ path: path.join(screens, 'desktop-live.png') });
 });
 
+test('own GSI reaches the renderer through onGsi, guarded and token-free', async () => {
+  await page.evaluate(() => { (window as unknown as { __gsi: unknown[] }).__gsi = []; window.csbot!.onGsi!(p => (window as unknown as { __gsi: unknown[] }).__gsi.push(p)); });
+  const rec = syntheticMatch({ rounds: FIRST_HALF.slice(0, 1), lean: true });
+  for (const r of rec.slice(0, 3)) await post({ ...r.p, allplayers: { x: {} } } as GsiPayload);
+  const got = await waitFor(() => page.evaluate(() => { const g = (window as unknown as { __gsi: GsiPayload[] }).__gsi; return g.length >= 3 ? g : undefined; }));
+  expect(got).toHaveLength(3);
+  for (const p of got) {
+    expect(p.allplayers).toBeUndefined();
+    expect(p.auth).toEqual({ token: 'redacted' });
+    expect(JSON.stringify(p)).not.toContain(runtime.token);
+  }
+});
+
 test('host info and cfg install go through the bridge, into the detected folder only', async () => {
   const info = await page.evaluate(() => window.csbot!.getInfo());
   expect(info.gsiUrl).toBe(runtime.gsiUrl);

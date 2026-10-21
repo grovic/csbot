@@ -129,9 +129,9 @@ From Anthropic's Claude Code *Legal and compliance* page:
 ### 3.3 Joining and identity
 
 - **Inviting:**
-  - The admin shares an invite link: `https://<owner>.github.io/csbot/#/r/K7P2QX?k=<room-key>`.
+  - The admin shares an invite link: `https://grovic.github.io/csbot/#/r/K7P2QX?k=<room-key>`.
   - The key sits after `#`, so it's never sent to any server.
-  - Joining also works with a short code plus admin approval.
+  - Opening the link asks for a name, then the admin approves once. Approved devices are remembered, so they rejoin without asking again.
 - **Identity:**
   - Desktop members are identified automatically by the Steam ID in their own GSI (`provider.steamid`), matched against the FACEIT roster.
   - Web members pick their roster slot, and the admin approves.
@@ -170,8 +170,13 @@ Joining has to be as simple as opening a link: no sign-up for anyone, nothing to
     - the host's desktop app offers itself as the forwarder when the router allows it (UPnP)
     - a squad that wants it can run the open-source coturn with one command
   - M2 measures how often direct connection fails across the squad's real networks.
-- **Encryption:** WebRTC encrypts every channel (DTLS). csbot adds its own AES-GCM layer with the room key, so only people with the invite link can read or send room messages.
-- **What others can see:** members see the host's IP address, as in any peer-to-peer game. The public relays see that someone joined *a* room, never which room or what was said.
+- **Encryption and access:**
+  - Trystero encrypts every connection offer with the room key (AES-GCM). A device without the invite link can't even complete the handshake; the spike's wrong-key peer was refused at that step.
+  - WebRTC then encrypts every channel (DTLS).
+  - The host also checks every message from members against a schema, and rate-limits them.
+- **What others can see:**
+  - People in the room see each other's IP addresses, as in any peer-to-peer game. Trystero links every device in a room, and csbot only uses the member ⇄ host links; member ⇄ member links stay idle.
+  - The public relays see that someone joined *a* room, never which room or what was said.
 - **Rejected alternatives:**
   - a hosted relay (Cloudflare, Supabase, PartyKit): somebody has to create an account and run it
   - the host as a plain WebSocket server: members would need port forwarding on the admin's router
@@ -232,7 +237,10 @@ Randoms show their planned spot and a "random" tag, unless a dead room member is
 
 ### 3.9 Security and privacy
 
-- **End-to-end encryption:** AES-GCM with the room key from the link fragment, via WebCrypto in both Node and browsers, on top of WebRTC's own DTLS. The public signaling relays only see encrypted offers under a hashed room ID.
+- **End-to-end encryption:**
+  - Connection offers are encrypted with the room key from the link fragment (AES-GCM), so only key holders can connect.
+  - Room traffic then flows over WebRTC's DTLS-encrypted channels, directly between devices.
+  - The public signaling relays only see encrypted offers under a hashed room ID.
 - **No secrets in the web bundle.** API keys, Claude credentials, and demo files stay on the host.
 - **Member GSI:**
   - each member's room GSI cfg carries a per-member token
@@ -571,6 +579,7 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
 ### Milestones
 1. **M1 · Core host:** Electron shell, GSI server + recorder/replayer, engine (economy), Live (banner, tiles, scoreboard with host data).
 2. **M2 · Rooms:** peer-to-peer rooms (WebRTC + Nostr signaling), protocol, E2E, invite/join/approve, roles and permissions, web app on GitHub Pages, member GSI sharing from the desktop app, personal YOU.
+   - *Built:* everything except testing across real home networks with the squad, and the Pages deploy, which waits on the PR.
 3. **M3 · Scouting:** FACEIT/Steam/Leetify clients + cache, Scout page, analyst session + MCP server.
 4. **M4 · Forecast:** demo ingest, zones and routes for the map pool, plan priors, heat, intel from all members, gather mode.
 5. **M5 · Live coach:** playbook, live session, per-player jobs, Coach page, voice, tournament mode, quotas.
