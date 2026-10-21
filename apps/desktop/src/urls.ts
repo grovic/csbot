@@ -18,3 +18,14 @@ export function samePage(url: string, renderer: string): boolean {
     return false;
   }
 }
+
+/**
+ * Where the built web UI is, for each way csbot runs:
+ * - packaged (electron-builder): `<app>/web/index.html` inside app.asar
+ * - dev and the playtest copy: `<app>/../web/dist/index.html`
+ * Returns the first that exists, or the dev path (so the "not built yet" page shows).
+ */
+export function webIndexFor(appDir: string, exists: (p: string) => boolean, join: (...p: string[]) => string): string {
+  const candidates = [join(appDir, 'web', 'index.html'), join(appDir, '..', 'web', 'dist', 'index.html')];
+  return candidates.find(exists) ?? candidates[1]!;
+}

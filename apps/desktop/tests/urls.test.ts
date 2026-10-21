@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readEnv, validSignal } from '../src/settings.ts';
-import { rendererUrlFor, samePage } from '../src/urls.ts';
+import path from 'node:path';
+import { rendererUrlFor, samePage, webIndexFor } from '../src/urls.ts';
 
 const FILE = 'file:///C:/GitHub/grovic/csbot/apps/web/dist/index.html';
 
@@ -33,5 +34,14 @@ describe('CSBOT_SIGNAL', () => {
     expect(validSignal('http://127.0.0.1:8787')).toBeUndefined();
     expect(validSignal('nonsense')).toBeUndefined();
     expect(readEnv({ CSBOT_SIGNAL: 'ws://127.0.0.1:1' }).signal).toBe('ws://127.0.0.1:1/');
+  });
+});
+
+describe('web UI location', () => {
+  const join = (...p: string[]) => path.posix.join(...p);
+  it('prefers the packaged copy, then the dev/playtest layout', () => {
+    expect(webIndexFor('/x/resources/app.asar', p => p === '/x/resources/app.asar/web/index.html', join)).toBe('/x/resources/app.asar/web/index.html');
+    expect(webIndexFor('/repo/apps/desktop', p => p === '/repo/apps/web/dist/index.html', join)).toBe('/repo/apps/web/dist/index.html');
+    expect(webIndexFor('/nowhere/desktop', () => false, join)).toBe('/nowhere/web/dist/index.html');
   });
 });

@@ -3,6 +3,7 @@ import type { RoomMember, RoomPermissions, RoomView } from '@csbot/protocol';
 import { useEffect, useState } from 'react';
 import type { Session, SessionView } from '../data/session.ts';
 import { useTicker } from '../hooks.ts';
+import { DesktopLink } from '../components/DesktopLink.tsx';
 
 const DEVICE = { host: 'desktop app · host', desktop: 'desktop app', web: 'browser' } as const;
 const ago = (at: number, now: number) => { const s = Math.max(0, Math.round((now - at) / 1000)); return s < 60 ? `${s} s ago` : `${Math.round(s / 60)} min ago`; };
@@ -199,7 +200,7 @@ export function RoomPage({ view, session }: { view: SessionView; session: Sessio
             ) : (
               <div className="cfg">
                 <span className="k">This browser</span><span className="v">Shows the room. It can't read your game.</span>
-                <span className="k">Your money tile</span><span className="v">Install the csbot desktop app to share your own game data with the room.</span>
+                <span className="k">Your money tile</span><span className="v">Install the csbot desktop app to share your own game data with the room: <DesktopLink /></span>
                 <span className="k">Your slot</span><span className="v">{room.slots.find(s => s.id === me?.slot)?.label ?? 'none yet'}</span>
               </div>
             )}
