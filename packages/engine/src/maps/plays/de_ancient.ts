@@ -1,6 +1,6 @@
 // Ancient: enemy (T) plans and our CT playbook. Routes are zones walked in order from T spawn
 // (ids from maps/geo/de_ancient.ts). Plan odds by enemy buy are first estimates until demo data.
-// The zone `sideentrance` (shown as "B Side") is the mid-to-B cave.
+// The zone `sideentrance` (shown as "Cave") is the mid-to-B cave.
 
 import type { MapPlans } from '../../forecast.ts';
 import type { PlaybookDef } from '../../playbook.ts';
@@ -53,6 +53,11 @@ export const PLAYBOOK_ANCIENT: PlaybookDef = {
     { id: 'a', label: 'A anchor' }, { id: 'short', label: 'Donut / A support' }, { id: 'b', label: 'B anchor' },
     { id: 'rotator', label: 'Mid / cave' }, { id: 'awp', label: 'AWP' },
   ],
+  // The same five players on T: roles instead of positions.
+  tSlots: [
+    { id: 'a', label: 'Entry' }, { id: 'short', label: 'Support / flashes' }, { id: 'b', label: 'Lurk' },
+    { id: 'rotator', label: 'IGL / flex' }, { id: 'awp', label: 'AWP' },
+  ],
   setups: [
     {
       id: 'antieco', name: 'Anti-eco · stack B 3–2', side: 'CT', answers: ['eco'],
@@ -73,6 +78,47 @@ export const PLAYBOOK_ANCIENT: PlaybookDef = {
         { player: 'awp', zone: 'topofmid', label: 'top mid AWP' }, { player: 'rotator', zone: 'sideentrance', label: 'cave' }, { player: 'b', zone: 'bsite', label: 'B site' },
       ],
     },
+    // Our T halves.
+    {
+      id: 'tDefault', name: 'Default · A main, mid, B lane', side: 'T',
+      calls: { default: { head: 'Default · A main, mid, B lane', sub: 'Take mid control, then hit the light site', steps: ['Smoke top mid', 'Take mid', 'Call contact'] } },
+      spots: [
+        { player: 'a', zone: 'mainhall', label: 'A main' }, { player: 'short', zone: 'middle', label: 'mid' },
+        { player: 'b', zone: 'tsidelower', label: 'B lane' }, { player: 'rotator', zone: 'middle', label: 'mid' }, { player: 'awp', zone: 'tsideupper', label: 'cave entrance AWP' },
+      ],
+    },
+    {
+      id: 'tExecA', name: 'A exec · main + donut', side: 'T', site: 'A',
+      calls: { default: { head: 'Hit A · main + donut', sub: 'Smoke CT and top mid, flash Elbow, donut splits', steps: ['Smoke CT + top mid', 'Flash Elbow', 'Plant default'] } },
+      spots: [
+        { player: 'a', zone: 'mainhall', label: 'Elbow' }, { player: 'short', zone: 'mainhall', label: 'Elbow flash' },
+        { player: 'b', zone: 'sidehall', label: 'donut' }, { player: 'rotator', zone: 'mainhall', label: 'A main' }, { player: 'awp', zone: 'sidehall', label: 'donut AWP' },
+      ],
+    },
+    {
+      id: 'tExecB', name: 'B exec · ramp + cave', side: 'T', site: 'B',
+      calls: { default: { head: 'Hit B · ramp + cave', sub: 'Smoke CT, flash over ramp, cave splits the site', steps: ['Smoke CT', 'Flash ramp', 'Cave splits'] } },
+      spots: [
+        { player: 'a', zone: 'ramp', label: 'B ramp' }, { player: 'short', zone: 'ramp', label: 'ramp flash' },
+        { player: 'b', zone: 'sideentrance', label: 'cave' }, { player: 'rotator', zone: 'tsidelower', label: 'B lane' }, { player: 'awp', zone: 'sideentrance', label: 'cave AWP' },
+      ],
+    },
+    {
+      id: 'tEco', name: 'Eco · B ramp rush together', side: 'T', answers: ['eco'],
+      calls: { default: { head: 'Eco · B rush together', sub: 'All five up ramp at once · trade every duel', steps: ['Go together', 'Trade', 'Grab their guns'] } },
+      spots: [
+        { player: 'a', zone: 'ramp', label: 'B ramp' }, { player: 'short', zone: 'ramp', label: 'B ramp' },
+        { player: 'b', zone: 'ramp', label: 'B ramp' }, { player: 'rotator', zone: 'tsidelower', label: 'B lane' }, { player: 'awp', zone: 'tsidelower', label: 'B lane' },
+      ],
+    },
+    {
+      id: 'tForce', name: 'Force · A main rush', side: 'T', answers: ['force'],
+      calls: { default: { head: 'Force · A main rush', sub: 'Four through main fast, one donut for the crossfire', steps: ['Flash Elbow', 'Go fast', 'Trade'] } },
+      spots: [
+        { player: 'a', zone: 'mainhall', label: 'Elbow' }, { player: 'short', zone: 'mainhall', label: 'A main' },
+        { player: 'b', zone: 'mainhall', label: 'A main' }, { player: 'rotator', zone: 'mainhall', label: 'A main' }, { player: 'awp', zone: 'sidehall', label: 'donut' },
+      ],
+    },
   ],
   jobs: {
     antieco: {
@@ -88,6 +134,41 @@ export const PLAYBOOK_ANCIENT: PlaybookDef = {
       b: 'B site. Hold the ramp alone and call contact fast.',
       rotator: 'Cave. Hold it from the B side, fall back to B site on contact.',
       awp: 'Top mid AWP. Hold mid, don\'t re-peek after a shot.',
+    },
+    tDefault: {
+      a: 'A main. Walk up to Elbow, flash out for info, call what holds A.',
+      short: 'Mid. Flash top mid as the IGL pushes, then take donut control.',
+      b: "B lane. Lurk quiet near ramp, call B numbers, don't peek alone.",
+      rotator: 'Mid. Smoke top mid, take mid control, read the map and call the hit.',
+      awp: 'Cave entrance AWP. Hold cave for the early CT push, take the first pick, then join the hit.',
+    },
+    tExecA: {
+      a: 'Elbow. Swing first off the flash, clear the close corners, push deep.',
+      short: 'Elbow flash. Pop it over Elbow for the entry, then trade him.',
+      b: 'Donut. Smoke top mid behind you, then push out of donut as main hits.',
+      rotator: 'A main. Smoke CT from main, molly the close corner past Elbow, then plant default.',
+      awp: 'Donut AWP. Second through donut, hold the CT rotate, then cover the plant.',
+    },
+    tExecB: {
+      a: 'B ramp. First up off the flash, clear close and back site.',
+      short: 'Ramp flash. Pop it over the top of ramp, trade the entry.',
+      b: 'Cave. Flash out of cave when ramp hits, clear the near side, trade.',
+      rotator: 'B lane. Smoke CT to cut the alley rotate, molly back site, then plant.',
+      awp: 'Cave AWP. Second out of cave, hold the CT rotate, then cover the plant.',
+    },
+    tEco: {
+      a: 'B ramp. First up, aim for the anchor, trade fast.',
+      short: 'B ramp. Right behind the entry, flash if you have one, trade him.',
+      b: 'B ramp. Third up, clear back site.',
+      rotator: 'B lane. Come up fourth, pick up a gun, help the plant.',
+      awp: 'B lane. Last in, watch cave for the CT flank.',
+    },
+    tForce: {
+      a: 'Elbow. First out onto A, clear the close corners, keep moving.',
+      short: 'A main. Flash over Elbow and trade the entry.',
+      b: 'A main. Third in, clear deep site toward CT.',
+      rotator: 'A main. Smoke CT on the way in, plant default.',
+      awp: 'Donut. Push donut with the rush to split their crossfire.',
     },
   },
 };

@@ -55,6 +55,11 @@ export const PLAYBOOK_NUKE: PlaybookDef = {
     { id: 'a', label: 'A anchor' }, { id: 'short', label: 'Outside / mini' }, { id: 'b', label: 'B anchor' },
     { id: 'rotator', label: 'Ramp' }, { id: 'awp', label: 'AWP' },
   ],
+  // The same five players on T: roles instead of positions.
+  tSlots: [
+    { id: 'a', label: 'Entry' }, { id: 'short', label: 'Support / flashes' }, { id: 'b', label: 'Lurk' },
+    { id: 'rotator', label: 'IGL / flex' }, { id: 'awp', label: 'AWP' },
+  ],
   setups: [
     {
       id: 'antieco', name: 'Anti-eco · stack A 3–2', side: 'CT', answers: ['eco'],
@@ -75,6 +80,47 @@ export const PLAYBOOK_NUKE: PlaybookDef = {
         { player: 'short', zone: 'garage', label: 'garage' }, { player: 'rotator', zone: 'ramp', label: 'top of ramp' }, { player: 'b', zone: 'bsite', label: 'B site' },
       ],
     },
+    // Our T halves.
+    {
+      id: 'tDefault', name: 'Default · outside, lobby, ramp', side: 'T',
+      calls: { default: { head: 'Default · outside, lobby, ramp', sub: 'Take ramp and outside, then hit the light site', steps: ['Take ramp', 'Take outside', 'Call contact'] } },
+      spots: [
+        { player: 'a', zone: 'ramp', label: 'ramp' }, { player: 'short', zone: 'control', label: 'control' },
+        { player: 'b', zone: 'lobby', label: 'lobby' }, { player: 'rotator', zone: 'outside', label: 'outside' }, { player: 'awp', zone: 'silo', label: 'silo AWP' },
+      ],
+    },
+    {
+      id: 'tExecA', name: 'A exec · hut + squeaky', side: 'T', site: 'A',
+      calls: { default: { head: 'Hit A · hut + squeaky', sub: 'Smoke heaven and mini, lobby flash, hut and squeaky together', steps: ['Smoke heaven + mini', 'Lobby flash', 'Hit together'] } },
+      spots: [
+        { player: 'a', zone: 'hut', label: 'hut' }, { player: 'short', zone: 'lobby', label: 'lobby flash' },
+        { player: 'b', zone: 'control', label: 'control' }, { player: 'rotator', zone: 'squeaky', label: 'squeaky' }, { player: 'awp', zone: 'roof', label: 'roof AWP' },
+      ],
+    },
+    {
+      id: 'tExecB', name: 'B exec · ramp + secret', side: 'T', site: 'B',
+      calls: { default: { head: 'Hit B · ramp + secret', sub: 'Molly headshot, smoke doors, flash down ramp, secret splits', steps: ['Molly headshot', 'Smoke doors', 'Flash down ramp'] } },
+      spots: [
+        { player: 'a', zone: 'ramp', label: 'ramp entry' }, { player: 'short', zone: 'ramp', label: 'ramp flash' },
+        { player: 'b', zone: 'secret', label: 'secret' }, { player: 'rotator', zone: 'control', label: 'control' }, { player: 'awp', zone: 'ramp', label: 'back ramp AWP' },
+      ],
+    },
+    {
+      id: 'tEco', name: 'Eco · A rush together', side: 'T', answers: ['eco'],
+      calls: { default: { head: 'Eco · A rush together', sub: 'All five through hut and squeaky at once · trade every duel', steps: ['Go together', 'Trade', 'Grab their guns'] } },
+      spots: [
+        { player: 'a', zone: 'hut', label: 'hut' }, { player: 'short', zone: 'squeaky', label: 'squeaky' },
+        { player: 'b', zone: 'hut', label: 'hut' }, { player: 'rotator', zone: 'squeaky', label: 'squeaky' }, { player: 'awp', zone: 'lobby', label: 'lobby' },
+      ],
+    },
+    {
+      id: 'tForce', name: 'Force · ramp rush B', side: 'T', answers: ['force'],
+      calls: { default: { head: 'Force · ramp rush B', sub: 'Flash ramp, molly headshot, all five down to B fast', steps: ['Flash ramp', 'Go fast', 'Trade'] } },
+      spots: [
+        { player: 'a', zone: 'ramp', label: 'ramp' }, { player: 'short', zone: 'control', label: 'control' },
+        { player: 'b', zone: 'ramp', label: 'ramp' }, { player: 'rotator', zone: 'ramp', label: 'top of ramp' }, { player: 'awp', zone: 'lobby', label: 'lobby' },
+      ],
+    },
   ],
   jobs: {
     antieco: {
@@ -90,6 +136,41 @@ export const PLAYBOOK_NUKE: PlaybookDef = {
       b: 'B site. Anchor alone, call secret and ramp contact fast.',
       rotator: 'Top of ramp. Hold the ramp room from admin, fall back down ramp to B on contact.',
       awp: 'Heaven AWP. Hold hut and squeaky from above, reposition after every shot.',
+    },
+    tDefault: {
+      a: 'Ramp. Take the ramp room off the control flash, clear headshot, call what holds B.',
+      short: 'Control. Flash into ramp for your entry and molly headshot, then trade him.',
+      b: "Lobby. Lurk quiet by hut and squeaky, call A numbers, don't open squeaky alone.",
+      rotator: 'Outside. Smoke CT red, take outside with the AWP, read the map and call the hit.',
+      awp: 'Silo AWP. Hold outside for a garage or mini peek, take the first pick, then join the call.',
+    },
+    tExecA: {
+      a: 'Hut. First on site off the lobby flash, clear rafters and the close corners.',
+      short: 'Lobby flash. Pop it over hut and squeaky for the entry, then trade through hut.',
+      b: 'Control. Hold the ramp flank during the hit, call a CT push, then join late.',
+      rotator: 'Squeaky. Smoke mini, open the door with the hut entry, then call the plant.',
+      awp: 'Roof AWP. Smoke heaven first, then hold outside for the main and mini rotate.',
+    },
+    tExecB: {
+      a: 'Ramp entry. First down to B off the flash, clear the close corners, then decon.',
+      short: 'Ramp flash. Smoke doors, flash down ramp for the entry, then trade him.',
+      b: 'Secret. Smoke garage as you cross outside, drop secret, come in through dark on the hit.',
+      rotator: 'Control. Molly headshot to take ramp, go down third, call the plant.',
+      awp: 'Back ramp AWP. Hold the ramp exit through the hit, then hold the plant from back ramp.',
+    },
+    tEco: {
+      a: 'Hut. First in, aim for the A anchor, trade fast.',
+      short: 'Squeaky. Open the door as hut goes, trade the first duel.',
+      b: 'Hut. Right behind the entry, trade him, clear rafters.',
+      rotator: 'Squeaky. Second through the door, clear the site, pick up a gun.',
+      awp: 'Lobby. Last in, watch the ramp flank through control, grab a rifle.',
+    },
+    tForce: {
+      a: 'Ramp. First down to B off the flash, clear the close corners.',
+      short: 'Control. Flash into ramp and down to B, trade the entry.',
+      b: 'Ramp. Third in, clear decon and watch doors.',
+      rotator: 'Top of ramp. Molly headshot, follow down, plant and call the post-plant.',
+      awp: 'Lobby. Watch the hut and squeaky flank, then hold the plant from back ramp.',
     },
   },
 };

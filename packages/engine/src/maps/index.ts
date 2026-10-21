@@ -47,6 +47,8 @@ export const MAP_POOL: readonly string[] = ENTRIES.map(e => e.geo.id);
 export const MIRAGE: MapModel = MAPS.de_mirage!;
 export const MIRAGE_PLAYBOOK: Playbook = PLAYBOOKS.de_mirage!;
 
-export function slotsFor(map?: string): readonly SlotDef[] {
-  return (map ? PLAYBOOKS[map]?.slots : undefined) ?? DEFAULT_SLOTS;
+/** The map's position names for our side (T roles on T halves). */
+export function slotsFor(map?: string, side?: 'CT' | 'T'): readonly SlotDef[] {
+  const pb = map ? PLAYBOOKS[map] : undefined;
+  return (side === 'T' ? pb?.tSlots ?? pb?.slots : pb?.slots) ?? DEFAULT_SLOTS;
 }

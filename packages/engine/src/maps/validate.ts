@@ -74,6 +74,14 @@ export function validatePlays(geo: MapGeo, plans: MapPlans, playbook: PlaybookDe
 
   const slots = playbook.slots.map(s => s.id).sort();
   if (slots.join() !== [...SLOT_IDS].sort().join()) out.push(`slots must be ${SLOT_IDS.join(', ')}`);
+  const tSetups = playbook.setups.filter(s => s.side === 'T');
+  if (!playbook.tSlots) out.push('needs tSlots: T-side labels for the same slot ids');
+  else if (playbook.tSlots.map(s => s.id).sort().join() !== [...SLOT_IDS].sort().join()) out.push(`tSlots must be ${SLOT_IDS.join(', ')}`);
+  if (!tSetups.some(s => !s.answers && !s.site)) out.push('needs a default T setup (no answers, no site)');
+  for (const site of ['A', 'B'] as const) if (!tSetups.some(s => s.site === site && !s.answers)) out.push(`needs a T exec for ${site} (site: '${site}', no answers)`);
+  if (!tSetups.some(s => s.answers?.includes('eco'))) out.push('needs a T setup that answers eco (our eco)');
+  if (!tSetups.some(s => s.answers?.includes('force'))) out.push('needs a T setup that answers force (our force buy)');
+  for (const s of tSetups) if (!s.calls?.default) out.push(`T setup ${s.id} needs a default call`);
   const ct = playbook.setups.filter(s => s.side === 'CT');
   if (!ct.some(s => s.answers?.includes('eco'))) out.push('needs a CT setup that answers eco');
   if (!ct.some(s => !s.answers)) out.push('needs a default CT setup (no answers)');

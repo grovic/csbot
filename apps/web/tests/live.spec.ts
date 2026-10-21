@@ -82,12 +82,13 @@ test('round over: result call and history', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('second half on T: generic call plus the read on their CT setup', async ({ page }) => {
+test('second half on T: our T playbook call, our job and spot, and the read on their CT setup', async ({ page }) => {
   const errors = await open(page, 'at=freeze-14%2B3&pause=1');
   await expect(page.getByTestId('banner')).toHaveAttribute('data-phase', 'freezetime');
   await expect(page.getByTestId('scorebox')).toContainText('Round 14');
-  await expect(page.getByTestId('call-head')).toHaveText(/^Enemy /);
-  await expect(page.getByTestId('youline')).toHaveCount(0);
+  await expect(page.getByTestId('call-head')).not.toHaveText(/^Enemy /);
+  await expect(page.getByTestId('youline')).toBeVisible();
+  await expect(page.getByTestId('marker-you')).toBeVisible();
   await expect(page.getByTestId('tile-hit')).toContainText('Likely light');
   await expect(page.getByTestId('tile-hit')).toContainText(/they likely play .+ · estimate/);
   await expect(page.getByTestId('forecast-basis')).toHaveAttribute('data-basis', 'prior');

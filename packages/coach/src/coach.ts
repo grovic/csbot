@@ -50,7 +50,7 @@ const pct = (p: number) => `${Math.round(p * 100)}%`;
 /** Compact facts for one moment of the match. Everything here was computed by csbot. */
 export function matchFacts(live: LiveSnapshot, roster: readonly RosterEntry[], scout?: ScoutView): Record<string, unknown> {
   const m = live.match;
-  const slots = slotsFor(m?.map);
+  const slots = slotsFor(m?.map, m?.ourSide);
   const bySlot = new Map(roster.filter(r => r.slot).map(r => [r.slot!, r]));
   const pb = m?.map ? PLAYBOOKS[m.map] : undefined;
   const setups = pb?.setups.filter(s => s.side === m?.ourSide).map(s => ({

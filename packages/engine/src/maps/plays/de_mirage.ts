@@ -51,6 +51,11 @@ export const PLAYBOOK_MIRAGE: PlaybookDef = {
     { id: 'a', label: 'A anchor' }, { id: 'short', label: 'Short / B support' }, { id: 'b', label: 'B anchor' },
     { id: 'rotator', label: 'Rotator' }, { id: 'awp', label: 'AWP' },
   ],
+  // The same five players on T: roles instead of positions.
+  tSlots: [
+    { id: 'a', label: 'Entry' }, { id: 'short', label: 'Support / flashes' }, { id: 'b', label: 'Lurk' },
+    { id: 'rotator', label: 'IGL / flex' }, { id: 'awp', label: 'AWP' },
+  ],
   setups: [
     {
       id: 'antieco', name: 'Anti-eco · stack B 3–2', side: 'CT', answers: ['eco'],
@@ -71,9 +76,55 @@ export const PLAYBOOK_MIRAGE: PlaybookDef = {
         { player: 'awp', zone: 'window', label: 'window AWP' }, { player: 'rotator', zone: 'asite', label: 'ticket' }, { player: 'a', zone: 'asite', label: 'A site' },
       ],
     },
+    // Our T halves.
+    {
+      id: 'tDefault', name: 'Default · ramp, mid, apps', side: 'T',
+      calls: { default: { head: 'Default · ramp, mid, apps', sub: 'Smoke window, take control, then hit the light site', steps: ['Smoke window', 'Take short', 'Call contact'] } },
+      spots: [
+        { player: 'a', zone: 'aramp', label: 'A ramp' }, { player: 'short', zone: 'short', label: 'short' },
+        { player: 'b', zone: 'bapps', label: 'B apps' }, { player: 'rotator', zone: 'palace', label: 'palace' }, { player: 'awp', zone: 'topmid', label: 'top mid AWP' },
+      ],
+    },
+    {
+      id: 'tExecA', name: 'A exec · ramp + palace', side: 'T', site: 'A',
+      calls: { default: { head: 'Hit A · ramp + palace', sub: 'Smoke jungle, CT and stairs, flash out together', steps: ['Smoke jungle + CT', 'Flash ramp', 'Plant default'] } },
+      spots: [
+        { player: 'a', zone: 'aramp', label: 'A ramp' }, { player: 'short', zone: 'aramp', label: 'ramp flash' },
+        { player: 'b', zone: 'bapps', label: 'B apps' }, { player: 'rotator', zone: 'palace', label: 'palace' }, { player: 'awp', zone: 'topmid', label: 'top mid' },
+      ],
+    },
+    {
+      id: 'tExecB', name: 'B exec · apps + short', side: 'T', site: 'B',
+      calls: { default: { head: 'Hit B · apps + short', sub: 'Smoke market window and door, flash out of apps', steps: ['Smoke market', 'Flash apps', 'Plant safe'] } },
+      spots: [
+        { player: 'a', zone: 'bapps', label: 'apps entry' }, { player: 'short', zone: 'bapps', label: 'apps flash' },
+        { player: 'b', zone: 'palace', label: 'palace' }, { player: 'rotator', zone: 'short', label: 'short' }, { player: 'awp', zone: 'topmid', label: 'top mid AWP' },
+      ],
+    },
+    {
+      id: 'tEco', name: 'Eco · B apps rush together', side: 'T', answers: ['eco'],
+      calls: { default: { head: 'Eco · B apps rush together', sub: 'All five out of apps at once · trade every duel', steps: ['Go together', 'Trade', 'Grab their guns'] } },
+      spots: [
+        { player: 'a', zone: 'bapps', label: 'apps' }, { player: 'short', zone: 'bapps', label: 'apps' },
+        { player: 'b', zone: 'bapps', label: 'apps' }, { player: 'rotator', zone: 'backalley', label: 'back alley' }, { player: 'awp', zone: 'backalley', label: 'back alley' },
+      ],
+    },
+    {
+      id: 'tForce', name: 'Force · A ramp + palace', side: 'T', answers: ['force'],
+      calls: { default: { head: 'Force · A ramp + palace', sub: 'Ramp and palace hit together, fast · one mid for the cross', steps: ['Flash ramp', 'Go fast', 'Trade'] } },
+      spots: [
+        { player: 'a', zone: 'aramp', label: 'A ramp' }, { player: 'short', zone: 'aramp', label: 'A ramp' },
+        { player: 'b', zone: 'palace', label: 'palace' }, { player: 'rotator', zone: 'palace', label: 'palace' }, { player: 'awp', zone: 'topmid', label: 'top mid' },
+      ],
+    },
   ],
   jobs: {
     antieco: { a: 'A site alone. Play deep and fall back to CT on contact.', short: 'B bench. Hold the apps exit, long angles only.', b: 'B van. Anchor, never peek apps.', rotator: 'Market. Rotate to whichever site gets hit.', awp: 'Window AWP. Hold mid from the window.' },
     std: { a: 'A site, crossfire with ticket. Molly palace on contact.', short: 'Short. Take early info, then fall back to market.', b: 'B van. Anchor alone and call contact fast.', rotator: 'Ticket. Crossfire A, rotate to B via CT if called.', awp: 'Window AWP. Hold mid, don\'t duel Holo.' },
+    tDefault: { a: 'A ramp. Take ramp behind a flash, clear tetris, call what holds stairs.', short: 'Short. Smoke window from T spawn, then take short behind a flash.', b: "B apps. Lurk quiet, call B numbers, don't peek out of apps alone.", rotator: 'Palace. Flash out once for info, read the map, call the hit.', awp: 'Top mid AWP. Take the first pick down mid, then join the hit.' },
+    tExecA: { a: 'A ramp. Swing first off the flash, clear tetris, then sandwich.', short: 'A ramp. Smoke stairs, flash over A ramp, trade the entry.', b: 'B apps. Make noise to freeze B, call the rotation, then hold the flank.', rotator: 'Palace. Smoke CT, molly firebox, come out with the ramp hit and call the plant.', awp: 'Top mid. Smoke jungle, then hold mid and short against the rotate.' },
+    tExecB: { a: 'B apps. Swing first off the flash, clear van and bench.', short: 'B apps. Molly bench, flash out of apps, trade the entry.', b: 'Palace. Fake A with noise and a flash, call the rotation through connector.', rotator: 'Short. Smoke market window and door, come down short with the hit, plant.', awp: 'Top mid AWP. Smoke window, then hold mid and cover the plant from short.' },
+    tEco: { a: 'B apps. First out, aim for van and bench, trade fast.', short: 'B apps. Pop a flash out of apps if you have one, trade the entry.', b: 'B apps. Third out, clear back site and market door.', rotator: 'Back alley. Come in fourth, pick up a gun.', awp: 'Back alley. Last in, watch short for the flank.' },
+    tForce: { a: 'A ramp. First up, clear tetris and sandwich fast.', short: 'A ramp. Flash over A ramp, trade the entry.', b: 'Palace. Come out with the ramp hit, clear firebox.', rotator: 'Palace. Smoke CT, follow the hit, plant default.', awp: 'Top mid. Smoke window, then push connector to split their crossfire.' },
   },
 };

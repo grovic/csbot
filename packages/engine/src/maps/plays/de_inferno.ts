@@ -57,6 +57,11 @@ export const PLAYBOOK_INFERNO: PlaybookDef = {
     { id: 'a', label: 'A anchor' }, { id: 'short', label: 'Short / Apps' }, { id: 'b', label: 'B anchor (banana)' },
     { id: 'rotator', label: 'Mid / rotator' }, { id: 'awp', label: 'AWP' },
   ],
+  // The same five players on T: roles instead of positions.
+  tSlots: [
+    { id: 'a', label: 'Entry' }, { id: 'short', label: 'Support / flashes' }, { id: 'b', label: 'Lurk' },
+    { id: 'rotator', label: 'IGL / flex' }, { id: 'awp', label: 'AWP' },
+  ],
   setups: [
     {
       id: 'antieco', name: 'Anti-eco · stack B 3–2', side: 'CT', answers: ['eco'],
@@ -77,6 +82,47 @@ export const PLAYBOOK_INFERNO: PlaybookDef = {
         { player: 'rotator', zone: 'arch', label: 'arch' }, { player: 'short', zone: 'topofmid', label: 'short' }, { player: 'a', zone: 'pit', label: 'pit' },
       ],
     },
+    // Our T halves.
+    {
+      id: 'tDefault', name: 'Default · banana, mid, apps', side: 'T',
+      calls: { default: { head: 'Default · banana, mid, apps', sub: 'Take banana control, then hit the light site', steps: ['Take banana', 'Mid control', 'Call contact'] } },
+      spots: [
+        { player: 'a', zone: 'banana', label: 'banana' }, { player: 'short', zone: 'banana', label: 'lower banana' },
+        { player: 'b', zone: 'apartments', label: 'apps' }, { player: 'rotator', zone: 'middle', label: 'mid' }, { player: 'awp', zone: 'middle', label: 'mid AWP' },
+      ],
+    },
+    {
+      id: 'tExecA', name: 'A exec · apps + short', side: 'T', site: 'A',
+      calls: { default: { head: 'Hit A · apps + short', sub: 'Smoke pit, CT and arch, flash out of apps, short together', steps: ['Smoke pit, CT, arch', 'Flash balcony', 'Plant default'] } },
+      spots: [
+        { player: 'a', zone: 'balcony', label: 'balcony' }, { player: 'short', zone: 'apartments', label: 'apps' },
+        { player: 'b', zone: 'banana', label: 'banana lurk' }, { player: 'rotator', zone: 'topofmid', label: 'short' }, { player: 'awp', zone: 'middle', label: 'mid AWP' },
+      ],
+    },
+    {
+      id: 'tExecB', name: 'B exec · banana', side: 'T', site: 'B',
+      calls: { default: { head: 'Hit B · banana', sub: 'Smoke CT and coffins, molly new box, flash out of banana', steps: ['Smoke CT + coffins', 'Molly new box', 'Flash and go'] } },
+      spots: [
+        { player: 'a', zone: 'banana', label: 'top banana' }, { player: 'short', zone: 'banana', label: 'car' },
+        { player: 'b', zone: 'apartments', label: 'apps lurk' }, { player: 'rotator', zone: 'banana', label: 'logs' }, { player: 'awp', zone: 'banana', label: 'banana AWP' },
+      ],
+    },
+    {
+      id: 'tEco', name: 'Eco · apps rush together', side: 'T', answers: ['eco'],
+      calls: { default: { head: 'Eco · apps rush together', sub: 'Four out of balcony at once, one drops boiler to short', steps: ['Go together', 'Trade', 'Grab their guns'] } },
+      spots: [
+        { player: 'a', zone: 'apartments', label: 'apps' }, { player: 'short', zone: 'apartments', label: 'apps' },
+        { player: 'b', zone: 'apartments', label: 'boiler' }, { player: 'rotator', zone: 'apartments', label: 'apps' }, { player: 'awp', zone: 'secondmid', label: 'second mid' },
+      ],
+    },
+    {
+      id: 'tForce', name: 'Force · banana rush', side: 'T', answers: ['force'],
+      calls: { default: { head: 'Force · banana rush', sub: 'Four up banana fast, one in apps to hold A', steps: ['Molly + flash', 'Go fast', 'Trade'] } },
+      spots: [
+        { player: 'a', zone: 'banana', label: 'top banana' }, { player: 'short', zone: 'banana', label: 'banana' },
+        { player: 'b', zone: 'apartments', label: 'apps' }, { player: 'rotator', zone: 'banana', label: 'banana' }, { player: 'awp', zone: 'banana', label: 'lower banana' },
+      ],
+    },
   ],
   jobs: {
     antieco: {
@@ -92,6 +138,41 @@ export const PLAYBOOK_INFERNO: PlaybookDef = {
       b: 'Banana car. Molly banana early, fight for control, fall back to coffins.',
       rotator: 'Arch. Watch top mid with short, rotate to B via CT if called.',
       awp: 'B site AWP. Hold the banana exit from the site, trade the car player.',
+    },
+    tDefault: {
+      a: 'Banana. Take control off the flash, clear car and logs, call what holds B.',
+      short: 'Lower banana. Molly car, flash over the top for your entry, trade him.',
+      b: "Apps. Lurk quiet, call balcony and boiler contact, don't peek alone.",
+      rotator: 'Mid. Flash top mid for info, read the map, call the hit.',
+      awp: 'Mid AWP. Take the first pick on top mid or short, then join the hit.',
+    },
+    tExecA: {
+      a: 'Balcony. First out off the flash, clear close corners and the site.',
+      short: 'Apps. Smoke pit, flash out over balcony, trade the entry.',
+      b: 'Banana lurk. Molly anyone pushing up banana, call the B rotate.',
+      rotator: 'Short. Smoke CT and arch, push short when apps hits, call the plant.',
+      awp: 'Mid AWP. Hold top mid until short goes, then cover the plant from short.',
+    },
+    tExecB: {
+      a: 'Top banana. First out off the flash, clear first oranges and the site.',
+      short: 'Car. Molly new box, flash over the top, trade the entry.',
+      b: 'Apps lurk. Make noise on balcony to hold A, then watch the flank.',
+      rotator: 'Logs. Smoke CT and coffins, go in third, plant safe.',
+      awp: 'Banana AWP. Hold the site through the smokes, then cover the plant from banana.',
+    },
+    tEco: {
+      a: 'Apps. First onto balcony, aim for the site player, trade fast.',
+      short: 'Apps. Right behind the entry, clear pit and trade him.',
+      b: 'Boiler. Drop to short as balcony swings, catch them looking up.',
+      rotator: 'Apps. Third out, call the plant, pick up a gun.',
+      awp: 'Second mid. Last in, watch the flank, grab the first rifle you can.',
+    },
+    tForce: {
+      a: 'Top banana. First out, clear car, logs and new box.',
+      short: 'Banana. Molly coffins and flash over the top, trade the entry.',
+      b: 'Apps. Make noise to hold the A players, watch for a push through apps.',
+      rotator: 'Banana. Third in, smoke CT, call the plant.',
+      awp: 'Lower banana. Last in, hold the banana flank behind the plant.',
     },
   },
 };
