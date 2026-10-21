@@ -124,6 +124,12 @@ importers:
         specifier: workspace:*
         version: link:../../packages/gsi
 
+  tools/room-relay:
+    dependencies:
+      '@trystero-p2p/ws-relay':
+        specifier: ^0.26.0
+        version: 0.26.0
+
   tools/spikes/claude-latency:
     dependencies:
       '@modelcontextprotocol/sdk':

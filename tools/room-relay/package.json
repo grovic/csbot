@@ -1,0 +1,15 @@
+{
+  "name": "@csbot/room-relay",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/relay.ts"
+  },
+  "bin": {
+    "csbot-room-relay": "src/relay.ts"
+  },
+  "dependencies": {
+    "@trystero-p2p/ws-relay": "^0.26.0"
+  }
+}
