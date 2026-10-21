@@ -14,6 +14,7 @@ import { claudeCommand, detectClaude, runAnalyst } from './scout/claude.ts';
 import { FileStore } from './scout/file-cache.ts';
 import { KEY_SERVICES, Secrets, type KeyService } from './scout/secrets.ts';
 import { ScoutService } from './scout/service.ts';
+import { faceitClient, steamClient } from '@csbot/scout';
 
 const env = readEnv();
 if (env.userData) app.setPath('userData', path.resolve(env.userData));
@@ -124,7 +125,18 @@ function run(): void {
       for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('csbot:scout', v);
     };
     scout.onChange(sendScout);
-    void scout.init();
+    void scout.init().then(() => { if (settings.faceitNickname) void scout?.setNickname(settings.faceitNickname); });
+    // Recent FACEIT matches every minute: a match that turns live gets scouted on its own.
+    setInterval(() => { void scout?.refreshRecent(); }, 60_000).unref();
+    ipcMain.handle('csbot:setFaceitNickname', async (e, nickname: unknown) => {
+      guard(e);
+      if (nickname !== null && (typeof nickname !== 'string' || nickname.length > 32)) return { ok: false, error: 'Invalid nickname.' };
+      const nick = typeof nickname === 'string' ? nickname.trim() : '';
+      const { faceitNickname: _old, ...rest } = settings;
+      settings = nick ? { ...rest, faceitNickname: nick } : rest;
+      saveSettings(userData, settings);
+      return scout ? scout.setNickname(nick || null) : { ok: false, error: 'csbot is shutting down' };
+    });
     ipcMain.handle('csbot:scoutLatest', e => { guard(e); return scout?.current; });
     ipcMain.handle('csbot:scoutMatch', async (e, linkOrId: unknown) => {
       guard(e);
@@ -139,11 +151,21 @@ function run(): void {
       roomRoster = names;
       scout?.relabelRoom();
     });
-    ipcMain.handle('csbot:setApiKey', (e, service: unknown, key: unknown) => {
+    ipcMain.handle('csbot:setApiKey', async (e, service: unknown, key: unknown) => {
       guard(e);
       if (!KEY_SERVICES.includes(service as KeyService) || (key !== null && typeof key !== 'string')) return { ok: false, error: 'Invalid request.' };
-      const r = secrets.set(service as KeyService, key as string | null);
-      if (r.ok) { log(`${service} key ${key === null ? 'cleared' : 'saved'}`); scout?.refreshSources(); }
+      // Check the key with the service before keeping it, so a typo shows up now, not mid-match.
+      if (typeof key === 'string') {
+        const check = await checkApiKey(service as KeyService, key.trim());
+        if (!check.ok) return check;
+      }
+      const r = secrets.set(service as KeyService, typeof key === 'string' ? key.trim() : null);
+      if (r.ok) {
+        log(`${service} key ${key === null ? 'cleared' : 'saved'}`);
+        scout?.refreshSources();
+        // A new FACEIT key: look the saved nickname up again.
+        if (service === 'faceit' && key !== null && settings.faceitNickname) void scout?.setNickname(settings.faceitNickname);
+      }
       return r;
     });
 
@@ -248,4 +270,21 @@ function startMetrics(file: string): void {
     try { fs.appendFileSync(file, JSON.stringify({ t: Date.now(), procs }) + '\n'); } catch { /* measurement only */ }
   }, 1000);
   t.unref();
+}
+
+/**
+ * One cheap authenticated call. A refused key is never stored; when the service can't be reached
+ * the key is kept (it may be fine) and the first real scout reports any problem.
+ */
+async function checkApiKey(service: KeyService, key: string): Promise<{ ok: boolean; error?: string }> {
+  if (process.env.CSBOT_KEY_CHECK === 'off') return { ok: true }; // e2e tests use fake keys, offline
+  try {
+    if (service === 'faceit') await faceitClient({ apiKey: key, retryDelayMs: 300 }).ping?.();
+    else await steamClient({ apiKey: key, retryDelayMs: 300 }).ping?.();
+    return { ok: true };
+  } catch (err) {
+    const kind = (err as { kind?: string }).kind;
+    if (kind === 'auth') return { ok: false, error: `${service === 'faceit' ? 'FACEIT' : 'Steam'} rejected this key. Copy it again from ${service === 'faceit' ? 'your FACEIT app (server side key)' : 'steamcommunity.com/dev/apikey'}.` };
+    return { ok: true };
+  }
 }

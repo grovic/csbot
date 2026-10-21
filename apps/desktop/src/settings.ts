@@ -13,6 +13,8 @@ export interface Settings {
   gsiToken: string;
   /** Our playbook slot (e.g. 'a'), for the YOU line when not in a room. */
   playbookHandle?: string;
+  /** The host's FACEIT nickname (public), for recent matches and live-match detection. */
+  faceitNickname?: string;
 }
 
 export function randomToken(n = 24): string {
@@ -34,6 +36,7 @@ export function loadSettings(dir: string): Settings {
     gsiPort: validPort(raw.gsiPort) ? raw.gsiPort : DEFAULT_GSI_PORT,
     gsiToken: validToken(raw.gsiToken) ? raw.gsiToken : randomToken(),
     ...(typeof raw.playbookHandle === 'string' && raw.playbookHandle ? { playbookHandle: raw.playbookHandle } : {}),
+    ...(typeof raw.faceitNickname === 'string' && raw.faceitNickname.trim() ? { faceitNickname: raw.faceitNickname.trim().slice(0, 32) } : {}),
   };
   if (JSON.stringify(s) !== JSON.stringify(raw)) {
     fs.mkdirSync(dir, { recursive: true });

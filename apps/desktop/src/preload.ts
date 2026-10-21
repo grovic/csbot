@@ -38,6 +38,7 @@ const bridge: CsbotBridge = {
   scoutSample: () => ipcRenderer.invoke('csbot:scoutSample') as Promise<void>,
   runScoutReport: () => ipcRenderer.invoke('csbot:runScoutReport') as Promise<{ ok: boolean; error?: string }>,
   setRoomRoster: members => { ipcRenderer.send('csbot:setRoomRoster', members); },
+  setFaceitNickname: nickname => ipcRenderer.invoke('csbot:setFaceitNickname', nickname) as Promise<{ ok: boolean; error?: string }>,
   setApiKey: (service, key) => ipcRenderer.invoke('csbot:setApiKey', service, key) as Promise<{ ok: boolean; error?: string }>,
 };
 

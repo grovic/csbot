@@ -25,6 +25,8 @@ export interface SteamApi {
   bans(ids: string[]): Promise<SteamBans[]>;
   /** Minutes played in CS2, or undefined when the profile hides it. */
   cs2Minutes(id: string): Promise<number | undefined>;
+  /** Cheapest authenticated call: throws ApiError (kind 'auth') for a bad key. */
+  ping?(): Promise<void>;
 }
 
 export const CS2_APP_ID = 730;
@@ -46,5 +48,7 @@ export function steamClient(o: SteamClientOptions): SteamApi {
       const r = await get<{ response: { games?: SteamPlaytime[] } }>(`/IPlayerService/GetOwnedGames/v1/?steamid=${id}&include_played_free_games=1&appids_filter%5B0%5D=${CS2_APP_ID}`);
       return r.response.games?.find(g => g.appid === CS2_APP_ID)?.playtime_forever;
     }),
+    // Lists the interfaces this key can use; 403 for a bad key.
+    ping: async () => { await get<unknown>('/ISteamWebAPIUtil/GetSupportedAPIList/v1/'); },
   };
 }

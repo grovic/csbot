@@ -47,7 +47,7 @@ export interface FaceitHistoryItem {
   status?: string;
   game_mode?: string;
   playing_players?: string[];
-  teams?: Record<string, { players?: { player_id: string; nickname?: string }[] }>;
+  teams?: Record<string, { nickname?: string; players?: { player_id: string; nickname?: string }[] }>;
   results?: { winner?: string };
 }
 export interface FaceitHistory { items: FaceitHistoryItem[] }
@@ -59,6 +59,10 @@ export interface FaceitApi {
   playerBySteamId(steamid: string): Promise<FaceitPlayer>;
   stats(id: string): Promise<FaceitPlayerStats>;
   history(id: string, limit?: number): Promise<FaceitHistory>;
+  /** Cheapest authenticated call: throws ApiError (kind 'auth') for a bad key. */
+  ping?(): Promise<void>;
+  /** Look a player up by FACEIT nickname (exact). */
+  playerByNickname?(nickname: string): Promise<FaceitPlayer>;
 }
 
 export const FACEIT_GAME = 'cs2';
@@ -85,6 +89,8 @@ export function faceitClient(o: FaceitClientOptions): FaceitApi {
     playerBySteamId: sid => cached(o.cache, `faceit:steam:${sid}`, TTL.player, () => get<FaceitPlayer>(`/players?game=${FACEIT_GAME}&game_player_id=${enc(sid)}`)),
     stats: id => cached(o.cache, `faceit:stats:${id}`, TTL.stats, () => get<FaceitPlayerStats>(`/players/${enc(id)}/stats/${FACEIT_GAME}`)),
     history: (id, limit = 20) => cached(o.cache, `faceit:history:${id}:${limit}`, TTL.history, () => get<FaceitHistory>(`/players/${enc(id)}/history?game=${FACEIT_GAME}&offset=0&limit=${limit}`)),
+    ping: async () => { await get<unknown>('/games?offset=0&limit=1'); },
+    playerByNickname: nick => cached(o.cache, `faceit:nick:${nick.toLowerCase()}`, TTL.player, () => get<FaceitPlayer>(`/players?nickname=${enc(nick)}`)),
   };
 }
 
@@ -121,4 +127,23 @@ export function mapId(label: string): string {
   if (l.startsWith('de_')) return l;
   const fixes: Record<string, string> = { dustii: 'de_dust2', dust2: 'de_dust2' };
   return fixes[l] ?? `de_${l}`;
+}
+
+/** Statuses after which a match is over. Anything else (READY, VOTING, CONFIGURING, ONGOING) is live. */
+const DONE = new Set(['FINISHED', 'CANCELLED', 'ABORTED']);
+
+/** A player's history as a short list for the Scout page (newest first). */
+export function recentFromHistory(playerId: string, h: FaceitHistory, limit = 6): import('@csbot/protocol').RecentMatch[] {
+  return h.items.slice(0, limit).map(it => {
+    const teams = Object.entries(it.teams ?? {});
+    const ours = teams.find(([, t]) => t.players?.some(p => p.player_id === playerId))?.[0];
+    const theirs = teams.find(([k]) => k !== ours)?.[1] as { nickname?: string } | undefined;
+    const status = (it.status ?? 'FINISHED').toUpperCase();
+    return {
+      id: it.match_id, status, live: !DONE.has(status),
+      ...(it.started_at ? { startedAt: it.started_at * 1000 } : {}),
+      ...(ours && it.results?.winner ? { won: it.results.winner === ours } : {}),
+      ...(theirs?.nickname ? { vs: theirs.nickname } : {}),
+    };
+  });
 }

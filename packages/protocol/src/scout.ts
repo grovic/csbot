@@ -73,6 +73,19 @@ export interface ScoutReport {
   tips?: Record<string, string>;
 }
 
+/** One of the host's recent FACEIT matches (from their history). */
+export interface RecentMatch {
+  id: string;
+  startedAt?: number;
+  /** FACEIT status: FINISHED, ONGOING, READY, VOTING, CONFIGURING, CANCELLED… */
+  status: string;
+  /** Not finished or cancelled yet: worth scouting now. */
+  live: boolean;
+  won?: boolean;
+  /** Opposing team's name. */
+  vs?: string;
+}
+
 export interface ScoutView {
   v: 1;
   status: 'idle' | 'loading' | 'ready' | 'error';
@@ -91,6 +104,10 @@ export interface ScoutView {
   facts: string[];
   report: ScoutReport;
   sources: { faceit: DataSourceState; steam: DataSourceState; claude: DataSourceState };
+  /** The host's own FACEIT account (set by nickname in Settings). */
+  account?: { nickname: string; status: 'ok' | 'not-found' | 'error'; level?: number; elo?: number; error?: string };
+  /** The host's recent matches, newest first. A live one gets scouted automatically. */
+  recent?: RecentMatch[];
 }
 
 export const EMPTY_SCOUT: ScoutView = {
