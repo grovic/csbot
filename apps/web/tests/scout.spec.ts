@@ -216,3 +216,44 @@ test('desktop host: your FACEIT nickname lists recent matches, one click scouts 
   expect(await calls()).toEqual(['nick:nobody', 'nick:rdx', 'match:1-00000000-0000-4000-8000-0000000000bb']);
   expect(errors).toEqual([]);
 });
+
+test('desktop host: a guessed side says so, and Swap teams scouts from the other side', async ({ page }) => {
+  const errors = watchErrors(page);
+  const sources = { faceit: 'live', steam: 'live', claude: 'off' } as const;
+  // A real FACEIT match where nothing identified the host (CS2 closed, no nickname saved): first team, a guess.
+  const scout = (x: object) => scoutFaceitMatch({ faceit: sampleFaceit(), steam: sampleSteam(), sources }, { matchId: SAMPLE_MATCH_ID, platform: 'faceit', ...x });
+  const guessed = await scout({});
+  const swapped = await scout({ swap: true });
+  expect(guessed.sideBy).toBe('guess');
+  await page.addInitScript(([guessed, swapped]) => {
+    type Cb = (x: unknown) => void;
+    const calls: string[] = [];
+    const cbs = new Set<Cb>();
+    let current: unknown = guessed;
+    const w = window as unknown as Record<string, unknown>;
+    w.__calls = calls;
+    const snap = { v: 1, seq: 1, at: Date.now(), scoreboard: [], ticker: [], connection: { gsi: 'waiting', payloads: 0, source: 'game', guardDropped: 0 } };
+    w.csbot = {
+      onSnapshot: (cb: Cb) => { cb(snap); return () => {}; },
+      onScout: (cb: Cb) => { cbs.add(cb); cb(current); return () => cbs.delete(cb); },
+      getInfo: async () => ({ version: '0.1.0', gsiUrl: 'http://127.0.0.1:47400', cfgStatus: 'current', recordingsDir: 'C:\csbot\recordings' }),
+      installCfg: async () => ({ ok: true }), openRecordings: async () => {},
+      scoutMatch: async () => ({ ok: true }), scoutSample: async () => {}, runScoutReport: async () => ({ ok: true }), setApiKey: async () => ({ ok: true }),
+      scoutSwap: async () => { calls.push('swap'); current = current === guessed ? swapped : guessed; for (const cb of cbs) cb(current); return { ok: true }; },
+    };
+  }, [guessed, swapped] as const);
+  const calls = () => page.evaluate(() => (window as unknown as { __calls: string[] }).__calls);
+
+  await page.goto('./#/scout');
+  const note = page.getByTestId('side-note');
+  await expect(note).toContainText(`Is ${guessed.us.name} your team?`);
+  await expect(note).toContainText('Settings → Data sources');
+  await expect(page.getByTestId('versus')).toContainText(guessed.us.name);
+  await shot(page, 'scout-side-guessed', false);
+  await page.getByTestId('swap-sides').click();
+  await expect.poll(calls).toEqual(['swap']);
+  await expect(note).toContainText('You swapped the teams');
+  await expect(page.locator('.vs-side').first()).toContainText(swapped.us.name);
+  expect(swapped.us.name).not.toBe(guessed.us.name);
+  expect(errors).toEqual([]);
+});

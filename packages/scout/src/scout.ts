@@ -19,6 +19,11 @@ export interface ScoutInput {
   platform: 'faceit' | 'sample';
   /** Our own Steam ID (from GSI), to know which faction is "us". */
   ourSteamId?: string;
+  /** The host's FACEIT account (Settings): player ID and/or nickname. Used when CS2 isn't running. */
+  ourFaceitId?: string;
+  ourNickname?: string;
+  /** The host said the identified side is wrong: take the other faction. */
+  swap?: boolean;
   /** Room members by Steam ID or nickname (case-insensitive) → their room role. Others on our side are randoms. */
   room?: Record<string, 'admin' | 'member'>;
   mapPool?: string[];
@@ -31,7 +36,8 @@ export async function scoutFaceitMatch(deps: ScoutDeps, input: ScoutInput): Prom
   const match = await deps.faceit.match(input.matchId);
   const factions = Object.entries(match.teams);
   if (factions.length !== 2) throw new Error('FACEIT returned a match without two teams');
-  const ourKey = factions.find(([, f]) => f.roster.some(r => r.game_player_id && r.game_player_id === input.ourSteamId))?.[0] ?? factions[0]![0];
+  const { key: foundKey, by } = ourFaction(factions, input);
+  const ourKey = input.swap ? factions.find(([k]) => k !== foundKey)![0] : foundKey;
   const ours = factions.find(([k]) => k === ourKey)![1];
   const theirs = factions.find(([k]) => k !== ourKey)![1];
 
@@ -89,7 +95,7 @@ export async function scoutFaceitMatch(deps: ScoutDeps, input: ScoutInput): Prom
     v: 1, status: 'ready', platform: input.platform, matchId: match.match_id,
     ...(match.faceit_url ? { matchUrl: match.faceit_url.replace('{lang}', 'en') } : {}),
     ...(map ? { map } : {}),
-    fetchedAt: now(), us, them, maps, facts: [],
+    fetchedAt: now(), us, them, maps, facts: [], sideBy: input.swap ? 'manual' : by,
     report: { status: 'idle' },
     sources: { ...deps.sources, steam: steamState },
   };
@@ -100,3 +106,23 @@ export async function scoutFaceitMatch(deps: ScoutDeps, input: ScoutInput): Prom
 }
 
 const teamName = (f: FaceitFaction, fallback: string) => f.name || fallback;
+
+/**
+ * Which faction is ours: the host's Steam ID (CS2 running), else their FACEIT account from Settings, else
+ * the faction with the most room members. Falls back to the first faction, flagged as a guess.
+ */
+export function ourFaction(factions: [string, FaceitFaction][], input: Pick<ScoutInput, 'ourSteamId' | 'ourFaceitId' | 'ourNickname' | 'room'>): { key: string; by: NonNullable<ScoutView['sideBy']> } {
+  const lc = (s?: string) => s?.toLowerCase();
+  const find = (has: (r: FaceitFaction['roster'][number]) => boolean) => factions.find(([, f]) => f.roster.some(has))?.[0];
+  const bySteam = input.ourSteamId ? find(r => r.game_player_id === input.ourSteamId) : undefined;
+  if (bySteam) return { key: bySteam, by: 'steam' };
+  const byAccount = input.ourFaceitId || input.ourNickname
+    ? find(r => (!!input.ourFaceitId && r.player_id === input.ourFaceitId) || (!!input.ourNickname && lc(r.nickname) === lc(input.ourNickname)))
+    : undefined;
+  if (byAccount) return { key: byAccount, by: 'account' };
+  const room = new Set(Object.keys(input.room ?? {}).map(k => k.toLowerCase()));
+  const members = factions.map(([k, f]) => [k, f.roster.filter(r => room.has(lc(r.nickname)!) || (!!r.game_player_id && room.has(r.game_player_id))).length] as const);
+  const [best, second] = [...members].sort((a, b) => b[1] - a[1]);
+  if (best && best[1] > 0 && best[1] > (second?.[1] ?? 0)) return { key: best[0], by: 'room' };
+  return { key: factions[0]![0], by: 'guess' };
+}

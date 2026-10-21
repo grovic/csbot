@@ -241,6 +241,7 @@ function run(): void {
       return scout ? scout.scoutMatch(linkOrId) : { ok: false, error: 'csbot is shutting down' };
     });
     ipcMain.handle('csbot:scoutSample', async e => { guard(e); await scout?.scoutSample(); });
+    ipcMain.handle('csbot:scoutSwap', async e => { guard(e); return scout ? scout.swapSides() : { ok: false, error: 'csbot is shutting down' }; });
     ipcMain.handle('csbot:runScoutReport', async e => { guard(e); return scout ? scout.runReport() : { ok: false, error: 'csbot is shutting down' }; });
     ipcMain.on('csbot:setRoomRoster', (e, members: unknown) => {
       if (!isOurs(e.senderFrame?.url ?? '')) return;

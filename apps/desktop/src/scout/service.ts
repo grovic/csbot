@@ -58,7 +58,10 @@ export class ScoutService {
   /** Bumped by every new scout; results from an older one are dropped. */
   private gen = 0;
   private runs = new Map<string, { auto: number; manual: number }>();
-  /** Last good report per match: re-scouting (fresh data) keeps it instead of spending another call. */
+  /**
+   * Last good report per match and side (it's written for one team): re-scouting (fresh data) keeps it
+   * instead of spending another call. Keyed by reportKey().
+   */
   private reports = new Map<string, ScoutReport>();
   private reportBusy = false;
   /** The host's FACEIT account and recent matches: kept across scouts (merged into every view). */
@@ -66,6 +69,8 @@ export class ScoutService {
   private recent?: RecentMatch[];
   /** Live matches already scouted automatically (never twice). */
   private autoScouted = new Set<string>();
+  /** Matches where the host swapped the sides (their side was guessed wrong). */
+  private swapped = new Set<string>();
 
   constructor(o: ScoutServiceOptions) {
     this.o = { now: Date.now, autoReport: true, manualRuns: 2, ...o };
@@ -119,7 +124,23 @@ export class ScoutService {
     const steamKey = this.o.keys.get('steam');
     const faceit = (this.o.makeFaceit ?? (k => faceitClient({ apiKey: k, ...(this.o.cache ? { cache: this.o.cache } : {}) })))(key);
     const steam = steamKey ? (this.o.makeSteam ?? (k => steamClient({ apiKey: k, ...(this.o.cache ? { cache: this.o.cache } : {}) })))(steamKey) : undefined;
-    return this.scout(id, 'faceit', faceit, steam, this.o.ourSteamId?.(), this.o.roomSteamIds?.());
+    return this.scout(id, 'faceit', faceit, steam, this.o.ourSteamId?.(), this.roomRoles());
+  }
+
+  /** The host says csbot picked the wrong team for the current FACEIT match: scout it again from the other side. */
+  async swapSides(): Promise<{ ok: boolean; error?: string }> {
+    const id = this.view.matchId;
+    if (this.view.platform !== 'faceit' || !id) return { ok: false, error: 'Scout a FACEIT match first.' };
+    if (this.swapped.has(id)) this.swapped.delete(id); else this.swapped.add(id);
+    return this.scoutMatch(id);
+  }
+
+  /** Room roles for labelling our side: the host (by Steam ID, or by FACEIT nickname when CS2 isn't running) and members. */
+  private roomRoles(): Record<string, 'admin' | 'member'> {
+    const roles = { ...(this.o.roomSteamIds?.() ?? {}) };
+    const nick = this.account?.status === 'ok' ? this.account.nickname.toLowerCase() : undefined;
+    if (nick) roles[nick] = 'admin';
+    return roles;
   }
 
   async scoutSample(): Promise<void> {
@@ -131,7 +152,7 @@ export class ScoutService {
   /** The room changed: relabel our side (admin / member / random) without refetching anything. */
   relabelRoom(): void {
     if (this.view.status !== 'ready' || this.view.platform === 'sample') return;
-    const room = new Map(Object.entries(this.o.roomSteamIds?.() ?? {}).map(([k, v]) => [k.toLowerCase(), v]));
+    const room = new Map(Object.entries(this.roomRoles()).map(([k, v]) => [k.toLowerCase(), v]));
     const players = this.view.us.players.map(p => ({ ...p, room: (p.steamid ? room.get(p.steamid) : undefined) ?? room.get(p.nickname.toLowerCase()) ?? 'random' as const }));
     this.set({ ...this.view, us: { ...this.view.us, players } });
   }
@@ -214,11 +235,15 @@ export class ScoutService {
     try {
       const v = await scoutFaceitMatch(
         { faceit, ...(steam ? { steam } : {}), sources: this.sources(platform), now: this.o.now },
-        { matchId, platform, ...(ourSteamId ? { ourSteamId } : {}), ...(room ? { room } : {}) },
+        {
+          matchId, platform, ...(ourSteamId ? { ourSteamId } : {}), ...(room ? { room } : {}),
+          ...(platform === 'faceit' && this.account?.status === 'ok' ? { ourNickname: this.account.nickname, ...(this.account.playerId ? { ourFaceitId: this.account.playerId } : {}) } : {}),
+          ...(this.swapped.has(matchId) ? { swap: true } : {}),
+        },
       );
       if (gen !== this.gen) return { ok: true };
       const fresh: ScoutView = { ...v, sources: { ...this.sources(platform), steam: v.sources.steam === 'error' ? 'error' : this.sources(platform).steam } };
-      const kept = this.reports.get(matchId);
+      const kept = this.reports.get(reportKey(fresh));
       if (kept) this.set(withReport(fresh, kept));
       else {
         this.set(fresh);
@@ -242,12 +267,13 @@ export class ScoutService {
       return { ok: false, error: ERRORS.noClaude };
     }
     if (this.reportBusy) return { ok: false, error: 'The report is already running.' };
-    const used = this.runs.get(v.matchId) ?? { auto: 0, manual: 0 };
+    // Per side: a swapped match gets its own automatic briefing (at most two per match).
+    const used = this.runs.get(reportKey(v)) ?? { auto: 0, manual: 0 };
     if (auto ? used.auto >= 1 : used.manual >= this.o.manualRuns) {
       if (!auto) this.set({ ...v, report: { ...v.report, error: ERRORS.budget } });
       return { ok: false, error: ERRORS.budget };
     }
-    this.runs.set(v.matchId, auto ? { ...used, auto: used.auto + 1 } : { ...used, manual: used.manual + 1 });
+    this.runs.set(reportKey(v), auto ? { ...used, auto: used.auto + 1 } : { ...used, manual: used.manual + 1 });
     this.reportBusy = true;
     const previous = v.report;
     this.set({ ...v, report: { status: 'running', ...(previous.status === 'ready' ? keepText(previous) : {}) } });
@@ -256,7 +282,7 @@ export class ScoutService {
       if (gen !== this.gen) return { ok: true };
       const { model, ms, ...text } = r;
       const report: ScoutReport = { status: 'ready', model, ms, at: this.o.now(), ...text };
-      this.reports.set(v.matchId, report);
+      this.reports.set(reportKey(v), report);
       this.set(withReport(this.view, report));
       return { ok: true };
     } catch (e) {
@@ -306,3 +332,6 @@ const keepText = (r: ScoutReport): Partial<ScoutReport> => {
   const { status: _s, error: _e, ...rest } = r;
   return rest;
 };
+
+/** A briefing belongs to one match seen from one side. */
+const reportKey = (v: ScoutView) => `${v.matchId}|${v.us.players.map(p => p.id).sort().join(',')}`;

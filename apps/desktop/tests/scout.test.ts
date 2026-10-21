@@ -229,6 +229,33 @@ describe('room labels', () => {
   });
 });
 
+describe("which team is the host's", () => {
+  it('uses the saved FACEIT account when CS2 is not running, and swaps on request', async () => {
+    // No Steam ID from GSI (CS2 closed); the host's account plays on the second faction.
+    const svc = new ScoutService({ keys: keys({ faceit: 'faceit-key-0000000000' }), makeFaceit: () => sampleFaceit(), autoReport: false });
+    expect((await svc.setNickname('Holo')).ok).toBe(true);
+    expect((await svc.scoutMatch('1-00000000-0000-4000-8000-000000000001')).ok).toBe(true);
+    const us = () => svc.current.us.players.map(p => p.nickname);
+    expect(svc.current.sideBy).toBe('account');
+    expect(us()).toContain('Holo');
+    expect(svc.current.us.players.find(p => p.nickname === 'Holo')!.room).toBe('admin');
+
+    expect((await svc.swapSides()).ok).toBe(true);
+    expect(svc.current.sideBy).toBe('manual');
+    expect(us()).toContain('rdx');
+    expect((await svc.swapSides()).ok).toBe(true);
+    expect(svc.current.sideBy).toBe('account');
+    expect(us()).toContain('Holo');
+  });
+
+  it('flags a guess when nothing identifies the host', async () => {
+    const svc = new ScoutService({ keys: keys({ faceit: 'faceit-key-0000000000' }), makeFaceit: () => sampleFaceit(), autoReport: false });
+    await svc.scoutMatch('1-00000000-0000-4000-8000-000000000001');
+    expect(svc.current.sideBy).toBe('guess');
+    expect((await new ScoutService({ keys: keys(), autoReport: false }).swapSides()).ok).toBe(false);
+  });
+});
+
 describe('your FACEIT account and recent matches', () => {
   it('needs a key, finds the account, lists recent matches', async () => {
     const none = new ScoutService({ keys: keys(), autoReport: false });

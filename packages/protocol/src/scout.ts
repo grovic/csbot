@@ -104,6 +104,11 @@ export interface ScoutView {
   facts: string[];
   report: ScoutReport;
   sources: { faceit: DataSourceState; steam: DataSourceState; claude: DataSourceState };
+  /**
+   * How csbot knows which team is ours: the host's Steam ID from CS2, the FACEIT account saved in Settings,
+   * room members found on a roster, a guess (none of those matched: first team), or the host swapped it.
+   */
+  sideBy?: 'steam' | 'account' | 'room' | 'guess' | 'manual';
   /** The host's own FACEIT account (set by nickname in Settings). */
   account?: { nickname: string; status: 'ok' | 'not-found' | 'error'; level?: number; elo?: number; error?: string };
   /** The host's recent matches, newest first. A live one gets scouted automatically. */
