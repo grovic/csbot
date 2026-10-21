@@ -133,3 +133,28 @@ describe('GSI server', () => {
     expect(rejected.sort()).toEqual(['json', 'token']);
   });
 });
+
+describe('product GSI cfg', () => {
+  it('requests only player components', async () => {
+    const { gsiConfig, SPECTATOR_COMPONENTS } = await import('./cfg.ts');
+    const cfg = gsiConfig({ uri: 'http://127.0.0.1:47400', token: 'tok_12345678' });
+    expect(cfg).toContain('"player_state"');
+    for (const c of SPECTATOR_COMPONENTS) expect(cfg).not.toContain(`"${c}"`);
+    expect(cfg).not.toContain('phase_countdowns');
+    expect(() => gsiConfig({ uri: 'http://127.0.0.1:1', token: 'tok_12345678', components: ['allplayers_position'] })).toThrow(/spectator/);
+    expect(() => gsiConfig({ uri: 'http://127.0.0.1:1', token: 'bad"token' })).toThrow();
+  });
+});
+
+describe('synthetic match', () => {
+  it('lean mode drops round_wins and phase_countdowns', () => {
+    const rec = syntheticMatch({ lean: true });
+    expect(rec.some(r => r.p.map?.round_wins || r.p.phase_countdowns)).toBe(false);
+  });
+  it('follows a teammate after dying', () => {
+    const rec = syntheticMatch();
+    const watching = rec.filter(r => r.p.player?.steamid !== r.p.provider?.steamid);
+    expect(watching.length).toBeGreaterThan(0);
+    expect(watching.every(r => r.p.player?.team === 'CT')).toBe(true);
+  });
+});

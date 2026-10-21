@@ -1,0 +1,8 @@
+{
+  "name": "@csbot/gsi-replayer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": { "csbot-replay": "src/replay.ts" },
+  "dependencies": { "@csbot/gsi": "workspace:*" }
+}

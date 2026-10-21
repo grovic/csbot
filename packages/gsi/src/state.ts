@@ -24,6 +24,8 @@ export interface PlayerState {
   deaths: number;
   mvps: number;
   activeWeapon?: string;
+  /** Primary weapon owned (rifle, SMG, sniper, shotgun, MG), if any. */
+  primary?: string;
   position?: readonly [number, number, number];
 }
 
@@ -48,6 +50,7 @@ export interface GameState {
   countdown?: { phase: string; endsIn: number };
 }
 
+const PRIMARY_TYPES = new Set(['rifle', 'sniperrifle', 'submachinegun', 'shotgun', 'machinegun']);
 const side = (s?: string): Side | undefined => (s === 'CT' || s === 'T' ? s : undefined);
 
 export function parseRoundWin(code: string): RoundWin | undefined {
@@ -77,7 +80,9 @@ export function toGameState(p: GsiPayload, at = Date.now()): GameState {
   if (pl?.steamid) {
     const st = pl.state ?? {};
     const ms = pl.match_stats ?? {};
-    const active = Object.values(pl.weapons ?? {}).find(w => w.state === 'active');
+    const weapons = Object.values(pl.weapons ?? {});
+    const active = weapons.find(w => w.state === 'active');
+    const primary = weapons.find(w => PRIMARY_TYPES.has((w.type ?? '').toLowerCase().replace(/\s+/g, '')));
     const health = st.health ?? 0;
     player = {
       steamid: pl.steamid,
@@ -98,6 +103,7 @@ export function toGameState(p: GsiPayload, at = Date.now()): GameState {
       deaths: ms.deaths ?? 0,
       mvps: ms.mvps ?? 0,
       activeWeapon: active?.name,
+      primary: primary?.name,
       position: parseVec(pl.position),
     };
   }
