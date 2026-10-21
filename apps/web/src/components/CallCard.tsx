@@ -1,15 +1,33 @@
 import { MIRAGE } from '@csbot/engine';
-import type { LiveSnapshot, RoomView } from '@csbot/protocol';
+import type { CoachView, LiveSnapshot, RoomView } from '@csbot/protocol';
 import { useEffect, useRef, useState } from 'react';
+import { claudeCallFor, secs } from '../data/coachInfo.ts';
 import { pct } from '../format.ts';
 
 const planName = (id: string) => MIRAGE.plans.find(p => p.id === id)?.name ?? id;
 
-export function CallCard({ snap, room }: { snap: LiveSnapshot; room?: RoomView }) {
+/** "Claude Code · sonnet · 3.1 s", from the call log entry that wrote this round's call. */
+function claudeMeta(coach: CoachView | undefined, round: number): string {
+  const e = claudeCallFor(coach, round);
+  return e ? `Claude Code${e.model ? ` · ${e.model}` : ''}${e.ms !== undefined ? ` · ${secs(e.ms)}` : ''}` : "Claude Code · on the host's desktop";
+}
+
+export function CallCard({ snap, room, coach }: { snap: LiveSnapshot; room?: RoomView; coach?: CoachView }) {
   const c = snap.call;
   const [whyOpen, setWhy] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const lastKind = useRef<string | undefined>(undefined);
+  const lastCall = useRef<{ round: number; kind: string; source: string } | undefined>(undefined);
+  useEffect(() => {
+    // A soft glow when Claude's call replaces the engine's for the same moment.
+    const prev = lastCall.current;
+    if (c && prev && prev.round === c.round && prev.kind === c.kind && prev.source === 'engine' && c.source === 'claude' && ref.current) {
+      ref.current.classList.remove('upgraded');
+      void ref.current.offsetWidth;
+      ref.current.classList.add('upgraded');
+    }
+    lastCall.current = c ? { round: c.round, kind: c.kind, source: c.source } : undefined;
+  }, [c?.round, c?.kind, c?.source]);
   useEffect(() => {
     // Flash once when the plan changes mid-round (post-plant now, intel updates from M4).
     const k = c?.kind;
@@ -64,7 +82,7 @@ export function CallCard({ snap, room }: { snap: LiveSnapshot; room?: RoomView }
       )}
       {c.steps.length > 0 && <ul className="steps">{c.steps.slice(0, 3).map(s => <li key={s}>{s}</li>)}</ul>}
       <div className="meta">
-        <span>{c.source === 'engine' ? 'local engine' : 'Claude Code · on the host\'s desktop'}</span>
+        <span data-testid="call-source" data-source={c.source}>{c.source === 'engine' ? 'local engine' : claudeMeta(coach, c.round)}</span>
         {(c.why.length > 0 || plans.length > 0) && (
           <button className="lnk" type="button" onClick={() => setWhy(v => !v)} aria-expanded={whyOpen}>{whyOpen ? 'Hide why' : 'Why this call?'}</button>
         )}

@@ -310,7 +310,7 @@ Randoms show their planned spot and a "random" tag, unless a dead room member is
 | Role | Model (alias) | Effort | Process | Trigger | Budget |
 |---|---|---|---|---|---|
 | Analyst (scouting report) | `opus` | high | one-shot, facts in the prompt, `--json-schema` (no tools) | match scouted | ≤ 60 s (measured 16.9 s) |
-| Live coach | `sonnet` (or `haiku`) | low | **one long-lived stream-json process per match** | round end, freeze time, intel, timeout | ≤ 4 s |
+| Live coach | `sonnet` (or `haiku`) | low | **one long-lived stream-json process per match**, `--json-schema` on every turn (no MCP server needed) | match start (warm-up), freeze time, bomb planted | ≤ 4 s (measured 3.1 s warm) |
 | Member questions | same live session | low | — | question from any room member, within quota | ≤ 4 s |
 | Debrief | `opus` | high | one-shot | demo parsed | ≤ 2 min |
 
@@ -328,7 +328,14 @@ claude -p --input-format stream-json --output-format stream-json --verbose \
 - `--system-prompt-file` replaces the coding-assistant persona.
 - `--session-id` allows `--resume` after a crash or a host handover.
 
-### 6.2 Output contract: tool calls, not prose
+### 6.2 Output contract: structured output, not prose
+
+> **As built (M3, M5):**
+> - The analyst and the live coach both use `claude -p --json-schema`. Claude Code then returns `structured_output` on every turn of a warm stream-json session, so no MCP server or local tool endpoint is needed.
+> - Calls and answers share one schema, with a `type` field.
+> - Facts go in each message.
+> - The host validates the output: only known slots and real playbook setups survive.
+> - The MCP design below stays an option for read tools later.
 
 - Claude publishes through **MCP tools with strict schemas**:
   - `publish_call` (headline, sub-line, steps, and **one job per player**)
@@ -592,6 +599,9 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
    - *Deferred:* Leetify (optional), and automatic FACEIT match detection (spike 4).
 4. **M4 · Forecast:** demo ingest, zones and routes for the map pool, plan priors, heat, intel from all members, gather mode.
 5. **M5 · Live coach:** playbook, live session, per-player jobs, Coach page, voice, tournament mode, quotas.
+   - *Built.* One warm session per match. Claude's call replaces the engine's on every screen.
+   - *Measured through the app's own runner:* warm-up 2.2 s, round call 3.0 s (Sonnet, low effort), about $0.011 at API-equivalent prices for both.
+   - *Memory:* the `claude` process uses about 224 MB, in addition to csbot's roughly 290 MB.
 6. **M6 · Debrief:** analysis, calibration reports, progress tracking.
 7. **M7 · Extras:** 2D replay, lineup library, anti-strat builder, Stream Deck, push-to-talk, practice export, Wingman, Premier roster (if M0 passed).
 8. **M8 · Hardening:** host handover, signing, auto-update, performance, closed beta with a few squads → **V1 release**.
@@ -599,7 +609,7 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
 **V1 exit criteria:**
 - buy-read accuracy ≥ 80% and money-band coverage ≥ 85% on 50 held-out demos
 - call on every screen ≤ 8 s after round end (p95)
-- under 3% CPU and 400 MB RAM on the host while in game (RAM = private memory summed over csbot's processes, as Task Manager shows it)
+- under 3% CPU and 400 MB RAM on the host while in game (RAM = private memory summed over csbot's processes, as Task Manager shows it; the user's own `claude` process, about 220 MB while coaching, is counted separately)
 - room reconnect in under 5 s
 
 ---

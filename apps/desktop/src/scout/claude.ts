@@ -27,7 +27,7 @@ export function claudeCommand(env: NodeJS.ProcessEnv = process.env): ClaudeComma
   return { command: override || 'claude', prefix: [], env: {} };
 }
 
-function childEnv(cmd: ClaudeCommand): NodeJS.ProcessEnv {
+export function childEnv(cmd: ClaudeCommand): NodeJS.ProcessEnv {
   // Inherit the user's environment unchanged (their login, their PATH). Only drop the flag that would
   // turn an Electron-based launcher into plain Node; a Node-script override sets it back on purpose.
   const env: NodeJS.ProcessEnv = { ...process.env };
@@ -35,7 +35,7 @@ function childEnv(cmd: ClaudeCommand): NodeJS.ProcessEnv {
   return { ...env, ...cmd.env };
 }
 
-function killTree(child: ChildProcess): void {
+export function killTree(child: ChildProcess): void {
   if (!child.pid) return;
   if (process.platform === 'win32') {
     try { execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true }); } catch { /* gone */ }

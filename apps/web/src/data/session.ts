@@ -11,7 +11,11 @@ import {
   RoomClient, RoomHost, type Invite, type SavedRoom,
 } from '@csbot/room';
 import { trysteroTransport } from '@csbot/room/trystero';
-import { EMPTY_SCOUT, type CsbotBridge, type LinkStatus, type LiveSnapshot, type RoomPermissions, type ScoutView, type ScreenState } from '@csbot/protocol';
+import {
+  EMPTY_COACH, EMPTY_SCOUT, type CoachConfig, type CoachView, type CsbotBridge, type LinkStatus, type LiveSnapshot, type RoomPermissions,
+  type ScoutView, type ScreenState,
+} from '@csbot/protocol';
+import { demoCoach } from './demoCoach.ts';
 import { demoRoom } from './demoRoom.ts';
 import { demoScout } from './demoScout.ts';
 import { demoSource, readDemoOptions } from './demo.ts';
@@ -48,11 +52,18 @@ export interface SessionView {
    * `screen.scout` instead; read both through `scoutOf(view)`.
    */
   scout?: ScoutView;
+  /** The live coach from this PC's own source (demo, or the desktop app). Read through `coachOf(view)`. */
+  coach?: CoachView;
 }
 
 /** The scouting this screen shows: from the room when joined, else this PC's own. */
 export function scoutOf(v: SessionView): ScoutView {
   return v.screen?.scout ?? v.scout ?? EMPTY_SCOUT;
+}
+
+/** The coach this screen shows: from the room when joined, else this PC's own. */
+export function coachOf(v: SessionView): CoachView {
+  return v.screen?.coach ?? v.coach ?? EMPTY_COACH;
 }
 
 const LS = {
@@ -143,7 +154,7 @@ export class Session {
 
   private startSource(which: 'demo' | 'none'): void {
     const src = which === 'demo' ? demoSource(readDemoOptions(this.win.location.search)) : noneSource();
-    this.reset({ role: which, kind: which, ...(which === 'demo' ? { scout: { ...EMPTY_SCOUT, status: 'loading' as const } } : {}) });
+    this.reset({ role: which, kind: which, ...(which === 'demo' ? { scout: { ...EMPTY_SCOUT, status: 'loading' as const }, coach: demoCoach() } : {}) });
     let alive = true;
     this.stops.push(() => { alive = false; });
     if (which === 'demo') {
@@ -154,7 +165,8 @@ export class Session {
     }
     this.stops.push(src.subscribe(live => {
       const scout = this.view.scout?.status === 'ready' ? this.view.scout : undefined;
-      const screen: ScreenState = which === 'demo' ? { live, room: demoRoom(live.match?.map), ...(scout ? { scout } : {}) } : { live };
+      const coach = this.view.coach;
+      const screen: ScreenState = which === 'demo' ? { live, room: demoRoom(live.match?.map), ...(scout ? { scout } : {}), ...(coach ? { coach } : {}) } : { live };
       this.set({ screen, receivedAt: Date.now(), rate: src.rate() });
     }));
   }
@@ -163,9 +175,21 @@ export class Session {
     const b = this.bridge!;
     this.reset({ role: 'solo', kind: 'desktop', device: 'desktop' });
     this.watchOwnScout();
+    this.watchOwnCoach();
     this.stops.push(b.onSnapshot(live => {
       this.lastLive = live;
-      this.set({ screen: { live, ...(this.view.scout ? { scout: this.view.scout } : {}) }, receivedAt: Date.now(), rate: 1 });
+      const { scout, coach } = this.view;
+      this.set({ screen: { live, ...(scout ? { scout } : {}), ...(coach ? { coach } : {}) }, receivedAt: Date.now(), rate: 1 });
+    }));
+  }
+
+  /** Desktop solo/host: the live coach, from the main process. */
+  private watchOwnCoach(onCoach?: (c: CoachView) => void): void {
+    const b = this.bridge;
+    if (!b?.onCoach) return;
+    this.stops.push(b.onCoach(c => {
+      onCoach?.(c);
+      this.set({ coach: c, ...(this.view.screen ? { screen: { ...this.view.screen, coach: c } } : {}) });
     }));
   }
 
@@ -217,6 +241,41 @@ export class Session {
     try { return await this.bridge.setApiKey(service, key); } catch (e) { return { ok: false, error: String((e as Error)?.message ?? e) }; }
   }
 
+  // ---------------------------------------------------------------- coach
+
+  /** This screen runs the coach (the desktop app, solo or hosting), so it can change its settings. */
+  get canConfigureCoach(): boolean {
+    return !!this.bridge?.setCoachConfig && (this.view.role === 'solo' || this.view.role === 'host');
+  }
+
+  /**
+   * Ask the coach. Desktop solo/host: the main process (as the admin). Member: through the room, and
+   * the host checks permission and quota. Returns a refusal to show, if any; the answer arrives in the chat.
+   */
+  async askCoach(text: string): Promise<string | undefined> {
+    const q = text.trim().slice(0, 300);
+    if (q.length < 2) return 'Type a question first.';
+    try {
+      if (this.view.role === 'member') {
+        if (!this.client) return 'Not connected to the host.';
+        const r = await this.client.ask(q);
+        return r.ok ? undefined : r.error ?? 'The host refused the question.';
+      }
+      if ((this.view.role === 'solo' || this.view.role === 'host') && this.bridge?.askCoach) {
+        const r = await this.bridge.askCoach(q);
+        return r.ok ? undefined : r.error ?? 'The coach could not take the question.';
+      }
+      return 'Questions go to the host\'s Claude Code, in the csbot desktop app or a room.';
+    } catch (e) {
+      return String((e as Error)?.message ?? e);
+    }
+  }
+
+  async setCoachConfig(patch: Partial<CoachConfig>): Promise<void> {
+    if (!this.canConfigureCoach) return;
+    try { await this.bridge!.setCoachConfig!(patch); } catch { /* the next coach update shows the real state */ }
+  }
+
   // ---------------------------------------------------------------- hosting (desktop)
 
   createRoom(): void {
@@ -233,17 +292,27 @@ export class Session {
     const signaling = toSignaling(this.pageSignal);
     this.reset({ role: 'host', kind: 'desktop', device: 'desktop', code: room.code, inviteLink: this.inviteFor(room, this.pageSignal) });
     const transport = trysteroTransport({ code: room.code, key: room.key, role: 'host', ...(signaling ? { signaling } : {}) });
-    const host = new RoomHost({ transport, room, hostName, onSave: r => write(localStorage, LS.hostRoom, r) });
+    const host = new RoomHost({
+      transport, room, hostName, onSave: r => write(localStorage, LS.hostRoom, r),
+      // Members' questions go to this PC's coach with who asked (it applies their quota).
+      onAsk: (from, text) => (b.askCoach ? b.askCoach(text, from) : Promise.resolve({ ok: false, error: "The host's coach isn't available." })),
+    });
     this.host = host;
-    // Scouting goes to every member on each update (and to joiners on approval).
+    // Scouting and the coach go to every member on each update (and to joiners on approval).
     this.watchOwnScout(s => host.setScout(s));
+    this.watchOwnCoach(c => host.setCoach(c));
     this.stops.push(b.onSnapshot(live => { this.lastLive = live; host.setLive(live); }));
     // Tell the host process who's in the room, so scouting labels members vs randoms.
-    let roster = '';
+    // And the slots (plus tournament mode), so the coach names players in calls and stops in tournaments.
+    let roster = '', slots = '';
     this.stops.push(host.subscribe(screen => {
       const names = (screen.room?.members ?? []).filter(m => m.role !== 'admin').map(m => m.name);
       const key = JSON.stringify(names);
       if (key !== roster) { roster = key; b.setRoomRoster?.(names.map(name => ({ name }))); }
+      const withSlots = (screen.room?.members ?? []).map(m => ({ name: m.name, ...(m.slot ? { slot: m.slot } : {}), random: false }));
+      const tournament = !!screen.room?.tournament;
+      const sKey = JSON.stringify([withSlots, tournament]);
+      if (sKey !== slots) { slots = sKey; b.setRoomSlots?.(withSlots, { tournament }); }
       this.set({ screen, receivedAt: Date.now(), rate: 1 });
     }));
     this.leaveNet = () => transport.leave();

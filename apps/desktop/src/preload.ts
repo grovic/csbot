@@ -2,7 +2,7 @@
 // modules are available here, so this file imports nothing at runtime except 'electron'.
 
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import type { CfgInstallResult, CsbotBridge, HostInfo, LiveSnapshot, ScoutView } from '@csbot/protocol';
+import type { CfgInstallResult, CoachView, CsbotBridge, HostInfo, LiveSnapshot, ScoutView } from '@csbot/protocol';
 
 const bridge: CsbotBridge = {
   onSnapshot(cb) {
@@ -40,6 +40,16 @@ const bridge: CsbotBridge = {
   setRoomRoster: members => { ipcRenderer.send('csbot:setRoomRoster', members); },
   setFaceitNickname: nickname => ipcRenderer.invoke('csbot:setFaceitNickname', nickname) as Promise<{ ok: boolean; error?: string }>,
   setApiKey: (service, key) => ipcRenderer.invoke('csbot:setApiKey', service, key) as Promise<{ ok: boolean; error?: string }>,
+  onCoach(cb) {
+    let pushed = false;
+    const handler = (_e: IpcRendererEvent, v: CoachView) => { pushed = true; cb(v); };
+    ipcRenderer.on('csbot:coach', handler);
+    void ipcRenderer.invoke('csbot:coachLatest').then((v: CoachView | undefined) => { if (v && !pushed) cb(v); }, () => undefined);
+    return () => { ipcRenderer.removeListener('csbot:coach', handler); };
+  },
+  askCoach: (text, from) => ipcRenderer.invoke('csbot:askCoach', text, from) as Promise<{ ok: boolean; error?: string }>,
+  setCoachConfig: patch => ipcRenderer.invoke('csbot:setCoachConfig', patch) as Promise<void>,
+  setRoomSlots: (members, opts) => { ipcRenderer.send('csbot:setRoomSlots', members, opts); },
 };
 
 contextBridge.exposeInMainWorld('csbot', bridge);

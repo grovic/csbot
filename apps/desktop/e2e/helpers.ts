@@ -15,6 +15,7 @@ import electronPath from 'electron';
 export const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const webDist = path.resolve(appDir, '..', 'web', 'dist');
 export const screens = path.join(appDir, 'screens');
+export const FAKE_CLAUDE = path.join(appDir, 'e2e', 'fixtures', 'fake-claude.mjs');
 
 export async function waitFor<T>(fn: () => T | undefined | null | false | Promise<T | undefined | null | false>, ms = 20_000, every = 100): Promise<T> {
   const end = Date.now() + ms;
@@ -36,7 +37,12 @@ export async function launchApp(extraEnv: Record<string, string> = {}): Promise<
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined && k !== 'ELECTRON_RUN_AS_NODE') env[k] = v;
   // A fake Steam root with no CS2 in it: detection never looks at the real game folder.
   fs.mkdirSync(path.join(dir, 'Steam'), { recursive: true });
-  Object.assign(env, { CSBOT_HIDDEN: '1', CSBOT_USER_DATA: path.join(dir, 'userData'), CSBOT_GSI_PORT: '0', CSBOT_STEAM_PATH: path.join(dir, 'Steam'), CSBOT_KEY_CHECK: 'off' }, extraEnv);
+  // Never the owner's real Claude Code from e2e: the fake answers instead, and the live coach is off
+  // unless a spec turns it on (it would otherwise replace the engine calls other specs check).
+  Object.assign(env, {
+    CSBOT_HIDDEN: '1', CSBOT_USER_DATA: path.join(dir, 'userData'), CSBOT_GSI_PORT: '0', CSBOT_STEAM_PATH: path.join(dir, 'Steam'), CSBOT_KEY_CHECK: 'off',
+    CSBOT_CLAUDE_BIN: FAKE_CLAUDE, CSBOT_COACH: 'off',
+  }, extraEnv);
   const app = await electron.launch({ executablePath: electronPath as unknown as string, args: [appDir], env });
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');

@@ -6,13 +6,15 @@ A second-screen companion for Counter-Strike 2 squads.
 
 ## Status
 
-**M1 (core host), M2 (rooms) and M3 (Scout) are built.**
+**M1 (core host), M2 (rooms), M3 (Scout) and M5 (live coach) are built.**
 - **M1:** the Electron host reads GSI, runs the economy engine, and shows the Live page.
 - **M2:** the admin creates a room in the desktop app and shares an invite link. Teammates open it in a browser, or paste it into their own csbot, and see the same calls with their own job. Rooms are peer-to-peer: no account, no server.
 
 - **M3:** paste a FACEIT match link and the Scout page shows both rosters: threat, form, map win rates, premades, Steam flags and a veto plan. Your own Claude Code writes a short briefing. Without API keys it runs on a fictional sample match.
 
-The forecast from demos, live Claude calls, and the debrief come in M4–M6 ([roadmap](docs/PROPOSAL.md#12-roadmap-v1-in-milestones)).
+- **M5:** the host's own Claude Code writes the team call at every freeze time and after a plant, about 3 s after the engine's instant call. The squad asks it questions from the Coach page (per-member quota, per-match budget). Voice callouts read your job. Tournament mode turns it all off.
+
+The forecast from demos (M4) and the debrief (M6) come next ([roadmap](docs/PROPOSAL.md#12-roadmap-v1-in-milestones)).
 
 | Piece | Where | Run it |
 |---|---|---|
@@ -23,6 +25,7 @@ The forecast from demos, live Claude calls, and the debrief come in M4–M6 ([ro
 | Record GSI without the app | `tools/gsi-recorder` | see its README |
 | Rooms: host, client, invite links, peer-to-peer transport | `packages/room` | `pnpm test` |
 | Scouting: FACEIT/Steam clients, sample match, scouting math, AI report contract | `packages/scout` | `pnpm test` |
+| Live coach: prompts, output schema, parsing, budget and quotas | `packages/coach` | `pnpm test` |
 | Optional self-hosted signaling (tests, or squads that want their own) | `tools/room-relay` | see the file header |
 | Spikes (M0) | `tools/spikes`, `tools/gsi-probe` | see each README |
 

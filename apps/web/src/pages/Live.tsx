@@ -1,4 +1,4 @@
-import type { LiveSnapshot, RoomView, ScoutView } from '@csbot/protocol';
+import type { CoachView, LiveSnapshot, RoomView, ScoutView } from '@csbot/protocol';
 import { CallCard } from '../components/CallCard.tsx';
 import { MapPanel } from '../components/MapPanel.tsx';
 import { PhaseBanner } from '../components/PhaseBanner.tsx';
@@ -38,7 +38,7 @@ function Waiting({ kind, role, room }: { kind: SourceKind; role: Role; room?: Ro
   );
 }
 
-export function Live({ snap, receivedAt, rate, kind, role, room, scout }: { snap: LiveSnapshot; receivedAt: number; rate: number; kind: SourceKind; role: Role; room?: RoomView; scout?: ScoutView }) {
+export function Live({ snap, receivedAt, rate, kind, role, room, scout, coach }: { snap: LiveSnapshot; receivedAt: number; rate: number; kind: SourceKind; role: Role; room?: RoomView; scout?: ScoutView; coach?: CoachView }) {
   if (snap.connection.gsi === 'waiting' || !snap.match) return <Waiting kind={kind} role={role} room={room} />;
   return (
     <section data-testid="live">
@@ -48,7 +48,7 @@ export function Live({ snap, receivedAt, rate, kind, role, room, scout }: { snap
       <div className="live-main">
         <div className="now">
           <PhaseBanner snap={snap} receivedAt={receivedAt} rate={rate} />
-          <CallCard snap={snap} room={room} />
+          <CallCard snap={snap} room={room} coach={coach} />
           <Tiles snap={snap} webMember={role === 'member' && kind === 'member'} />
           <Ticker snap={snap} />
         </div>
