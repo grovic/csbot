@@ -562,7 +562,7 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
 6. **demoparser2** (Node binding) on FACEIT and Valve demos. Auto-build Mirage zones and routes.
    - *Status:* needs a demo file. There are none on the PC yet.
 7. **Peer-to-peer rooms:** a host plus 5 clients over WebRTC with Trystero signaling on public Nostr relays. Measure join time, latency, reconnects, and how often direct connection fails on the squad's real networks.
-   - *Status:* first in M2. Needs no account.
+   - **Done on one PC: go.** 5/5 members joined through public Nostr relays in 0.5–1.1 s, and a wrong-key peer was refused (`tools/spikes/p2p-rooms`). Still to measure in M2: direct connection success between the squad's real home networks.
 8. **Electron footprint** on a gaming PC (RAM/CPU during a match).
    - **Done: go,** with a hidden window: 268 MB private memory and 0.2% CPU while hosting (`tools/spikes/electron-footprint`). To re-measure with a visible window during a real match.
 9. **Economy rules** checked against demo truth.
