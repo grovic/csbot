@@ -4,6 +4,8 @@ A 10-minute test that decides how the squad-positions feature works. It answers 
 
 1. Does CS2 send **your own position** while you're alive? If yes, room members can share their live position.
 2. Does it send **the teammate you're watching** while you're dead? If yes, dead room members become live spotters.
+
+**Result (2026-10-21, competitive de_dust2, 596 payloads):** no to both, and no `allplayers`. See PROPOSAL section 3.7.
 3. Does `allplayers` ever show up while you're playing or dead? If yes, the room-wide spectator guard must drop it.
 
 The probe listens on `127.0.0.1` only, never sends anything anywhere, and needs Node 18+.

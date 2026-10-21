@@ -402,20 +402,16 @@ fieldset:disabled .card{opacity:.75}
 .msg.human.other{border-left-color:#5d7fb0;background:var(--sunken)}
 .mk.st-planned i{background:rgba(16,19,23,.75);border:2px dashed #7fb0ef}
 .mk.me.st-planned i{border:2.5px dashed #fff;background:rgba(57,135,229,.35)}
-.mk.st-live i{animation:livepulse 1.4s ease-out infinite}
-@keyframes livepulse{0%{box-shadow:0 0 0 0 rgba(57,135,229,.75),0 0 0 2px var(--mapbg)}100%{box-shadow:0 0 0 11px rgba(57,135,229,0),0 0 0 2px var(--mapbg)}}
 .mk.st-dead i{background:#2a2f38;color:#ff8a8a;display:grid;place-items:center;font-style:normal;font-size:10px;font-weight:800}
 .mk.st-dead span{color:var(--muted)}
-.mk.st-rot span,.mk.st-live span{color:var(--ink)}
+.mk.st-rot span{color:var(--ink)}
 .mk .tag{font-size:9.5px;font-weight:750;padding:0 5px;border-radius:4px;background:rgba(14,16,20,.9);border:1px solid #545b68;margin-left:2px}
-.mk.st-live .tag{border-color:#7fb0ef;color:#cfe2fb}
 .mk.st-rot .tag{border-color:#ffd27a;color:#ffe2a6}
 .mapkey{display:flex;flex-wrap:wrap;gap:4px 14px;margin:6px auto 0;max-width:620px;font-size:11.5px;color:var(--muted)}
 .mapkey span{display:inline-flex;align-items:center;gap:5px}
 .mapkey i{display:inline-block;width:11px;height:11px;border-radius:50%;flex:none}
 .mapkey .k-set{background:var(--ct)}
 .mapkey .k-plan{border:1.5px dashed #7fb0ef}
-.mapkey .k-live{background:var(--ct);box-shadow:0 0 0 3px rgba(57,135,229,.35)}
 .mapkey .k-dead{background:#2a2f38;color:#ff8a8a;font-size:8px;font-style:normal;font-weight:800;display:grid;place-items:center}
 .btn.spot.on{border-color:var(--ct);color:#cfe2fb;background:rgba(57,135,229,.15)}
 </style>
@@ -485,7 +481,7 @@ fieldset:disabled .card{opacity:.75}
             <button class="btn spot" id="btnSpot" type="button">✓ On my spot</button>
             <button class="btn intel" id="btnIntel" type="button">＋ Log intel</button>
           </div>
-          <div class="mapkey"><span><i class="k-set"></i>on spot (checked in)</span><span><i class="k-plan"></i>planned spot</span><span><i class="k-live"></i>live (a dead teammate is watching)</span><span><i class="k-dead">✕</i>dead</span></div>
+          <div class="mapkey"><span><i class="k-set"></i>on spot (checked in)</span><span><i class="k-plan"></i>planned spot</span><span><i class="k-dead">✕</i>dead</span></div>
         </div>
       </div>
 
@@ -775,14 +771,12 @@ const ROT={
   toB:{who:'rdx',to:[180,215],eta:9,pts:[[430,705],[200,650],[195,470],[190,330],[180,215]],path:'M430 705 L200 650 L195 470 L190 330 L180 240'},
   toA:{who:'nyx',to:[400,790],eta:10,pts:[[150,150],[230,330],[195,470],[200,640],[300,720],[400,790]],path:'M150 150 L230 330 L195 470 L200 640 L300 720 L390 782'},
 };
-/* squad positions: alive players' positions are not in their own GSI, so a marker is the planned spot until the player checks in.
-   A dead room member watching a teammate makes that teammate's position live (GSI follows the watched player). */
+/* squad positions: GSI sends players no positions in a live match, alive or dead (probe, 2026-10-21). A marker is the
+   planned spot until the player checks in, then follows their rotation. */
 const CHECKIN={rdx:8,kairo:6,nyx:7,mbt:9};
-const LIVE_PATH={mbt:[[300,668,52],[230,648,57],[205,632,61],[290,690,67],[380,742,74],[400,760,82]]};
 function along(pts,f){let L=0;const seg=[];for(let i=1;i<pts.length;i++){const d=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);seg.push(d);L+=d;}
   let r=f*L;for(let i=0;i<seg.length;i++){if(r<=seg[i]){const g=seg[i]?r/seg[i]:0;return [pts[i][0]+(pts[i+1][0]-pts[i][0])*g,pts[i][1]+(pts[i+1][1]-pts[i][1])*g];}r-=seg[i];}
   return pts[pts.length-1].slice(0,2);}
-function pathAt(path,t){if(t<=path[0][2])return [path[0][0],path[0][1]];for(let i=1;i<path.length;i++){const a=path[i-1],b=path[i];if(t<=b[2]){const g=(t-a[2])/(b[2]-a[2]);return [a[0]+(b[0]-a[0])*g,a[1]+(b[1]-a[1])*g];}}const l=path[path.length-1];return [l[0],l[1]];}
 /* every call carries one job per player; each viewer sees their own as the YOU line */
 const JOBS={
   antieco:{rdx:'A site alone. Play deep and fall back to CT on contact.',kairo:'B bench. Hold the apps exit, long angles only.',nyx:'B van. Anchor, never peek apps.',mbt:'Market. Rotate to whichever site gets hit.',zeph:'Window AWP (random: his usual spot).'},
@@ -974,8 +968,8 @@ function stepSim(dt){
     if(!ev.timing&&S.liveT>=2){ev.timing=1;addMsg('engine','TIMING','Earliest contact: top mid '+tClock('topmid')+' · palace '+tClock('palace')+' · B apps '+tClock('bapps')+'.','engine · instant',{noTicker:true});}
     if(sc){sc.intel.forEach((it,i)=>{if(!ev['i'+i]&&S.liveT>=it.t&&S.phase==='live'){ev['i'+i]=1;addIntel(it.zone,it.k,'hotkey',it.by);}});
       if(sc.youDie&&!ev.die&&S.liveT>=sc.youDie){ev.die=1;y.hp=0;y.armor=0;y.d++;y.kept=false;
-        const at=markerPos(setupOf(HOST));S.pos[HOST]={st:'dead',x:at[0],y:at[1]};S.pos.mbt={st:'live',via:HOST};
-        addMsg('engine','SPOTTER','rdx died and is watching mbt. His GSI now follows mbt, so mbt\'s position is live on everyone\'s map.','engine · instant');}}
+        const at=markerPos(setupOf(HOST));S.pos[HOST]={st:'dead',x:at[0],y:at[1]};
+        addMsg('engine','DIED','rdx died. Dead players watch a teammate and keep logging what they see: intel still moves everyone\'s forecast.','engine · instant');}}
     if(S.phase==='live'){
       if(sc&&sc.plant&&S.liveT>=sc.plant.t){S.phase='bomb';S.phaseT=0;S.plantedSite=sc.plant.site;
         const fc=siteForecast(curPost());const p=sc.plant.site==='A'?Math.max(fc.A,.6):Math.max(fc.B,.6);
@@ -1064,7 +1058,6 @@ function setupOf(n){const setup=SETUPS[(S.call&&S.call.setup)]||SETUPS.std;retur
 function markerPos(p){
   const st=S.pos[p.n]||{st:'planned'},rot=S.call&&S.call.rot?ROT[S.call.rot]:null;
   if(st.st==='dead')return [st.x,st.y];
-  if(st.st==='live'&&LIVE_PATH[p.n])return pathAt(LIVE_PATH[p.n],S.liveT);
   if(rot&&rot.who===p.n)return st.st==='rot'?along(rot.pts,clamp((S.liveT-st.t0)/rot.eta,0,1)):rot.to;
   return [p.x,p.y];
 }
@@ -1079,9 +1072,8 @@ function renderMarkers(){
     const rnd=ROOM.randoms.includes(p.n),me=p.n===S.me,stt=st.st;
     let tag='';
     if(stt==='rot'){const R=Object.values(ROT).find(r=>r.who===p.n);tag='<b class="tag">→ '+(R===ROT.toB?'B':'A')+' · '+Math.max(0,Math.ceil(R.eta-(S.liveT-st.t0)))+' s</b>';}
-    else if(stt==='live')tag='<b class="tag">live · via '+st.via+'</b>';
     else if(rnd)tag='<b class="tag">random</b>';
-    const title=(me?'You':p.n)+' · '+p.l+' · '+({planned:'planned spot',set:'checked in',rot:'rotating',live:'live position via '+st.via,dead:'dead'}[stt]);
+    const title=(me?'You':p.n)+' · '+p.l+' · '+({planned:'planned spot',set:'checked in',rot:'rotating',dead:'dead'}[stt]);
     h+=me?'<div class="mk me st-'+stt+'" style="left:'+x/10+'%;top:'+y/10+'%" title="'+title+'"><i>'+(stt==='dead'?'✕':'YOU')+'</i>'+(tag?'<span>'+tag+'</span>':'')+'</div>'
          :'<div class="mk st-'+stt+'" style="left:'+x/10+'%;top:'+y/10+'%" title="'+title+'"><i>'+(stt==='dead'?'✕':'')+'</i><span>'+p.n+tag+'</span></div>';}
   $('#mkLayer').innerHTML=h;
