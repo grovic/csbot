@@ -3,6 +3,21 @@ import type { CfgInstallResult, CsbotBridge, DataSourceState, HostInfo, LiveSnap
 import { useCallback, useEffect, useState } from 'react';
 import type { Session } from '../data/session.ts';
 import type { SourceKind } from '../data/source.ts';
+import { DesktopLink } from '../components/DesktopLink.tsx';
+
+/** The desktop host adds its auto-update state to getInfo (not in HostInfo yet). */
+type UpdateStatus = { version: string; state: 'off' | 'checking' | 'up-to-date' | 'downloading' | 'ready' | 'error'; available?: string; error?: string };
+const updateText = (u?: UpdateStatus): string | undefined => {
+  if (!u) return undefined;
+  switch (u.state) {
+    case 'up-to-date': return 'up to date';
+    case 'checking': return 'checking for updates…';
+    case 'downloading': return `downloading ${u.available ?? 'an update'}…`;
+    case 'ready': return `update ${u.available ?? ''} ready, restart csbot to install`.replace('  ', ' ');
+    case 'error': return "couldn't check for updates";
+    default: return undefined;
+  }
+};
 
 const ago = (at: number | undefined, now: number) => {
   if (!at) return 'never';
@@ -57,7 +72,7 @@ function HostCard({ bridge }: { bridge: CsbotBridge }) {
   const status = info?.cfgStatus;
   return (
     <div className="card" data-testid="host-card">
-      <div className="card-h"><h3>This PC (host)</h3><span className="muted small">{info ? 'csbot ' + info.version : ''}</span></div>
+      <div className="card-h"><h3>This PC (host)</h3><span className="muted small" data-testid="app-version">{info ? `csbot ${info.version}${updateText((info as HostInfo & { update?: UpdateStatus }).update) ? ` · ${updateText((info as HostInfo & { update?: UpdateStatus }).update)}` : ''}` : ''}</span></div>
       {err && <div className="result err">{err}</div>}
       <div className="cfg">
         <span className="k">GSI endpoint</span><span className="v"><code>{info?.gsiUrl ?? '…'}</code> (this PC only)</span>
@@ -101,6 +116,7 @@ function BrowserCard({ member }: { member: boolean }) {
           : "This is the web app. Reading CS2 needs the csbot desktop app on the gaming PC: it receives the game's GSI updates on localhost and runs the engine. Teammates join the host's room by opening the invite link."}
       </p>
       {!member && <p className="note">Without a host, this page shows a demo: a fictional match replayed through the real engine.</p>}
+      <p className="note"><DesktopLink /> (Windows, free, updates itself). Windows may warn about an unknown publisher during the beta: More info → Run anyway.</p>
     </div>
   );
 }

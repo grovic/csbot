@@ -1,0 +1,37 @@
+name: release
+
+# Publishes the Windows desktop installer to GitHub Releases when a version tag is pushed
+# (git tag v0.5.0 && git push origin v0.5.0). Installed apps update themselves from these
+# releases (electron-updater reads latest.yml). Unsigned beta: no certificate yet.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: node tools/check-secrets.mjs
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Tag matches the app version
+        shell: bash
+        run: |
+          v=$(node -p "require('./apps/desktop/package.json').version")
+          [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME but apps/desktop is $v"; exit 1; }
+      - run: pnpm --filter @csbot/web build
+      - run: node apps/desktop/scripts/stage.mjs
+      - name: Build and publish the installer
+        working-directory: apps/desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: pnpm exec electron-builder --config electron-builder.config.cjs --win nsis --publish always

@@ -7,6 +7,7 @@ import { Ticker } from '../components/Ticker.tsx';
 import { Tiles } from '../components/Tiles.tsx';
 import type { Role } from '../data/session.ts';
 import type { SourceKind } from '../data/source.ts';
+import { DesktopLink } from '../components/DesktopLink.tsx';
 
 function Waiting({ kind, role, room }: { kind: SourceKind; role: Role; room?: RoomView }) {
   if (role === 'member') {
@@ -31,7 +32,7 @@ function Waiting({ kind, role, room }: { kind: SourceKind; role: Role; room?: Ro
       </ol>
       {kind !== 'desktop' && (
         <p className="note">
-          This browser has no host connection. Hosting needs the csbot desktop app. <a href="./" data-testid="try-demo">Try the demo</a> to see a fictional match.
+          This browser has no host connection. Hosting needs the csbot desktop app: <DesktopLink />. Or <a href="./" data-testid="try-demo">try the demo</a> to see a fictional match.
         </p>
       )}
     </div>

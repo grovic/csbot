@@ -11,7 +11,8 @@ import { ClaudeCoachSession } from './coach/session.ts';
 import { detectCs2, installCfg } from './cs2.ts';
 import { Host, sessionFileName } from './host.ts';
 import { loadSettings, readEnv, saveSettings, type Settings } from './settings.ts';
-import { rendererUrlFor, samePage } from './urls.ts';
+import { rendererUrlFor, samePage, webIndexFor } from './urls.ts';
+import { Updater } from './updater.ts';
 import { loadWindowState, restorableBounds, saveWindowState } from './window-state.ts';
 import { claudeCommand, detectClaude, runAnalyst } from './scout/claude.ts';
 import { FileStore } from './scout/file-cache.ts';
@@ -39,7 +40,9 @@ function run(): void {
   let scoutCache: FileStore | null = null;
   let settings: Settings;
   const appDir = app.getAppPath();
-  const webIndex = path.resolve(appDir, '..', 'web', 'dist', 'index.html');
+  // Packaged: <app.asar>/web/index.html. Dev and the playtest copy: <app>/../web/dist/index.html.
+  const webIndex = webIndexFor(appDir, p => fs.existsSync(p), (...p) => path.resolve(...p));
+  const updater = new Updater(app.getVersion(), log);
   const rendererUrl = rendererUrlFor(env.webUrl ?? pathToFileURL(webIndex).href, env.signal);
 
   /** Only our renderer may navigate or call the bridge. */
@@ -80,13 +83,15 @@ function run(): void {
     e.preventDefault();
     const h = host;
     host = null;
-    const done = () => app.exit(0);
+    const done = () => { updater.installOnQuit(); app.exit(0); };
     const timeout = setTimeout(done, 3000);
     void h.stop().catch(() => undefined).finally(() => { clearTimeout(timeout); done(); });
   });
 
   void app.whenReady().then(async () => {
     Menu.setApplicationMenu(null);
+    // Updates from GitHub Releases: installed builds only, never hidden runs or tests.
+    if (app.isPackaged && !env.hidden && process.env.CSBOT_NO_UPDATE !== '1') void updater.start().catch(err => log('updater:', (err as Error).message));
     session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
     settings = loadSettings(app.getPath('userData'));
     const port = env.gsiPort ?? settings.gsiPort;
@@ -222,7 +227,7 @@ function run(): void {
     });
 
     ipcMain.handle('csbot:latest', e => { guard(e); return host?.latest(); });
-    ipcMain.handle('csbot:getInfo', e => { guard(e); return host?.info(); });
+    ipcMain.handle('csbot:getInfo', e => { guard(e); return host ? { ...host.info(), update: updater.status } : undefined; });
     ipcMain.handle('csbot:installCfg', (e): CfgInstallResult => {
       guard(e);
       if (!host) return { ok: false, error: 'csbot is shutting down' };
