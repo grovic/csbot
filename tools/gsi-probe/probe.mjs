@@ -1,15 +1,24 @@
 #!/usr/bin/env node
 // csbot GSI probe: answers "when does CS2 send player positions?"
 // Listens on localhost only, logs every payload, and prints a verdict when you press Ctrl+C.
-// Node 18+, no dependencies.  Usage: node probe.mjs   (env: PORT=47399 TOKEN=csbot-probe)
+// Node 18+, no dependencies.  Usage: node probe.mjs
+// env: PORT=47399  TOKEN=csbot-probe  LOG_DIR=.  MAX_LOG_LINES=60000 (raw payloads kept; counting continues after)
+// Also writes summary.txt in LOG_DIR every 20 s while payloads arrive, so an unattended run can be read later.
 
 import http from 'node:http';
 import fs from 'node:fs';
+import path from 'node:path';
 
 const PORT = Number(process.env.PORT || 47399);
 const TOKEN = process.env.TOKEN || 'csbot-probe';
-const logFile = `gsi-probe-${new Date().toISOString().replace(/[:.]/g, '-')}.ndjson`;
+const LOG_DIR = process.env.LOG_DIR || '.';
+const MAX_LOG_LINES = Number(process.env.MAX_LOG_LINES || 60000);
+fs.mkdirSync(LOG_DIR, { recursive: true });
+const logFile = path.join(LOG_DIR, `gsi-probe-${new Date().toISOString().replace(/[:.]/g, '-')}.ndjson`);
+const summaryFile = path.join(LOG_DIR, 'summary.txt');
 const log = fs.createWriteStream(logFile);
+let logLines = 0;
+let summaryDirty = false;
 
 const buckets = new Map();
 let lastLine = '';
@@ -88,8 +97,9 @@ http.createServer((req, res) => {
       const p = JSON.parse(body);
       if (p.auth?.token !== TOKEN) { badToken++; return; }
       total++;
-      log.write(JSON.stringify({ t: Date.now(), p }) + '\n');
+      if (logLines < MAX_LOG_LINES) { log.write(JSON.stringify({ t: Date.now(), p }) + '\n'); logLines++; }
       record(p);
+      summaryDirty = true;
     } catch { /* ignore malformed payloads */ }
   });
 }).listen(PORT, '127.0.0.1', () => {
@@ -97,4 +107,7 @@ http.createServer((req, res) => {
   console.log('Start CS2 and follow the steps in README.md. Press Ctrl+C (or open /summary) for the results.\n');
 });
 
-process.on('SIGINT', () => { console.log(summary()); log.end(() => process.exit(0)); });
+const writeSummary = () => { fs.writeFileSync(summaryFile, `updated ${new Date().toISOString()}\n${summary()}\n`); summaryDirty = false; };
+setInterval(() => { if (summaryDirty) writeSummary(); }, 20000).unref();
+
+process.on('SIGINT', () => { writeSummary(); console.log(summary()); log.end(() => process.exit(0)); });
