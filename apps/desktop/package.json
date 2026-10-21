@@ -6,10 +6,10 @@
   "main": "dist/main.cjs",
   "scripts": {
     "build": "node build.mjs",
-    "start": "electron .",
+    "start": "node build.mjs && node scripts/start.mjs",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json",
-    "test:e2e": "playwright test"
+    "test:e2e": "node build.mjs && playwright test"
   },
   "dependencies": {
     "@csbot/engine": "workspace:*",

@@ -3,6 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "bin": { "csbot-replay": "src/replay.ts" },
-  "dependencies": { "@csbot/gsi": "workspace:*" }
+  "bin": {
+    "csbot-replay": "src/replay.ts"
+  },
+  "dependencies": {
+    "@csbot/gsi": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
 }

@@ -188,3 +188,21 @@ describe('helpers', () => {
     expect(youTile({ ...me, alive: false }, 'live', 'CT', 0, undefined, false)!.value).toBe('DEAD');
   });
 });
+
+describe('review fixes', () => {
+  const { snaps, last } = run(syntheticMatch({ rounds: FULL_MATCH }));
+  it('ends with the match result, not a next-round read', () => {
+    expect(last.call!.head).toBe('Match won 13–8');
+  });
+  it('does not count a lost pistol round as a save', () => {
+    expect(at(snaps, 2, 'freezetime').enemy!.saved).toBe(false);
+  });
+  it('turns the YOU line into "watch and call" after dying', () => {
+    const dead = snaps.find(s => s.match?.round === 3 && s.me?.observing)!;
+    expect(dead.call!.you).toMatch(/^You're dead\. Watch mbt/);
+  });
+  it('spends money like a player in the synthetic match', () => {
+    const fz = snaps.filter(s => s.match?.clock.phase === 'freezetime' && s.me);
+    expect(fz.some(s => s.me!.money >= 1000)).toBe(true);
+  });
+});

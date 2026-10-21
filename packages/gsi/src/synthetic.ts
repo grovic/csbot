@@ -111,12 +111,16 @@ export function syntheticMatch(o: SyntheticOptions = {}): RecordedPayload[] {
       for (const ms of mateStats) ms.money = 800;
     }
     const startMoney = money;
+    // Spend like a player: pistol kit, refill a kept rifle, full buy, or save.
+    const kept = rifle;
+    const spend = i % half === 0 ? 650 : kept ? Math.min(startMoney, 1100) : startMoney >= 4400 ? 4100 : startMoney >= 3100 ? 3000 : 300;
+    const buysRifle = !kept && startMoney >= 3100 && i % half !== 0;
+    const afterBuy = Math.max(0, startMoney - spend);
     for (let s = 20; s > 0; s -= tick) {
       const bought = s <= 16;
-      if (bought && !rifle && startMoney >= 3700) rifle = true;
-      push(payload(r, 'freezetime', { phase: 'freezetime', endsIn: s }, { money: bought ? Math.max(0, startMoney - 4200) : startMoney }), tick);
+      if (bought && buysRifle) rifle = true;
+      push(payload(r, 'freezetime', { phase: 'freezetime', endsIn: s }, { money: bought ? afterBuy : startMoney }), tick);
     }
-    const afterBuy = Math.max(0, startMoney - 4200);
     dmg = 0;
     const liveFor = rd.planted ? 44 : rd.reason === 'time' ? 115 : 38;
     const mate = i % SYNTHETIC_MATES.length;

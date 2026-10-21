@@ -323,21 +323,31 @@ claude -p --input-format stream-json --output-format stream-json --verbose \
 
 ### 6.4 Latency budget per round
 
-Target: **the call is on every screen ≤ 8 s after the round ends (p95)**. The pipeline: engine (<50 ms) → delta prompt (~1–2k tokens) → model (1.5–4 s) → `publish_call` → relay (~100 ms). Freeze time length is **to verify** (about 15–20 s).
+Target: **the call is on every screen ≤ 8 s after the round ends (p95)**. The pipeline: engine (<50 ms) → delta prompt (~1–2k tokens) → model → `publish_call` → relay (~100 ms). Freeze time length is **to verify** (about 15–20 s); the tracker learns it from the first full freeze it sees.
+
+**Measured (M0 spike 5, `tools/spikes/claude-latency`):** on a warm `claude -p` session, the call reached the screen in **3.1–5.4 s with Sonnet** and 2.6–3.3 s with Haiku. Haiku's calls had tactical mistakes, so Sonnet at low effort is the default. The spike also set four rules:
+- the tool schema has no length limits (trim server-side; a rejection costs a retry)
+- the event message carries the facts (no state tool on the live path)
+- a warm-up turn at match start
+- the engine's call shows instantly and Claude's replaces it
 
 ---
 
 ## 7. Engines
 
 ### 7.1 Game state and events
-- **GSI config:** `throttle 0.25`, `buffer 0.1`, `heartbeat 10`, `auth.token`. It never asks for `allplayers_*`, `bomb`, or `allgrenades`.
+- **GSI config:** `throttle 0.25`, `buffer 0.1`, `heartbeat 10`, `auth.token`.
+  - **Requested:** `provider`, `map`, `round`, `player_id`, `player_state`, `player_weapons`, `player_match_stats`.
+  - **Never requested:** `allplayers_*`, `bomb`, `allgrenades`. The generator (`packages/gsi/src/cfg.ts`) refuses them.
+  - **Not requested yet:** `map_round_wins`, `phase_countdowns`, `player_position`. Whether a playing client gets them is unconfirmed.
+- **Works without those three:** round results come from phase transitions, `win_team`, the bomb state and score changes, and timers from phase start times. Inferred round reasons are marked as inferred. If the game sends `map.round_wins` or `phase_countdowns`, the tracker uses them.
 - **Recording:** payloads are deduped by `provider.timestamp`, and everything is recorded to NDJSON for the replayer.
 - **Room-wide spectator guard:** spectator-only nodes from any source are dropped while a match is live.
 
 ### 7.2 Economy engine
 - **Inputs:**
   - both teams' `score` and `consecutive_round_losses`
-  - `map.round_wins`
+  - round results (from transitions, or `map.round_wins` when sent)
   - `round.bomb`
   - every shared player's `money` and `equip_value`
 - **Rules table** (versioned data):
@@ -519,14 +529,23 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
 
 ### M0: technical spikes (each with a go/no-go)
 1. **GSI as a player** on FACEIT and Premier. Confirm the fields, the `map.mode` value, and latency. **Run `tools/gsi-probe` first.** It settles squad positions (section 3.7): is your own position sent while alive, and is the watched teammate's position sent while dead?
+   - *Status:* the probe is installed on the owner's PC and waiting for one real match.
 2. **GSI to a remote HTTPS URL.** Can a member's CS2 post straight to the relay? This decides whether the web-only "room cfg" works. Fallback: members need the desktop app to share GSI.
+   - *Status:* needs CS2 running. It can share the probe's match.
 3. **Premier roster** from `status` / `-condebug`.
+   - *Status:* needs one `status` in a real match. The only `console.log` on the PC is from a map-editor session.
 4. **FACEIT:** live match detection, plus applying for the Downloads API now (FACEIT quotes ~30 days).
+   - *Status:* needs the owner's FACEIT developer account.
 5. **Claude Code:** warm stream-json latency p50/p95, MCP from `claude -p`, usage per match on Pro vs Max.
+   - **Done: go.** 3.1–5.4 s to screen with Sonnet (section 6.4, `tools/spikes/claude-latency`). Plan usage per match is still to measure.
 6. **demoparser2** (Node binding) on FACEIT and Valve demos. Auto-build Mirage zones and routes.
+   - *Status:* needs a demo file. There are none on the PC yet.
 7. **Relay:** a Durable Object room with 5 clients, measuring end-to-end latency, reconnects, and free-tier headroom.
+   - *Status:* moved into M2. It needs the relay provider decision and an account.
 8. **Electron footprint** on a gaming PC (RAM/CPU during a match).
+   - **Done: go,** with a hidden window: 268 MB private memory and 0.2% CPU while hosting (`tools/spikes/electron-footprint`). To re-measure with a visible window during a real match.
 9. **Economy rules** checked against demo truth.
+   - *Status:* needs demo files, same as spike 6.
 
 ### Milestones
 1. **M1 · Core host:** Electron shell, GSI server + recorder/replayer, engine (economy), Live (banner, tiles, scoreboard with host data).
@@ -541,7 +560,7 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
 **V1 exit criteria:**
 - buy-read accuracy ≥ 80% and money-band coverage ≥ 85% on 50 held-out demos
 - call on every screen ≤ 8 s after round end (p95)
-- under 3% CPU and 400 MB RAM on the host while in game
+- under 3% CPU and 400 MB RAM on the host while in game (RAM = private memory summed over csbot's processes, as Task Manager shows it)
 - room reconnect in under 5 s
 
 ---

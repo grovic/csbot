@@ -160,8 +160,15 @@ export interface LiveSnapshot {
 export interface HostInfo {
   version: string;
   gsiUrl: string;
-  /** Whether csbot's cfg is present in the detected CS2 folder. */
-  cfgInstalled: boolean;
+  /**
+   * csbot's GSI cfg in the detected CS2 folder: missing, current (points at this host's endpoint
+   * with this host's token), or outdated (exists but the endpoint or token changed: reinstall).
+   */
+  cfgStatus: 'missing' | 'current' | 'outdated';
+  /** Full path of csbot's cfg file (whether or not it exists yet). */
+  cfgPath?: string;
+  /** Set when the configured GSI port was busy and this session listens elsewhere. */
+  portFallback?: { wanted: number; actual: number };
   cs2Path?: string;
   recordingsDir: string;
 }

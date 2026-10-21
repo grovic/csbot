@@ -52,6 +52,8 @@ csbot is a second-screen companion for Counter-Strike 2 squads. An admin's deskt
 - Claude Code installed and signed in with claude.ai
 - CS2 at `C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive`. Leave the existing `gamestate_integration_logitech.cfg` untouched.
 - `gh` CLI is not installed. Git remote: `https://github.com/grovic/csbot`
+- Agent shells inherit `ELECTRON_RUN_AS_NODE=1`, which turns Electron into plain Node. Every Electron launch must remove it (`apps/desktop/scripts/start.mjs` and the e2e/footprint scripts do).
+- Electron launches for tests or measurements use `CSBOT_HIDDEN=1` so no window appears on the owner's screen.
 
 ## Repository conventions
 

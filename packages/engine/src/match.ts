@@ -190,7 +190,14 @@ export class MatchTracker {
       this.phaseStartSeen = this.phase !== 'idle';
       this.phaseStartedAt = s.at;
       if (next === 'halftime') this.push(s.at, 'HALFTIME', 'Sides swap. Enemy money resets.');
-      if (next === 'gameover') this.push(s.at, 'MATCH', `Match over · ${this.score.us}–${this.score.them}`);
+      if (next === 'gameover') {
+        const { us, them } = this.score;
+        this.call = {
+          kind: 'over', round: this.round, head: us > them ? `Match won ${us}–${them}` : us < them ? `Match lost ${us}–${them}` : `Draw ${us}–${them}`,
+          sub: 'The debrief builds from the demo once it\'s available', jobs: {}, steps: [], why: [], source: 'engine',
+        };
+        this.push(s.at, 'MATCH', `Match over · ${us}–${them}`);
+      }
       if (next === 'warmup') this.push(s.at, 'WARMUP', `Warmup on ${this.map ?? 'the map'}`);
       this.phase = next;
     }
@@ -287,6 +294,9 @@ export class MatchTracker {
     } else {
       // In competitive a dead player can only watch their own team: this is a teammate.
       if (this.me) this.me = { ...this.me, alive: false, health: 0, primary: undefined, observing: { steamid: p.steamid, name: p.name } };
+      if (this.call && (this.call.kind === 'pre' || this.call.kind === 'post') && s.roundPhase !== 'freezetime') {
+        this.call = { ...this.call, you: `You're dead. Watch ${p.name} and call what you see.` };
+      }
       this.spectated.set(p.steamid, {
         steamid: p.steamid, name: p.name, money: p.money, kills: p.kills, assists: p.assists, deaths: p.deaths, mvps: p.mvps,
         source: 'spectated', seenRound: this.round || s.round,
@@ -340,7 +350,7 @@ export class MatchTracker {
       kind: 'post', round: this.round,
       head: ct ? 'Bomb planted · retake' : 'Bomb planted · hold the plant',
       sub: ct ? '40 s on the bomb · regroup, kit first' : 'Crossfires on the bomb · no solo peeks',
-      jobs: prev?.jobs ?? {}, ...(prev?.you ? { you: prev.you } : {}),
+      jobs: prev?.jobs ?? {}, ...(this.me?.observing ? { you: `You're dead. Watch ${this.me.observing.name} and call what you see.` } : prev?.you ? { you: prev.you } : {}),
       steps: ct ? ['Group up', 'Utility on the site'] : ['Hold crossfires', 'Play the timer'],
       why: ['The game reported the bomb as planted. Its site isn\'t sent to players.'], setup: prev?.setup, source: 'engine',
     };
@@ -373,6 +383,8 @@ export class MatchTracker {
       enemyWon: !won, reason, enemyPlanted: enemySide === 'T' && (this.plantedThisRound || reason === 'defuse'),
       enemyBuy: read === 'pistol' ? 'eco' : read,
     });
+    // Losing a pistol round isn't a save: everyone spends their $800.
+    if (read === 'pistol') this.enemy = { ...this.enemy, saved: false };
     this.myDamageTotal += this.myRoundDamage;
     this.myRoundsCounted++;
 

@@ -4,6 +4,27 @@ A second-screen companion for Counter-Strike 2 squads.
 - One teammate hosts a room from the desktop app. It reads their game through official Valve GSI and runs their own Claude Code.
 - The rest of the squad joins from the web or the desktop app. Everyone sees the same scouting, live calls, and debrief, with their own job highlighted.
 
+## Status
+
+**M1 (core host) is built:** the Electron host reads GSI, runs the economy engine, and shows the Live page. Scouting, rooms, the forecast from demos, Claude calls, and the debrief come in M2–M6 ([roadmap](docs/PROPOSAL.md#12-roadmap-v1-in-milestones)).
+
+| Piece | Where | Run it |
+|---|---|---|
+| Web app (Live page; plays a fictional demo match when no host is connected) | `apps/web` | `pnpm dev:web`, then open `?speed=4` |
+| Desktop host (GSI endpoint → spectator guard → recorder → engine → UI) | `apps/desktop` | `pnpm --filter @csbot/web build`, then `pnpm --filter @csbot/desktop start` |
+| Engine, GSI parsing, wire types | `packages/{engine,gsi,protocol}` | `pnpm test` |
+| Replay a recording or the synthetic match into a host | `tools/gsi-replayer` | see its README |
+| Record GSI without the app | `tools/gsi-recorder` | see its README |
+| Spikes (M0) | `tools/spikes`, `tools/gsi-probe` | see each README |
+
+**Checks:**
+- `pnpm typecheck`
+- `pnpm test` (unit tests)
+- `pnpm --filter @csbot/web test:e2e` (Playwright, headless Edge)
+- `pnpm --filter @csbot/desktop test:e2e` (Electron, hidden window)
+
+## Design
+
 **Proposal:** [docs/PROPOSAL.md](docs/PROPOSAL.md) covers rooms and roles, architecture (Electron + GitHub Pages + room relay), tech stack, feature list, roadmap, and the fair-play boundary.
 
 **First test to run:** [tools/gsi-probe](tools/gsi-probe/README.md) is a 10-minute check that decides how teammates' positions work on the room map.
