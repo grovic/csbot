@@ -1,7 +1,7 @@
 // A member's side of the room (web app or desktop app in member mode): join, wait for approval,
 // render the host's personalized screen, survive the host going away, share own GSI (desktop).
 
-import { isHostMessage, ROOM_PROTOCOL, type LinkStatus, type MemberMessage, type ScreenState } from '@csbot/protocol';
+import { isHostMessage, ROOM_PROTOCOL, type LinkStatus, type MemberMessage, type ScoutView, type ScreenState } from '@csbot/protocol';
 import type { Transport } from './transport.ts';
 
 export interface RoomClientOptions {
@@ -34,6 +34,7 @@ export class RoomClient {
   private listeners = new Set<(s: ClientState) => void>();
   private lastGsi = 0;
   private closed = false;
+  private pendingScout?: ScoutView;
 
   constructor(o: RoomClientOptions) {
     this.o = { now: Date.now, gsiMinGapMs: 100, ...o };
@@ -95,10 +96,17 @@ export class RoomClient {
         else if (m.status === 'pending') this.set('pending');
         else this.set('denied', m.status === 'full' ? 'The room is full.' : m.status === 'version' ? (m.detail ?? 'Update csbot to join this room.') : 'The admin declined your request.');
         break;
-      case 'state':
-        this.state = { ...this.state, status: 'approved', screen: { live: m.live, room: m.room } };
+      case 'state': {
+        const scout = this.state.screen?.scout ?? this.pendingScout;
+        this.state = { ...this.state, status: 'approved', screen: { live: m.live, room: m.room, ...(scout ? { scout } : {}) } };
         if (this.state.detail) delete this.state.detail;
         this.emit();
+        break;
+      }
+      case 'scout':
+        // Scouting can arrive before the first state; keep it until there's a screen to attach it to.
+        if (this.state.screen) { this.state = { ...this.state, screen: { ...this.state.screen, scout: m.scout } }; this.emit(); }
+        else this.pendingScout = m.scout;
         break;
       case 'removed': this.set('removed', m.reason); break;
       case 'ended': this.set('ended', 'The admin closed the room.'); break;

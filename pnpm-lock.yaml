@@ -32,6 +32,9 @@ importers:
       '@csbot/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@csbot/scout':
+        specifier: workspace:*
+        version: link:../../packages/scout
     devDependencies:
       '@csbot/room':
         specifier: workspace:*
@@ -63,6 +66,9 @@ importers:
       '@csbot/room':
         specifier: workspace:*
         version: link:../../packages/room
+      '@csbot/scout':
+        specifier: workspace:*
+        version: link:../../packages/scout
       react:
         specifier: ^19.3.1
         version: 19.3.1
@@ -123,6 +129,15 @@ importers:
       trystero:
         specifier: ^0.26.0
         version: 0.26.0
+
+  packages/scout:
+    dependencies:
+      '@csbot/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
 
   tools/gsi-recorder:
     dependencies:

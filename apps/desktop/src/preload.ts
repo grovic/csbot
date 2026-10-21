@@ -2,7 +2,7 @@
 // modules are available here, so this file imports nothing at runtime except 'electron'.
 
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import type { CfgInstallResult, CsbotBridge, HostInfo, LiveSnapshot } from '@csbot/protocol';
+import type { CfgInstallResult, CsbotBridge, HostInfo, LiveSnapshot, ScoutView } from '@csbot/protocol';
 
 const bridge: CsbotBridge = {
   onSnapshot(cb) {
@@ -26,6 +26,19 @@ const bridge: CsbotBridge = {
     ipcRenderer.on('csbot:gsi', handler);
     return () => { ipcRenderer.removeListener('csbot:gsi', handler); };
   },
+  onScout(cb) {
+    let pushed = false;
+    const handler = (_e: IpcRendererEvent, v: ScoutView) => { pushed = true; cb(v); };
+    ipcRenderer.on('csbot:scout', handler);
+    // The current view right away, unless a newer one was pushed in the meantime.
+    void ipcRenderer.invoke('csbot:scoutLatest').then((v: ScoutView | undefined) => { if (v && !pushed) cb(v); }, () => undefined);
+    return () => { ipcRenderer.removeListener('csbot:scout', handler); };
+  },
+  scoutMatch: linkOrId => ipcRenderer.invoke('csbot:scoutMatch', linkOrId) as Promise<{ ok: boolean; error?: string }>,
+  scoutSample: () => ipcRenderer.invoke('csbot:scoutSample') as Promise<void>,
+  runScoutReport: () => ipcRenderer.invoke('csbot:runScoutReport') as Promise<{ ok: boolean; error?: string }>,
+  setRoomRoster: members => { ipcRenderer.send('csbot:setRoomRoster', members); },
+  setApiKey: (service, key) => ipcRenderer.invoke('csbot:setApiKey', service, key) as Promise<{ ok: boolean; error?: string }>,
 };
 
 contextBridge.exposeInMainWorld('csbot', bridge);

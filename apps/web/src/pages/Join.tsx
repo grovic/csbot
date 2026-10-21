@@ -22,8 +22,8 @@ export function Join({ view, session }: { view: SessionView; session: Session })
       <div className="big-code">{formatCode(j.invite.code)}</div>
       <div className="sub">Your squad's live calls, on this screen. No account and nothing to install.</div>
       <label className="field">
-        <span>Your name</span>
-        <input data-testid="join-name" value={name} maxLength={24} autoFocus placeholder="as your team knows you"
+        <span>Your FACEIT nickname</span>
+        <input data-testid="join-name" value={name} maxLength={24} autoFocus placeholder="so scouting knows it's you"
           onChange={e => setName(e.target.value)} autoComplete="nickname" />
       </label>
       <button className="btn primary big" type="submit" data-testid="join-submit" disabled={!name.trim()}>Join</button>

@@ -1,3 +1,5 @@
+import type { ScoutView } from './scout.ts';
+
 // Wire types shared by the host, the desktop renderer and (from M2) room members.
 // The host builds a LiveSnapshot from its GSI feed; every screen renders only from snapshots.
 // Plain JSON only (no Maps, Dates or typed arrays) so it can cross IPC and the relay unchanged.
@@ -191,5 +193,21 @@ export interface CsbotBridge {
    * room forwards them to that room's host.
    */
   onGsi?(cb: (payload: Record<string, unknown>) => void): () => void;
+  /** Scouting for the current match (M3). Called with the latest view right away. */
+  onScout?(cb: (s: ScoutView) => void): () => void;
+  /** Scout a FACEIT match from its room link or id. */
+  scoutMatch?(linkOrId: string): Promise<{ ok: boolean; error?: string }>;
+  /** Load the fictional sample match (no keys needed). */
+  scoutSample?(): Promise<void>;
+  /** Run (or re-run) the AI scouting report on the host's Claude Code. Refusals (budget, no Claude) come back as errors. */
+  runScoutReport?(): Promise<{ ok: boolean; error?: string }>;
+  /**
+   * Who's in this host's room, so scouting can tell room members from randoms. Matched against
+   * FACEIT nicknames (case-insensitive): members should join under their FACEIT name.
+   */
+  setRoomRoster?(members: { name: string }[]): void;
+  /** Save or clear an API key (stored encrypted on this PC; never sent to the room). */
+  setApiKey?(service: 'faceit' | 'steam', key: string | null): Promise<{ ok: boolean; error?: string }>;
 }
 export * from './room.ts';
+export * from './scout.ts';

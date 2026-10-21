@@ -1,4 +1,4 @@
-import type { LiveSnapshot, RoomView } from '@csbot/protocol';
+import type { LiveSnapshot, RoomView, ScoutView } from '@csbot/protocol';
 import { CallCard } from '../components/CallCard.tsx';
 import { MapPanel } from '../components/MapPanel.tsx';
 import { PhaseBanner } from '../components/PhaseBanner.tsx';
@@ -38,7 +38,7 @@ function Waiting({ kind, role, room }: { kind: SourceKind; role: Role; room?: Ro
   );
 }
 
-export function Live({ snap, receivedAt, rate, kind, role, room }: { snap: LiveSnapshot; receivedAt: number; rate: number; kind: SourceKind; role: Role; room?: RoomView }) {
+export function Live({ snap, receivedAt, rate, kind, role, room, scout }: { snap: LiveSnapshot; receivedAt: number; rate: number; kind: SourceKind; role: Role; room?: RoomView; scout?: ScoutView }) {
   if (snap.connection.gsi === 'waiting' || !snap.match) return <Waiting kind={kind} role={role} room={room} />;
   return (
     <section data-testid="live">
@@ -54,7 +54,7 @@ export function Live({ snap, receivedAt, rate, kind, role, room }: { snap: LiveS
         </div>
         <MapPanel snap={snap} room={room} />
       </div>
-      <Scoreboard snap={snap} inRoom={!!room && role !== 'demo'} />
+      <Scoreboard snap={snap} inRoom={!!room && role !== 'demo'} scout={scout} />
     </section>
   );
 }

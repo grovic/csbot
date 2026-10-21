@@ -1,6 +1,6 @@
 import { MatchTracker } from '@csbot/engine';
 import { FIRST_HALF, syntheticMatch, toGameState, type GsiPayload } from '@csbot/gsi';
-import type { LiveSnapshot } from '@csbot/protocol';
+import { EMPTY_SCOUT, type LiveSnapshot } from '@csbot/protocol';
 import { describe, expect, it } from 'vitest';
 import {
   formatCode, HOST_ID, inviteUrl, isRoomCode, isRoomKey, MemoryNetwork, newRoomCode, newRoomKey, newSavedRoom, parseInvite,
@@ -247,6 +247,22 @@ describe('sharing GSI from a desktop member', () => {
     w.client.sendGsi(memberPayloads('76561198000000009', 'web')[0] as Record<string, unknown>);
     await flush();
     expect(host.screen().room!.members.find(m => m.id === 'client-web')!.sharesGsi).toBe(false);
+  });
+});
+
+describe('scouting in a room', () => {
+  it('sends scouting to members on approval and on every change', async () => {
+    const { host, join, flush } = await setup();
+    host.setLive(hostLiveAtFreeze2());
+    const scout = { ...EMPTY_SCOUT, status: 'ready' as const, platform: 'sample' as const, facts: ['Holo is their AWP'] };
+    host.setScout(scout);
+    const k = join('client-kairo', 'kairo'); await flush(); host.approve('client-kairo'); await flush();
+    expect(k.last().screen!.scout!.facts).toEqual(['Holo is their AWP']);
+    host.setScout({ ...scout, facts: ['Holo is their AWP', 'They ban Nuke'] });
+    host.setLive({ ...hostLiveAtFreeze2(), seq: 999 });
+    await flush();
+    expect(k.last().screen!.scout!.facts).toHaveLength(2); // survives later state messages
+    expect(host.screen().scout!.facts).toHaveLength(2);
   });
 });
 

@@ -4,7 +4,8 @@
 
 import { MatchTracker } from '@csbot/engine';
 import { FIRST_HALF, syntheticMatch, toGameState, type GsiPayload } from '@csbot/gsi';
-import type { LiveSnapshot } from '@csbot/protocol';
+import type { LiveSnapshot, ScoutView } from '@csbot/protocol';
+import { SAMPLE_MATCH_ID, SAMPLE_REPORT, sampleFaceit, sampleSteam, sampleSteamId, scoutFaceitMatch, withReport } from '@csbot/scout';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -36,18 +37,27 @@ function memberPayloads(steamid: string, name: string): GsiPayload[] {
   return rec.slice(0, i + 3).map(r => r.p);
 }
 
-/** A fake desktop bridge the test drives: __pushSnap(snapshot), __pushGsi(payload). */
+/** The host's scouting of the sample match, with the recorded briefing. */
+async function hostScout(): Promise<ScoutView> {
+  const v = await scoutFaceitMatch({ faceit: sampleFaceit(), steam: sampleSteam(), sources: { faceit: 'sample', steam: 'sample', claude: 'live' } },
+    { matchId: SAMPLE_MATCH_ID, platform: 'sample', ourSteamId: sampleSteamId('rdx'), room: { [sampleSteamId('rdx')!]: 'admin', [sampleSteamId('kairo')!]: 'member' } });
+  return withReport(v, { ...SAMPLE_REPORT });
+}
+
+/** A fake desktop bridge the test drives: __pushSnap(snapshot), __pushGsi(payload), __pushScout(view). */
 async function mockBridge(ctx: BrowserContext) {
   await ctx.addInitScript(() => {
     type Cb = (x: unknown) => void;
-    const snapCbs = new Set<Cb>(), gsiCbs = new Set<Cb>();
-    let last: unknown;
+    const snapCbs = new Set<Cb>(), gsiCbs = new Set<Cb>(), scoutCbs = new Set<Cb>();
+    let last: unknown, lastScout: unknown;
     const w = window as unknown as Record<string, unknown>;
     w.__pushSnap = (s: unknown) => { last = s; for (const cb of snapCbs) cb(s); };
     w.__pushGsi = (p: unknown) => { for (const cb of gsiCbs) cb(p); };
+    w.__pushScout = (s: unknown) => { lastScout = s; for (const cb of scoutCbs) cb(s); };
     w.csbot = {
       onSnapshot: (cb: Cb) => { snapCbs.add(cb); if (last) cb(last); return () => snapCbs.delete(cb); },
       onGsi: (cb: Cb) => { gsiCbs.add(cb); return () => gsiCbs.delete(cb); },
+      onScout: (cb: Cb) => { scoutCbs.add(cb); if (lastScout) cb(lastScout); return () => scoutCbs.delete(cb); },
       getInfo: async () => ({ version: '0.1.0', gsiUrl: 'http://127.0.0.1:47400', cfgStatus: 'current', recordingsDir: 'C:\\csbot\\recordings' }),
       installCfg: async () => ({ ok: true }),
       openRecordings: async () => {},
@@ -118,6 +128,18 @@ test('room: join, approve, personal YOU, slots, tournament, host offline and bac
   await expect(mem.getByTestId('room-chip')).toContainText('MEMBER');
   await shot(mem, 'member-live');
 
+  // The host scouts the match: the member gets it over the room (players, veto, briefing).
+  await mem.evaluate(() => { location.hash = '#/scout'; });
+  await expect(mem.getByTestId('scout-empty')).toContainText("hasn't scouted");
+  await host.page.evaluate(x => (window as unknown as { __pushScout: (s: unknown) => void }).__pushScout(x), await hostScout());
+  await expect(mem.getByTestId('enemy-card')).toHaveCount(5, { timeout: 10_000 });
+  await expect(mem.getByTestId('report-summary')).toContainText('team_kappa averages');
+  await expect(mem.getByTestId('scout-run-report')).toHaveCount(0); // only the host runs the briefing
+  await expect(mem.getByTestId('scout-match-input')).toHaveCount(0);
+  await shot(mem, 'scout-member');
+  await mem.evaluate(() => { location.hash = '#/live'; });
+  await expect(mem.locator('[data-testid="enemy-players"] tbody tr')).toHaveCount(5);
+
   // The admin moves them to the AWP slot: their YOU line follows.
   const row = memberRow(host.page, 'kairo');
   await row.getByTestId('slot-select').selectOption('awp');
@@ -173,9 +195,9 @@ test('room: a link with the wrong key is refused', async ({ browser }) => {
   const memCtx = await browser.newContext();
   const mem = await memCtx.newPage();
   await joinFromBrowser(mem, wrong, 'stranger');
-  // Depending on which side receives the encrypted offer, the member either gets an explicit
-  // "wrong key" (denied) or simply never finds the room. Either way it never gets in.
-  await expect(mem.getByTestId('slow-hint').or(mem.locator('[data-testid="link-status"][data-status="denied"]'))).toBeVisible({ timeout: 45_000 });
+  // Depending on which side receives the encrypted offer (peer-id order), the member sees "no host
+  // answered with this link's key", or simply never finds the room (slow hint). Either way it never gets in.
+  await expect(mem.getByTestId('slow-hint').or(mem.getByTestId('net-error')).or(mem.locator('[data-testid="link-status"][data-status="denied"]'))).toBeVisible({ timeout: 45_000 });
   await expect(status(mem)).not.toHaveAttribute('data-status', /approved|pending/);
   await expect(host.page.getByTestId('pending-row')).toHaveCount(0);
   await shot(mem, 'wrong-key', false);

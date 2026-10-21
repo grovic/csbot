@@ -309,7 +309,7 @@ Randoms show their planned spot and a "random" tag, unless a dead room member is
 
 | Role | Model (alias) | Effort | Process | Trigger | Budget |
 |---|---|---|---|---|---|
-| Analyst (scouting report) | `opus` | high | one-shot, MCP tools, `--json-schema` | match detected | ≤ 60 s |
+| Analyst (scouting report) | `opus` | high | one-shot, facts in the prompt, `--json-schema` (no tools) | match scouted | ≤ 60 s (measured 16.9 s) |
 | Live coach | `sonnet` (or `haiku`) | low | **one long-lived stream-json process per match** | round end, freeze time, intel, timeout | ≤ 4 s |
 | Member questions | same live session | low | — | question from any room member, within quota | ≤ 4 s |
 | Debrief | `opus` | high | one-shot | demo parsed | ≤ 2 min |
@@ -406,14 +406,20 @@ Target: **the call is on every screen ≤ 8 s after the round ends (p95)**. The 
 - **Bomb planted** comes from GSI. The site is inferred and confirmed with one tap.
 
 ### 7.4 Scouting engine
+- **Status (M3):** built in `packages/scout`. Clients follow FACEIT's published Data API v4 spec and the Steam Web API. A fictional sample match stands in until the owner adds keys.
+- **Finding the match:**
+  - **FACEIT:** paste the match room link. The Data API has no "current match" endpoint; automatic detection gets checked with a real key (spike 4).
+  - **Premier:** no roster API, so opponents are learned from the demo after the match.
 - **FACEIT:** roster, lifetime and per-map stats, recent matches, veto history.
 - **Steam:** summaries, bans, playtime (public profiles).
 - **Leetify:** ratings (optional).
 - **Demos:** roles, positions per side ("where he plays"), plan frequencies.
 - **Derived:**
-  - threat score, with the weights shown in the UI
-  - premade detection
-  - win chance from ELO plus map edge
+  - threat score, with the weights shown in the UI: ELO 35%, K/D 35%, form over the last 5 matches 15%, K/D on the current map 15%
+  - premade detection: two enemies who played at least 5 of their last 20 matches on the same team
+  - win chance: FACEIT's own estimate when the match has one, otherwise ELO, nudged by the map edge (at most ±8 points)
+  - veto advice: ban the maps with the worst edge, expect them to ban the maps they rarely play, pick the best remaining edge
+  - Steam flags: bans on record, accounts under a year old, few CS2 hours for a high ELO, private profiles
   - suggested roles for our team
   - each random's usual spot
 
@@ -581,6 +587,9 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
 2. **M2 · Rooms:** peer-to-peer rooms (WebRTC + Nostr signaling), protocol, E2E, invite/join/approve, roles and permissions, web app on GitHub Pages, member GSI sharing from the desktop app, personal YOU.
    - *Built:* everything except testing across real home networks with the squad, and the Pages deploy, which waits on the PR.
 3. **M3 · Scouting:** FACEIT/Steam/Leetify clients + cache, Scout page, analyst session + MCP server.
+   - *Built:* FACEIT and Steam clients, cache, Scout page, the AI briefing (structured output, no MCP needed), and encrypted key storage.
+   - *Waiting:* real responses, once the owner adds keys.
+   - *Deferred:* Leetify (optional), and automatic FACEIT match detection (spike 4).
 4. **M4 · Forecast:** demo ingest, zones and routes for the map pool, plan priors, heat, intel from all members, gather mode.
 5. **M5 · Live coach:** playbook, live session, per-player jobs, Coach page, voice, tournament mode, quotas.
 6. **M6 · Debrief:** analysis, calibration reports, progress tracking.
