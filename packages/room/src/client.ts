@@ -82,6 +82,13 @@ export class RoomClient {
 
   setSlot(slot: string | null): void { this.sendMsg({ t: 'slot', slot }); }
 
+  /** Squad check-in for our slot: on my spot, or rotating to a site. The marker updates in the next state. */
+  checkIn(state: 'spot' | 'rotate', site?: 'A' | 'B'): boolean {
+    if (this.state.status !== 'approved') return false;
+    this.sendMsg({ t: 'checkin', state, ...(site ? { site } : {}) });
+    return true;
+  }
+
   /** Log intel (zone, enemies seen; 0 = clear). Resolves with the host's verdict; the effect arrives in the next state. */
   logIntel(zone: string, count: number, timeoutMs = 10_000): Promise<{ ok: boolean; error?: string }> {
     if (this.state.status !== 'approved') return Promise.resolve({ ok: false, error: 'Not connected to the host.' });

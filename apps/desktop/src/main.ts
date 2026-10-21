@@ -176,6 +176,8 @@ function run(): void {
         const r = host?.addIntel(zone, count, ownName());
         if (r && !r.ok) log(`hotkey intel not logged: ${r.error}`);
       },
+      // Check-ins go to the room, which lives in the renderer.
+      checkIn: (state, site) => { if (win && !win.isDestroyed()) win.webContents.send('csbot:checkin', state, site); },
     });
     host.onSnapshot(s => hotkeys?.setMap(s.match?.map));
     hotkeys.setEnabled(!!settings.intelHotkeys);

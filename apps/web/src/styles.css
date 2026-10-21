@@ -512,3 +512,17 @@ ul.steps.sm li{font-size:12px;padding:3px 9px}
 .hotkeys li{display:flex;align-items:center;gap:8px;font-size:13px}
 .hotkeys kbd{font:600 11.5px ui-monospace,Consolas,monospace;background:var(--panel2);border:1px solid var(--line2);border-bottom-width:2px;border-radius:5px;padding:1px 6px;color:var(--ink);min-width:44px;text-align:center}
 .hotkeys[data-enabled="0"] li{opacity:.6}
+/* Squad markers: planned (dashed, default), on spot (solid), rotating (moving), dead (cross). */
+.mk.spot i{border-style:solid;background:rgba(57,135,229,.35)}
+.mk.rotating i{border-style:solid;border-color:#f2bd4b;background:rgba(242,189,75,.25);animation:mkpulse 1.2s ease-in-out infinite}
+.mk.rotating.arrived i{animation:none}
+.mk.rotating span{color:#ffe2a6}
+.mk.dead i{border:0;background:none;box-shadow:none;color:#e5534b;font-style:normal;font-weight:800;font-size:14px;display:grid;place-items:center}
+.mk.dead span{color:#7b828e;text-decoration:line-through}
+.mk.open span{opacity:.75}
+.mk.me.spot i{background:rgba(57,135,229,.7)}
+@keyframes mkpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.25)}}
+.checkin{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:8px 0 2px}
+.checkin .err{color:#f0a5a0}
+.mapkey .k-spot{display:inline-block;width:10px;height:10px;border-radius:50%;border:2px solid #7fb0ef;background:rgba(57,135,229,.35);margin-right:5px;vertical-align:-1px}
+.mapkey .k-rot{display:inline-block;width:10px;height:10px;border-radius:50%;border:2px solid #f2bd4b;background:rgba(242,189,75,.25);margin-right:5px;vertical-align:-1px}

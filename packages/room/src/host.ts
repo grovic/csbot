@@ -9,6 +9,7 @@ import {
   type CoachAsker, type CoachView, type RoomMember, type RoomPermissions, type RoomView, type ScoutView, type ScreenState,
 } from '@csbot/protocol';
 import { mergeRows, personalize } from './compose.ts';
+import { composeSquad, type CheckIn, type SlotInfo } from './squad.ts';
 import type { Transport } from './transport.ts';
 
 export const HOST_ID = 'host';
@@ -72,6 +73,9 @@ export class RoomHost {
   private ended = false;
   /** Spectator-only nodes dropped from members' GSI (room-wide guard). */
   guardDropped = 0;
+  /** Squad check-ins this round, by slot. */
+  private checkins = new Map<string, CheckIn>();
+  private checkRound = 0;
 
   constructor(o: RoomHostOptions) {
     this.o = { maxMembers: 9, now: Date.now, throttleMs: 250, rateLimit: 30, ...o };
@@ -85,7 +89,28 @@ export class RoomHost {
 
   // ------------------------------------------------------------- admin actions
 
-  setLive(s: LiveSnapshot): void { this.live = s; this.schedule(); }
+  setLive(s: LiveSnapshot): void {
+    // Check-ins last one round.
+    const round = s.match?.round ?? 0;
+    if (round !== this.checkRound) { this.checkins.clear(); this.checkRound = round; }
+    this.live = s;
+    this.schedule();
+  }
+
+  /**
+   * Squad check-in for a member's own slot (or the host's, with HOST_ID): on their spot, or rotating to
+   * a site. Lasts until the round ends.
+   */
+  checkIn(id: string, state: 'spot' | 'rotate', site?: 'A' | 'B'): { ok: boolean; error?: string } {
+    const slot = id === HOST_ID ? this.saved.hostSlot : this.members.get(id)?.slot;
+    if (!slot) return { ok: false, error: 'Take a slot in the room first: your marker is your slot.' };
+    const phase = this.live.match?.clock.phase;
+    if (phase !== 'freezetime' && phase !== 'live' && phase !== 'bomb') return { ok: false, error: 'Check-ins are for the round in progress.' };
+    if (state === 'rotate' && !site) return { ok: false, error: 'Rotate to which site?' };
+    this.checkins.set(slot, { state, ...(state === 'rotate' ? { site } : {}), at: this.o.now() });
+    this.schedule(true);
+    return { ok: true };
+  }
 
   /** New coach state (chat, call log, budget): every member gets it now; joiners on approval. */
   setCoach(c: CoachView): void {
@@ -218,6 +243,7 @@ export class RoomHost {
       case 'bye': this.dropPeer(peerId); break;
       case 'ask': void this.ask(member, m.text, peerId); break;
       case 'intel': void this.intel(member, m.zone, m.count, peerId); break;
+      case 'checkin': this.checkIn(member.id, m.state, m.site); break;
     }
   }
 
@@ -323,28 +349,49 @@ export class RoomHost {
     return mergeRows(rows);
   }
 
-  private personalLive(id: string, rows = this.rows()): LiveSnapshot {
+  /** The host's snapshot plus the squad markers (the same for everyone in the room). */
+  private liveWithSquad(): LiveSnapshot {
+    const squad = this.squad(this.o.now());
+    return squad ? { ...this.live, squad } : this.live;
+  }
+
+  private personalLive(id: string, rows = this.rows(), base = this.liveWithSquad()): LiveSnapshot {
     if (id === HOST_ID) {
-      return personalize(this.live, rows, {
+      return personalize(base, rows, {
         slot: this.saved.hostSlot, me: this.live.me, youTile: this.live.youTile, steamid: this.live.me?.steamid, tournament: this.saved.tournament,
       });
     }
     const m = this.members.get(id);
     const own = m?.tracker?.snapshot(this.o.now());
-    return personalize(this.live, rows, {
+    return personalize(base, rows, {
       slot: m?.slot, me: own?.me, youTile: own?.youTile, steamid: own?.me?.steamid, tournament: this.saved.tournament,
     });
+  }
+
+  /** Every slot's player, alive state (from their own GSI) and check-in, for the squad markers. */
+  private squad(now: number) {
+    const bySlot = new Map<string, SlotInfo>();
+    if (this.saved.hostSlot) bySlot.set(this.saved.hostSlot, { name: this.hostName, ...(this.live.me ? { alive: this.live.me.alive } : {}) });
+    for (const m of this.members.values()) {
+      if (!m.slot) continue;
+      const fresh = m.tracker && m.lastGsiAt !== undefined && now - m.lastGsiAt < 15_000;
+      const me = fresh ? m.tracker!.snapshot(now).me : undefined;
+      bySlot.set(m.slot, { name: m.name, ...(me ? { alive: me.alive } : {}) });
+    }
+    for (const [slot, c] of this.checkins) { const i = bySlot.get(slot); if (i) i.checkIn = c; }
+    return composeSquad(this.live, bySlot);
   }
 
   private broadcast(): void {
     this.lastBroadcast = this.o.now();
     const rows = this.rows();
+    const base = this.liveWithSquad();
     for (const m of this.members.values()) {
       if (!m.peer) continue;
-      this.send(m.peer, { t: 'state', room: this.view(m.id), live: this.personalLive(m.id, rows) });
+      this.send(m.peer, { t: 'state', room: this.view(m.id), live: this.personalLive(m.id, rows, base) });
     }
     if (this.listeners.size) {
-      const s: ScreenState = { live: this.personalLive(HOST_ID, rows), room: this.view(HOST_ID), ...(this.scout ? { scout: this.scout } : {}), ...(this.coach ? { coach: this.coach } : {}) };
+      const s: ScreenState = { live: this.personalLive(HOST_ID, rows, base), room: this.view(HOST_ID), ...(this.scout ? { scout: this.scout } : {}), ...(this.coach ? { coach: this.coach } : {}) };
       for (const cb of this.listeners) cb(s);
     }
   }

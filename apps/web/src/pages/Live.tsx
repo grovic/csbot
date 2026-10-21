@@ -53,7 +53,11 @@ export function Live({ snap, receivedAt, rate, kind, role, room, scout, coach, s
           <Tiles snap={snap} webMember={role === 'member' && kind === 'member'} />
           <Ticker snap={snap} />
         </div>
-        <MapPanel snap={snap} room={room} {...(session ? { onIntel: (z: string, n: number) => session.logIntel(z, n), ...(session.intelBlock() ? { intelBlock: session.intelBlock() } : {}) } : {})} />
+        <MapPanel snap={snap} room={room} receivedAt={receivedAt} rate={rate}
+          {...(session ? {
+            onIntel: (z: string, n: number) => session.logIntel(z, n), ...(session.intelBlock() ? { intelBlock: session.intelBlock() } : {}),
+            onCheckIn: (st: 'spot' | 'rotate', site?: 'A' | 'B') => session.checkIn(st, site), ...(session.checkInBlock() ? { checkInBlock: session.checkInBlock() } : {}),
+          } : {})} />
       </div>
       <Scoreboard snap={snap} inRoom={!!room && role !== 'demo'} scout={scout} />
     </section>

@@ -116,6 +116,8 @@ export class Session {
     this.pageSignal = signalFromPage(win.location);
     this.view = { role: 'none', kind: this.bridge ? 'desktop' : 'none', device: this.bridge ? 'desktop' : 'web', receivedAt: Date.now(), rate: 1, signaling: this.pageSignal ? 'ws' : 'nostr' };
     this.start();
+    // Desktop: squad check-in hotkeys (Num4/5/6) arrive from the main process.
+    this.bridge?.onCheckIn?.((state, site) => { void this.checkIn(state, site); });
     // Opening an invite link in a tab that already runs csbot only changes the hash: start joining.
     if (!this.bridge) {
       win.addEventListener('hashchange', () => {
@@ -324,6 +326,38 @@ export class Session {
     } catch (e) {
       return String((e as Error)?.message ?? e);
     }
+  }
+
+  /** Why a squad check-in can't be sent right now (undefined = it can). */
+  checkInBlock(): string | undefined {
+    const v = this.view, live = v.screen?.live, room = v.screen?.room;
+    if (v.role === 'solo') return 'Check-ins are for rooms: create one so your squad sees your spot.';
+    if (v.role !== 'demo' && v.role !== 'host' && v.role !== 'member') return 'Join a room to check in.';
+    if (v.role === 'member' && v.link?.status !== 'approved') return 'Not connected to the host.';
+    if (room?.tournament) return 'Tournament mode is on: no planned spots.';
+    const me = room?.members.find(m => m.id === room.you);
+    if (!me?.slot) return 'Take a slot in the room first: your marker is your slot.';
+    const phase = live?.match?.clock.phase;
+    if (phase !== 'freezetime' && phase !== 'live' && phase !== 'bomb') return 'Check-ins are for the round in progress.';
+    return undefined;
+  }
+
+  /** Squad check-in: on my spot, or rotating to a site. Returns a refusal to show, if any. */
+  async checkIn(state: 'spot' | 'rotate', site?: 'A' | 'B'): Promise<string | undefined> {
+    const block = this.checkInBlock();
+    if (block) return block;
+    const room = this.view.screen?.room;
+    const slot = room?.members.find(m => m.id === room.you)?.slot;
+    if (this.view.role === 'demo') {
+      const r = slot ? this.demo?.checkIn?.(slot, state, site) : undefined;
+      return !r ? 'The demo is not running.' : r.ok ? undefined : r.error ?? 'Not sent.';
+    }
+    if (this.view.role === 'member') return this.client?.checkIn(state, site) ? undefined : 'Not connected to the host.';
+    if (this.view.role === 'host' && this.host) {
+      const r = this.host.checkIn(HOST_ID, state, site);
+      return r.ok ? undefined : r.error;
+    }
+    return 'Join a room to check in.';
   }
 
   /** The desktop app runs the game connection (solo or hosting): host-only settings apply. */

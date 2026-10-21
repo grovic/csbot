@@ -310,6 +310,82 @@ describe('intel from a room', () => {
   });
 });
 
+/** Host-side live snapshots for the whole first rounds of the match (Mirage CT). */
+function hostLives(): LiveSnapshot[] {
+  const t = new MatchTracker();
+  return syntheticMatch({ rounds: FIRST_HALF.slice(0, 3) }).map(({ t: at, p }) => { t.ingest(toGameState(p, at)); return t.snapshot(at); });
+}
+
+describe('squad markers', () => {
+  it('shows planned spots, check-ins and rotations for everyone, and resets each round', async () => {
+    const { host, join, flush } = await setup();
+    const lives = hostLives();
+    const freeze2 = lives.find(s => s.match?.round === 2 && s.match.clock.phase === 'freezetime')!;
+    host.setLive(freeze2);
+    const kairo = join('client-kairo', 'kairo');
+    await flush(); host.approve('client-kairo'); await flush();
+    const slot = host.screen().room!.members.find(m => m.id === 'client-kairo')!.slot!;
+    const squad = () => kairo.last().screen!.live.squad!;
+    expect(squad()).toHaveLength(5);
+    const mine = () => squad().find(m => m.slot === slot)!;
+    expect(mine()).toMatchObject({ name: 'kairo', state: 'planned' });
+    // Slots nobody in the room plays are open (gather mode: randoms).
+    expect(squad().filter(m => m.open).length).toBe(4);
+
+    expect(kairo.client.checkIn('spot')).toBe(true);
+    await flush();
+    expect(mine()).toMatchObject({ state: 'spot' });
+
+    kairo.client.checkIn('rotate', 'A');
+    await flush();
+    const rot = mine();
+    expect(rot.state).toBe('rotating');
+    expect(rot.to).toBe('A');
+    expect(rot.route!.length).toBeGreaterThan(1);
+    expect(rot.route![rot.route!.length - 1]![2]).toBeGreaterThan(0);
+    // The admin sees the same markers.
+    expect(host.screen().live.squad!.find(m => m.slot === slot)!.state).toBe('rotating');
+
+    // A new round: back to the plan.
+    host.setLive(lives.find(s => s.match?.round === 3 && s.match.clock.phase === 'freezetime')!);
+    await flush();
+    expect(mine().state).toBe('planned');
+  });
+
+  it("refuses a check-in without a slot or outside a round, and hides markers in tournament mode", async () => {
+    const { host, flush } = await setup();
+    const lives = hostLives();
+    host.setLive(lives.find(s => s.match?.round === 2 && s.match.clock.phase === 'freezetime')!);
+    expect(host.checkIn(HOST_ID, 'spot').error).toMatch(/Take a slot/);
+    host.setSlot(HOST_ID, 'a');
+    expect(host.checkIn(HOST_ID, 'rotate').error).toMatch(/which site/);
+    expect(host.checkIn(HOST_ID, 'spot')).toEqual({ ok: true });
+    await flush();
+    expect(host.screen().live.squad!.find(m => m.slot === 'a')).toMatchObject({ state: 'spot', name: 'rdx' });
+    host.setTournament(true);
+    await flush();
+    expect(host.screen().live.squad).toBeUndefined();
+    host.setLive(lives.find(s => s.match?.clock.phase === 'over')!);
+    expect(host.checkIn(HOST_ID, 'spot').error).toMatch(/round in progress/);
+  });
+
+  it('turns a member into a cross when their own GSI says they died', async () => {
+    const { host, join, flush } = await setup();
+    const lives = hostLives();
+    const k = join('client-kairo', 'kairo', 'desktop');
+    await flush(); host.approve('client-kairo'); await flush();
+    const slot = host.screen().room!.members.find(m => m.id === 'client-kairo')!.slot!;
+    // kairo's own game: alive at round 2 live, then dead.
+    const mine = syntheticMatch({ rounds: FIRST_HALF.slice(0, 2), me: '76561198000000202', name: 'kairo' }).map(r => r.p);
+    const live2 = lives.find(s => s.match?.round === 2 && s.match.clock.phase === 'live')!;
+    host.setLive(live2);
+    const p = mine.find(x => x.map?.round === 1 && x.round?.phase === 'live')!;
+    k.client.sendGsi({ ...p, player: { ...p.player!, state: { ...p.player!.state!, health: 0 } } });
+    await flush();
+    expect(host.screen().live.squad!.find(m => m.slot === slot)!.state).toBe('dead');
+  });
+});
+
 describe('robustness', () => {
   it('ignores malformed messages and rate-limits floods', async () => {
     const { net, host, join, flush } = await setup();

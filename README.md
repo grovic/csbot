@@ -16,7 +16,7 @@ Teammates who only want to watch and log intel don't need it: they open the room
 
 ## Status
 
-**M1 (core host), M2 (rooms), M3 (Scout), M4a (live intel), M4b (real maps), M4c (T-side forecast), M4d (T playbook) and M5 (live coach) are built.**
+**M1 (core host), M2 (rooms), M3 (Scout), M4a (live intel), M4b (real maps), M4c (T-side forecast), M4d (T playbook), M4e (squad markers) and M5 (live coach) are built.**
 - **M1:** the Electron host reads GSI, runs the economy engine, and shows the Live page.
 - **M2:** the admin creates a room in the desktop app and shares an invite link. Teammates open it in a browser, or paste it into their own csbot, and see the same calls with their own job. Rooms are peer-to-peer: no account, no server.
 
@@ -27,6 +27,8 @@ Teammates who only want to watch and log intel don't need it: they open the room
 - **M4b:** the seven competitive maps (Ancient, Anubis, Cache, Dust II, Inferno, Mirage, Nuke) are real. Each map's floor, callouts and walking times come from the CS2 map files through `tools/map-build`. Every map has enemy plans with timed routes, a forecast on CT halves, and a CT playbook. Click anywhere in a zone to log intel. The demo plays on any map with `?map=de_dust2`.
 
 - **M4c:** on your T halves, the map shows where their CTs likely hold and which site is likely light. Logging "4 on B" turns the call to "A likely light · go A".
+
+- **M4e:** squad markers in a room: each player's marker is planned, on spot, rotating to a site with a countdown, or dead. Players check in with buttons under the map, or Num5 / Num4 / Num6 on the desktop app. Positions are only what players report; the game never sends teammates' positions.
 
 - **M4d:** a T playbook for every map: a default, an A and a B exec, an eco and a force play, each with planned spots and a job for every player. The call picks by your money and their likely-light site, and switches to the right exec when intel comes in.
 

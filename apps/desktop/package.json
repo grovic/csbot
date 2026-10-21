@@ -1,7 +1,7 @@
 {
   "name": "@csbot/desktop",
   "productName": "csbot",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": true,
   "type": "module",
   "main": "dist/main.cjs",
