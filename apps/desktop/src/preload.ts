@@ -21,6 +21,11 @@ const bridge: CsbotBridge = {
   getInfo: () => ipcRenderer.invoke('csbot:getInfo') as Promise<HostInfo>,
   installCfg: () => ipcRenderer.invoke('csbot:installCfg') as Promise<CfgInstallResult>,
   openRecordings: () => ipcRenderer.invoke('csbot:openRecordings') as Promise<void>,
+  onGsi(cb) {
+    const handler = (_e: IpcRendererEvent, p: Record<string, unknown>) => cb(p);
+    ipcRenderer.on('csbot:gsi', handler);
+    return () => { ipcRenderer.removeListener('csbot:gsi', handler); };
+  },
 };
 
 contextBridge.exposeInMainWorld('csbot', bridge);

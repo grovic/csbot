@@ -1,0 +1,17 @@
+{
+  "at": "2026-10-21T17:10:53.218Z",
+  "scenario": "host with a room open, 1 browser member, real-time synthetic replay",
+  "durationS": 90,
+  "payloadsPosted": 109,
+  "cores": 16,
+  "privAvgMB": 280,
+  "privPeakMB": 291,
+  "wsAvgMB": 412,
+  "cpuMachinePctAvg": 0.28,
+  "byType": {
+    "Browser": 74,
+    "GPU": 156,
+    "Utility": 14,
+    "Tab": 48
+  }
+}

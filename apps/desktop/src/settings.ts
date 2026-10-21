@@ -60,6 +60,22 @@ export interface EnvConfig {
   metricsFile?: string;
   /** CSBOT_STEAM_PATH: look for CS2 under this Steam root only (tests point it at a temp tree). */
   steamPath?: string;
+  /**
+   * CSBOT_SIGNAL: room signaling override (a self-hosted Trystero WebSocket relay, e.g. tests on
+   * ws://127.0.0.1:PORT). Passed to the renderer as ?signal=. Default: public Nostr relays.
+   */
+  signal?: string;
+}
+
+/** Only wss:// anywhere, or ws:// on this machine (tests, a relay on the LAN host itself). */
+export function validSignal(u: string | undefined): string | undefined {
+  if (!u) return undefined;
+  try {
+    const url = new URL(u);
+    if (url.protocol === 'wss:') return url.href;
+    if (url.protocol === 'ws:' && (url.hostname === '127.0.0.1' || url.hostname === 'localhost')) return url.href;
+  } catch { /* invalid */ }
+  return undefined;
 }
 
 export function readEnv(env: NodeJS.ProcessEnv = process.env): EnvConfig {
@@ -71,5 +87,6 @@ export function readEnv(env: NodeJS.ProcessEnv = process.env): EnvConfig {
     webUrl: env.CSBOT_WEB_URL || undefined,
     metricsFile: env.CSBOT_METRICS_FILE || undefined,
     steamPath: env.CSBOT_STEAM_PATH || undefined,
+    signal: validSignal(env.CSBOT_SIGNAL),
   };
 }

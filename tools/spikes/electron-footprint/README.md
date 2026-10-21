@@ -50,3 +50,15 @@ Leftover processes after the run: none.
 - **Hidden window.** There's no on-screen compositing or vsync-driven painting, so GPU and renderer costs will be higher with a visible window on a 144 Hz second screen. Re-measure with the window visible during a real match. That needs the owner, and it needs to be scheduled so it doesn't disturb a game.
 - **Synthetic feed.** Real CS2 cadence depends on the cfg's `throttle`/`buffer` and on what changes. The synthetic stream sends 4 payloads/s at most, which is about the cfg's upper bound.
 - **Cores.** Machine-wide CPU % depends on the core count. On a 4-core PC the same load would read about 0.9% average.
+
+## With a room open (M2, 2026-10-21)
+
+The rooms e2e measures the host with a room open and one browser member connected over WebRTC, during a 90 s real-time replay. Run it with `CSBOT_MEASURE=1 pnpm --filter @csbot/desktop test:e2e -- -g footprint`. Results go to `results-room.json`.
+
+| | M1 (no room) | Room + 1 member |
+|---|---|---|
+| Private memory, avg / peak | 268 / 278 MB | **280 / 291 MB** |
+| CPU, machine-wide, avg | 0.2 % | **0.28 %** |
+
+- **The room costs about 12 MB.** The renderer grows from about 40 to 48 MB with WebRTC and the room host, and the GPU process stays the largest at 156 MB.
+- **Both criteria still pass.** The caveats above still apply: the window is hidden and the feed is synthetic.

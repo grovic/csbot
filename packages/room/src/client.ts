@@ -20,6 +20,11 @@ export interface ClientState {
   detail?: string;
   /** Last screen from the host. Kept while the host is offline. */
   screen?: ScreenState;
+  /**
+   * A wrong-key handshake was seen while still connecting. Only a hint: in a meshed room an
+   * intruder's failed handshake can land on any peer, so it never ends the connection attempt.
+   */
+  hint?: 'key-mismatch';
 }
 
 export class RoomClient {
@@ -46,7 +51,10 @@ export class RoomClient {
       if (this.state.status === 'approved' || this.state.status === 'pending' || this.state.status === 'connecting') this.set('host-offline');
     });
     t.onError(err => {
-      if (/password|decrypt/i.test(err)) this.set('denied', "This invite link's key doesn't match the room. Ask for a new link.");
+      if (/password|decrypt/i.test(err) && this.state.status === 'connecting' && !this.state.hint) {
+        this.state = { ...this.state, hint: 'key-mismatch' };
+        this.emit();
+      }
     });
     t.onMessage((m, peer) => { if (peer === this.host) this.receive(m); });
   }
@@ -98,8 +106,8 @@ export class RoomClient {
   }
 
   private set(status: LinkStatus, detail?: string): void {
-    const { screen } = this.state;
-    this.state = { status, since: this.o.now(), ...(detail ? { detail } : {}), ...(screen ? { screen } : {}) };
+    const { screen, hint } = this.state;
+    this.state = { status, since: this.o.now(), ...(detail ? { detail } : {}), ...(screen ? { screen } : {}), ...(hint && status === 'connecting' ? { hint } : {}) };
     this.emit();
   }
 

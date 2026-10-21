@@ -174,7 +174,9 @@ Joining has to be as simple as opening a link: no sign-up for anyone, nothing to
   - Trystero encrypts every connection offer with the room key (AES-GCM). A device without the invite link can't even complete the handshake; the spike's wrong-key peer was refused at that step.
   - WebRTC then encrypts every channel (DTLS).
   - The host also checks every message from members against a schema, and rate-limits them.
-- **What others can see:** members see the host's IP address, as in any peer-to-peer game. The public relays see that someone joined *a* room, never which room or what was said.
+- **What others can see:**
+  - People in the room see each other's IP addresses, as in any peer-to-peer game. Trystero links every device in a room, and csbot only uses the member ⇄ host links; member ⇄ member links stay idle.
+  - The public relays see that someone joined *a* room, never which room or what was said.
 - **Rejected alternatives:**
   - a hosted relay (Cloudflare, Supabase, PartyKit): somebody has to create an account and run it
   - the host as a plain WebSocket server: members would need port forwarding on the admin's router
@@ -577,6 +579,7 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
 ### Milestones
 1. **M1 · Core host:** Electron shell, GSI server + recorder/replayer, engine (economy), Live (banner, tiles, scoreboard with host data).
 2. **M2 · Rooms:** peer-to-peer rooms (WebRTC + Nostr signaling), protocol, E2E, invite/join/approve, roles and permissions, web app on GitHub Pages, member GSI sharing from the desktop app, personal YOU.
+   - *Built:* everything except testing across real home networks with the squad, and the Pages deploy, which waits on the PR.
 3. **M3 · Scouting:** FACEIT/Steam/Leetify clients + cache, Scout page, analyst session + MCP server.
 4. **M4 · Forecast:** demo ingest, zones and routes for the map pool, plan priors, heat, intel from all members, gather mode.
 5. **M5 · Live coach:** playbook, live session, per-player jobs, Coach page, voice, tournament mode, quotas.

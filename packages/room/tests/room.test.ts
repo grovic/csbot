@@ -30,7 +30,7 @@ function memberPayloads(steamid: string, name: string): GsiPayload[] {
 async function setup(o: { saved?: SavedRoom; maxMembers?: number } = {}) {
   const net = new MemoryNetwork();
   let saved = o.saved ?? newSavedRoom(CODE, KEY, 1000);
-  const host = new RoomHost({ transport: net.transport({ code: CODE, key: KEY, role: 'host' }), room: saved, hostName: 'rdx', throttleMs: 0, onSave: r => { saved = r; }, ...(o.maxMembers ? { maxMembers: o.maxMembers } : {}) });
+  const host = new RoomHost({ transport: net.transport({ code: CODE, key: KEY, role: 'host' }), room: saved, hostName: 'Host', throttleMs: 0, onSave: r => { saved = r; }, ...(o.maxMembers ? { maxMembers: o.maxMembers } : {}) });
   const join = (clientId: string, name: string, device: 'web' | 'desktop' = 'web', key = KEY) => {
     const client = new RoomClient({ transport: net.transport({ code: CODE, key, role: 'member' }), clientId, name, device, gsiMinGapMs: 0 });
     const states: ClientState[] = [];
@@ -75,6 +75,7 @@ describe('joining a room', () => {
     expect(room.you).toBe('client-kairo');
     expect(room.pending).toEqual([]); // members never see the queue
     expect(room.members.map(m => m.name)).toEqual(['rdx', 'kairo']);
+    expect(room.hostName).toBe('rdx'); // from the host's own GSI
     const live = s.screen!.live;
     const slot = room.members.find(m => m.id === 'client-kairo')!.slot!;
     expect(live.youHandle).toBe(slot);
@@ -98,8 +99,9 @@ describe('joining a room', () => {
     const { host, join, flush } = await setup();
     const x = join('client-x', 'x', 'web', 'wrong-key-wrong-key-wrong');
     await flush();
-    expect(x.last().status).toBe('denied');
-    expect(x.last().detail).toMatch(/key/);
+    // Never reaches the host; the client keeps trying and shows a hint, not a verdict.
+    expect(x.last().status).toBe('connecting');
+    expect(x.last().hint).toBe('key-mismatch');
     expect(host.screen().room!.pending).toEqual([]);
   });
 

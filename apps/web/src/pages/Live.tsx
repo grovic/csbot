@@ -1,13 +1,24 @@
-import type { LiveSnapshot } from '@csbot/protocol';
+import type { LiveSnapshot, RoomView } from '@csbot/protocol';
 import { CallCard } from '../components/CallCard.tsx';
 import { MapPanel } from '../components/MapPanel.tsx';
 import { PhaseBanner } from '../components/PhaseBanner.tsx';
 import { Scoreboard } from '../components/Scoreboard.tsx';
 import { Ticker } from '../components/Ticker.tsx';
 import { Tiles } from '../components/Tiles.tsx';
+import type { Role } from '../data/session.ts';
 import type { SourceKind } from '../data/source.ts';
 
-function Waiting({ kind }: { kind: SourceKind }) {
+function Waiting({ kind, role, room }: { kind: SourceKind; role: Role; room?: RoomView }) {
+  if (role === 'member') {
+    const host = room?.hostName ?? 'the host';
+    return (
+      <div className="card onboard" data-testid="waiting">
+        <div className="kick"><span className="pulse" /> &nbsp;Room</div>
+        <h2>Connected · waiting for {host}'s game</h2>
+        <div className="sub">This page fills in when {host}'s CS2 sends its first update: the call, the enemy money read and the map.</div>
+      </div>
+    );
+  }
   return (
     <div className="card onboard" data-testid="waiting">
       <div className="kick"><span className="pulse" /> &nbsp;Live</div>
@@ -27,8 +38,8 @@ function Waiting({ kind }: { kind: SourceKind }) {
   );
 }
 
-export function Live({ snap, receivedAt, rate, kind }: { snap: LiveSnapshot; receivedAt: number; rate: number; kind: SourceKind }) {
-  if (snap.connection.gsi === 'waiting' || !snap.match) return <Waiting kind={kind} />;
+export function Live({ snap, receivedAt, rate, kind, role, room }: { snap: LiveSnapshot; receivedAt: number; rate: number; kind: SourceKind; role: Role; room?: RoomView }) {
+  if (snap.connection.gsi === 'waiting' || !snap.match) return <Waiting kind={kind} role={role} room={room} />;
   return (
     <section data-testid="live">
       {snap.connection.gsi === 'stale' && (
@@ -37,13 +48,13 @@ export function Live({ snap, receivedAt, rate, kind }: { snap: LiveSnapshot; rec
       <div className="live-main">
         <div className="now">
           <PhaseBanner snap={snap} receivedAt={receivedAt} rate={rate} />
-          <CallCard snap={snap} />
-          <Tiles snap={snap} />
+          <CallCard snap={snap} room={room} />
+          <Tiles snap={snap} webMember={role === 'member' && kind === 'member'} />
           <Ticker snap={snap} />
         </div>
-        <MapPanel snap={snap} />
+        <MapPanel snap={snap} room={room} />
       </div>
-      <Scoreboard snap={snap} />
+      <Scoreboard snap={snap} inRoom={!!room && role !== 'demo'} />
     </section>
   );
 }

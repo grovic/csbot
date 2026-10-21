@@ -4,7 +4,8 @@ declare global {
   interface Window { csbot?: CsbotBridge }
 }
 
-export type SourceKind = 'desktop' | 'demo' | 'none';
+/** desktop = this PC's csbot app; member = a browser that joined a room by invite link. */
+export type SourceKind = 'desktop' | 'demo' | 'none' | 'member';
 
 /** Where snapshots come from. Every screen renders only from snapshots. */
 export interface SnapshotSource {

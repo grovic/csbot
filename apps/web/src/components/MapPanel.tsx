@@ -1,5 +1,5 @@
 import { heatGrid, MIRAGE } from '@csbot/engine';
-import type { LiveSnapshot } from '@csbot/protocol';
+import type { LiveSnapshot, RoomView } from '@csbot/protocol';
 import { useEffect, useMemo, useRef } from 'react';
 import { mapName } from '../format.ts';
 
@@ -88,7 +88,14 @@ function HeatCanvas({ img }: { img: ImageData }) {
   return <canvas ref={ref} data-testid="heat" aria-hidden />;
 }
 
-export function MapPanel({ snap }: { snap: LiveSnapshot }) {
+/** Who plays each slot: the room member assigned to it, else the slot's label. */
+function slotNamer(room?: RoomView) {
+  const byslot = new Map((room?.members ?? []).filter(m => m.slot).map(m => [m.slot!, m.name]));
+  const label = new Map((room?.slots ?? []).map(s => [s.id, s.label]));
+  return (slot: string) => byslot.get(slot) ?? label.get(slot) ?? slot;
+}
+
+export function MapPanel({ snap, room }: { snap: LiveSnapshot; room?: RoomView }) {
   const m = snap.match;
   const f = snap.forecast && snap.forecast.map === MIRAGE.id ? snap.forecast : undefined;
   const img = useHeatImage(f?.plans, f?.liveT ?? 0);
@@ -108,6 +115,7 @@ export function MapPanel({ snap }: { snap: LiveSnapshot }) {
   }
 
   const spots = snap.setupSpots ?? [];
+  const who = slotNamer(room);
   return (
     <div className="mapcol" data-testid="map">
       <div className="map">
@@ -119,9 +127,9 @@ export function MapPanel({ snap }: { snap: LiveSnapshot }) {
             const me = s.player === snap.youHandle;
             return (
               <div key={s.player} className={'mk' + (me ? ' me' : '')} style={{ left: s.at[0] / 10 + '%', top: s.at[1] / 10 + '%' }}
-                title={`${me ? 'You' : s.player} · ${s.label} · planned spot`} data-testid={me ? 'marker-you' : undefined}>
+                title={`${me ? 'You' : who(s.player)} · ${s.label} · planned spot`} data-testid={me ? 'marker-you' : 'marker'} data-slot={s.player}>
                 <i>{me ? 'YOU' : ''}</i>
-                <span>{me ? s.label : `${s.player} · ${s.label}`}</span>
+                <span>{me ? s.label : `${who(s.player)} · ${s.label}`}</span>
               </div>
             );
           })}

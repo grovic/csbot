@@ -153,7 +153,7 @@ export class RoomHost {
 
   view(forId: string): RoomView {
     const host: RoomMember = {
-      id: HOST_ID, name: this.o.hostName, role: 'admin', device: 'host', online: true,
+      id: HOST_ID, name: this.hostName, role: 'admin', device: 'host', online: true,
       sharesGsi: this.live.connection.payloads > 0, ...(this.saved.hostSlot ? { slot: this.saved.hostSlot } : {}),
     };
     const now = this.o.now();
@@ -162,7 +162,7 @@ export class RoomHost {
       sharesGsi: !!m.lastGsiAt && now - m.lastGsiAt < 15_000, ...(m.slot ? { slot: m.slot } : {}),
     }));
     return {
-      code: this.saved.code, hostName: this.o.hostName, members: [host, ...members],
+      code: this.saved.code, hostName: this.hostName, members: [host, ...members],
       pending: forId === HOST_ID ? [...this.pending.values()].map(({ peer: _p, ...r }) => r) : [],
       permissions: { ...this.saved.permissions }, tournament: this.saved.tournament,
       slots: slotsFor(this.live.match?.map).map(s => ({ ...s })), you: forId, createdAt: this.saved.createdAt,
@@ -170,6 +170,9 @@ export class RoomHost {
   }
 
   get savedRoom(): SavedRoom { return structuredClone(this.saved); }
+
+  /** The host's in-game name once CS2 reports it, else the name given at creation. */
+  get hostName(): string { return this.live.me?.name || this.o.hostName; }
 
   // ------------------------------------------------------------- internals
 

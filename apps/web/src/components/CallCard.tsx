@@ -1,11 +1,11 @@
 import { MIRAGE } from '@csbot/engine';
-import type { LiveSnapshot } from '@csbot/protocol';
+import type { LiveSnapshot, RoomView } from '@csbot/protocol';
 import { useEffect, useRef, useState } from 'react';
 import { pct } from '../format.ts';
 
 const planName = (id: string) => MIRAGE.plans.find(p => p.id === id)?.name ?? id;
 
-export function CallCard({ snap }: { snap: LiveSnapshot }) {
+export function CallCard({ snap, room }: { snap: LiveSnapshot; room?: RoomView }) {
   const c = snap.call;
   const [whyOpen, setWhy] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -22,6 +22,15 @@ export function CallCard({ snap }: { snap: LiveSnapshot }) {
   }, [c?.kind, c?.round]);
 
   const m = snap.match;
+  if (room?.tournament) {
+    return (
+      <div className="call" data-testid="call" data-kind="tournament">
+        <div className="kick">Tournament mode</div>
+        <div className="head" data-testid="call-head">Live coaching is off for the whole room</div>
+        <div className="sub">The admin turned on tournament mode. The economy estimate and the scoreboard still work; the debrief comes after the match.</div>
+      </div>
+    );
+  }
   if (m?.clock.phase === 'gameover') {
     const r = m.score.us > m.score.them ? 'Match won' : m.score.us < m.score.them ? 'Match lost' : 'Match tied';
     return (
@@ -51,7 +60,7 @@ export function CallCard({ snap }: { snap: LiveSnapshot }) {
       <div className="head" data-testid="call-head">{c.head}</div>
       <div className="sub">{c.sub}</div>
       {c.you && (
-        <div className="youline" data-testid="youline"><span className="yb">YOU</span><span>{c.you}</span></div>
+        <div className="youline" data-testid="youline"><span className="yb">YOU</span><span data-testid="call-you">{c.you}</span></div>
       )}
       {c.steps.length > 0 && <ul className="steps">{c.steps.slice(0, 3).map(s => <li key={s}>{s}</li>)}</ul>}
       <div className="meta">
