@@ -6,7 +6,7 @@ import { spectatorGuard, toGameState, type GsiPayload } from '@csbot/gsi';
 import {
   DEFAULT_PERMISSIONS, parseMemberMessage, ROOM_PROTOCOL,
   type DeviceKind, type HostMessage, type JoinRequest, type LiveSnapshot, type MemberMessage, type PlayerRow,
-  type RoomMember, type RoomPermissions, type RoomView, type ScreenState,
+  type RoomMember, type RoomPermissions, type RoomView, type ScoutView, type ScreenState,
 } from '@csbot/protocol';
 import { mergeRows, personalize } from './compose.ts';
 import type { Transport } from './transport.ts';
@@ -60,6 +60,7 @@ export class RoomHost {
   private members = new Map<string, Member>();
   private pending = new Map<string, JoinRequest & { peer: string }>();
   private live: LiveSnapshot = EMPTY_LIVE;
+  private scout?: ScoutView;
   private listeners = new Set<(s: ScreenState) => void>();
   private timer?: ReturnType<typeof setTimeout>;
   private lastBroadcast = 0;
@@ -81,6 +82,13 @@ export class RoomHost {
 
   setLive(s: LiveSnapshot): void { this.live = s; this.schedule(); }
 
+  /** New scouting: every member gets it now; joiners get it on approval. */
+  setScout(s: ScoutView): void {
+    this.scout = s;
+    for (const m of this.members.values()) if (m.peer) this.send(m.peer, { t: 'scout', scout: s });
+    this.schedule(true);
+  }
+
   approve(id: string): void {
     const req = this.pending.get(id);
     if (!req || this.ended) return;
@@ -91,6 +99,7 @@ export class RoomHost {
     if (p) p.memberId = id;
     this.save();
     this.send(req.peer, { t: 'welcome', v: ROOM_PROTOCOL, status: 'approved' });
+    if (this.scout) this.send(req.peer, { t: 'scout', scout: this.scout });
     this.schedule(true);
   }
 
@@ -142,7 +151,7 @@ export class RoomHost {
 
   /** The admin's own screen. */
   screen(): ScreenState {
-    return { live: this.personalLive(HOST_ID), room: this.view(HOST_ID) };
+    return { live: this.personalLive(HOST_ID), room: this.view(HOST_ID), ...(this.scout ? { scout: this.scout } : {}) };
   }
 
   subscribe(cb: (s: ScreenState) => void): () => void {
@@ -216,6 +225,7 @@ export class RoomHost {
       known.name = m.name;
       peer.memberId = known.id;
       this.send(peer.id, { t: 'welcome', v: ROOM_PROTOCOL, status: 'approved' });
+      if (this.scout) this.send(peer.id, { t: 'scout', scout: this.scout });
       this.schedule(true);
       return;
     }
@@ -301,7 +311,7 @@ export class RoomHost {
       this.send(m.peer, { t: 'state', room: this.view(m.id), live: this.personalLive(m.id, rows) });
     }
     if (this.listeners.size) {
-      const s: ScreenState = { live: this.personalLive(HOST_ID, rows), room: this.view(HOST_ID) };
+      const s: ScreenState = { live: this.personalLive(HOST_ID, rows), room: this.view(HOST_ID), ...(this.scout ? { scout: this.scout } : {}) };
       for (const cb of this.listeners) cb(s);
     }
   }

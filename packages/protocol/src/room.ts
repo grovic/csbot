@@ -4,6 +4,7 @@
 
 import { z } from 'zod';
 import type { LiveSnapshot } from './index.ts';
+import type { ScoutView } from './scout.ts';
 
 export const ROOM_PROTOCOL = 1;
 /** Hard cap on one message (a snapshot is a few KB; a GSI payload under 20 KB). */
@@ -63,6 +64,8 @@ export type LinkStatus = 'connecting' | 'pending' | 'approved' | 'denied' | 'hos
 export interface ScreenState {
   live: LiveSnapshot;
   room?: RoomView;
+  /** Pre-match scouting (from the host in a room, or this PC when solo). */
+  scout?: ScoutView;
   link?: { status: LinkStatus; since: number; detail?: string };
 }
 
@@ -87,10 +90,12 @@ export type MemberMessage = z.infer<typeof MemberMessage>;
 export type HostMessage =
   | { t: 'welcome'; v: number; status: 'pending' | 'approved' | 'denied' | 'full' | 'version'; detail?: string }
   | { t: 'state'; room: RoomView; live: LiveSnapshot }
+  /** Sent on join and whenever scouting changes (too big to ride along with every state). */
+  | { t: 'scout'; scout: ScoutView }
   | { t: 'removed'; reason: string }
   | { t: 'ended' };
 
-const HOST_TYPES = new Set(['welcome', 'state', 'removed', 'ended']);
+const HOST_TYPES = new Set(['welcome', 'state', 'scout', 'removed', 'ended']);
 export function isHostMessage(m: unknown): m is HostMessage {
   return !!m && typeof m === 'object' && HOST_TYPES.has((m as { t?: unknown }).t as string);
 }
