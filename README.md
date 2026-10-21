@@ -28,6 +28,7 @@ Scouting, the forecast from demos, Claude calls, and the debrief come in M3–M6
 - `pnpm test` (unit tests)
 - `pnpm --filter @csbot/web test:e2e` (Playwright, headless Edge)
 - `pnpm --filter @csbot/desktop test:e2e` (Electron, hidden window)
+- `CSBOT_LIVE=1` with the desktop e2e also runs `e2e/live.spec.ts`: the real path, with public Nostr signaling and a member on the live GitHub Pages site
 
 ## Design
 
