@@ -37,6 +37,8 @@ export class RoomClient {
   private pendingScout?: ScoutView;
   private pendingCoach?: CoachView;
   private askWaiter?: (r: { ok: boolean; error?: string }) => void;
+  /** The newest hosting generation seen (handover): messages from an older host are refused. */
+  private hostEpoch = -1;
   private intelWaiters: ((r: { ok: boolean; error?: string }) => void)[] = [];
 
   constructor(o: RoomClientOptions) {
@@ -45,9 +47,10 @@ export class RoomClient {
     const t = o.transport;
     t.onPeerJoin(peer => {
       if (this.closed) return;
-      this.host = peer;
-      this.sendMsg({ t: 'hello', v: ROOM_PROTOCOL, clientId: this.o.clientId, name: this.o.name, device: this.o.device });
-      if (this.state.status === 'host-offline') this.set('connecting');
+      // Say hello to every host that shows up; the one with the newest epoch keeps us (handover).
+      if (!this.host) this.host = peer;
+      this.o.transport.send({ t: 'hello', v: ROOM_PROTOCOL, clientId: this.o.clientId, name: this.o.name, device: this.o.device } satisfies MemberMessage, peer);
+      if (this.state.status === 'host-offline' && peer === this.host) this.set('connecting');
     });
     t.onPeerLeave(peer => {
       if (peer !== this.host || this.closed) return;
@@ -60,7 +63,7 @@ export class RoomClient {
         this.emit();
       }
     });
-    t.onMessage((m, peer) => { if (peer === this.host) this.receive(m); });
+    t.onMessage((m, peer) => { if (this.follow(m, peer)) this.receive(m); });
   }
 
   get current(): ClientState { return this.state; }
@@ -122,6 +125,23 @@ export class RoomClient {
     this.closed = true;
     this.set('ended', 'You left the room.');
     setTimeout(() => this.o.transport.leave(), 100);
+  }
+
+  /** Whether a message comes from the host we follow; switches to a newer host (handover), tells an older one. */
+  private follow(m: unknown, peer: string): boolean {
+    if (!isHostMessage(m)) return false;
+    const epoch = m.t === 'welcome' || m.t === 'state' ? m.epoch ?? 0 : undefined;
+    if (peer !== this.host) {
+      if (epoch === undefined) return false;
+      if (epoch < this.hostEpoch) { this.o.transport.send({ t: 'stale', epoch: this.hostEpoch } satisfies MemberMessage, peer); return false; }
+      if (epoch === this.hostEpoch && this.host) return false;
+      this.host = peer;
+    }
+    if (epoch !== undefined) {
+      if (epoch < this.hostEpoch) { this.o.transport.send({ t: 'stale', epoch: this.hostEpoch } satisfies MemberMessage, peer); return false; }
+      this.hostEpoch = epoch;
+    }
+    return true;
   }
 
   private receive(m: unknown): void {

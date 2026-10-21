@@ -37,7 +37,7 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await browser?.close();
   await deskMember?.close();
-  await host?.close();
+  await host?.close().catch(() => {});
   await site?.close();
   await relay?.close();
 });
@@ -173,15 +173,35 @@ test('two members at once: each keeps their own screen', async () => {
   bothIn = true;
 });
 
+let handedOver = false;
+
+test("the host's PC drops: the desktop member takes over and the browser member follows", async () => {
+  test.skip(!bothIn, 'needs both members in the room');
+  test.setTimeout(120_000);
+  await host.close();
+  const m = deskMember!.page;
+  await expect(m.getByTestId('link-status')).toHaveAttribute('data-status', 'host-offline', { timeout: 30_000 });
+  // After 10 s offline, a desktop member may take over (the admin allowed handover by default).
+  await m.getByTestId('take-over').click({ timeout: 30_000 });
+  await expect(m.getByTestId('notice')).toContainText("You're hosting room");
+  // The browser member follows the new host by itself: same link, no approval.
+  await expect(web.getByTestId('link-status')).toHaveAttribute('data-status', 'approved', { timeout: 45_000 });
+  await m.getByTestId('room-chip').click();
+  await expect(memberRow(m, 'kairo')).toContainText('online', { timeout: 15_000 });
+  await shot(deskMember!, path.join(screens, 'desktop-took-over.png'));
+  handedOver = true;
+});
+
 test('ending the room tells everyone', async () => {
-  await host.page.getByTestId('room-chip').click();
-  await host.page.getByTestId('end-room').click();
-  await expect(deskMember!.page.getByTestId('link-status')).toHaveAttribute('data-status', 'ended', { timeout: 15_000 });
+  const admin = handedOver ? deskMember! : host;
+  await admin.page.getByTestId('room-chip').click();
+  await admin.page.getByTestId('end-room').click();
+  if (!handedOver) await expect(deskMember!.page.getByTestId('link-status')).toHaveAttribute('data-status', 'ended', { timeout: 15_000 });
   if (bothIn) await expect(web.getByTestId('link-status')).toHaveAttribute('data-status', 'ended', { timeout: 15_000 });
 });
 
 test('footprint with a room open and a member connected', async () => {
-  test.skip(process.env.CSBOT_MEASURE !== '1', 'set CSBOT_MEASURE=1 to measure');
+  test.skip(process.env.CSBOT_MEASURE !== '1' || handedOver, 'set CSBOT_MEASURE=1 to measure (and skip the handover test)');
   test.setTimeout(300_000);
   // Fresh room with one browser member, then a real-time replay while sampling the host's processes.
   await host.page.getByTestId('room-chip').click();

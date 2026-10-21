@@ -25,10 +25,37 @@ export interface SavedRoom {
   permissions: RoomPermissions;
   tournament: boolean;
   hostSlot?: string;
+  /** Hosting generation: 0 for the creator, +1 at each handover. */
+  epoch?: number;
+  /** Last time the room was in use (a match was running); it expires after ROOM_TTL_MS without. */
+  lastActiveAt?: number;
 }
+
+/** Rooms expire after a day without use: the invite link stops working. */
+export const ROOM_TTL_MS = 24 * 3600_000;
 
 export function newSavedRoom(code: string, key: string, now = Date.now()): SavedRoom {
   return { code, key, createdAt: now, approved: [], permissions: { ...DEFAULT_PERMISSIONS }, tournament: false };
+}
+
+export function roomExpiresAt(r: SavedRoom): number { return (r.lastActiveAt ?? r.createdAt) + ROOM_TTL_MS; }
+
+/**
+ * Take over a room whose host dropped, from the last room view a member has: same code and key, the
+ * same members (they rejoin without asking, the old host too), one epoch up.
+ */
+export function takeoverRoom(view: RoomView, key: string, now = Date.now()): SavedRoom {
+  const me = view.members.find(m => m.id === view.you);
+  const approved: SavedMember[] = view.members
+    .filter(m => m.id !== view.you && m.id !== 'host')
+    .map(m => ({ id: m.id, name: m.name, ...(m.slot ? { slot: m.slot } : {}) }));
+  // The old host comes back as a member under their device id.
+  const old = view.members.find(m => m.id === 'host');
+  if (old && view.hostClientId) approved.push({ id: view.hostClientId, name: old.name, ...(old.slot ? { slot: old.slot } : {}) });
+  return {
+    code: view.code, key, createdAt: view.createdAt, approved, permissions: { ...DEFAULT_PERMISSIONS, ...view.permissions },
+    tournament: view.tournament, ...(me?.slot ? { hostSlot: me.slot } : {}), epoch: (view.epoch ?? 0) + 1, lastActiveAt: now,
+  };
 }
 
 export interface RoomHostOptions {
@@ -48,6 +75,10 @@ export interface RoomHostOptions {
   onAsk?: (from: CoachAsker, text: string) => Promise<{ ok: boolean; error?: string }>;
   /** A member's intel (already checked against the room's intel permission and tournament mode). */
   onIntel?: (from: { id: string; name: string }, zone: string, count: number) => Promise<{ ok: boolean; error?: string }>;
+  /** This device's client id (so a member who takes over can let this host back in as a member). */
+  clientId?: string;
+  /** Another member took over hosting (a newer epoch): this host stepped down without closing the room. */
+  onSuperseded?: (epoch: number) => void;
 }
 
 interface Peer { id: string; memberId?: string; device?: DeviceKind; times: number[] }
@@ -59,7 +90,7 @@ const EMPTY_LIVE: LiveSnapshot = {
 };
 
 export class RoomHost {
-  private readonly o: Required<Omit<RoomHostOptions, 'onSave' | 'onAsk' | 'onIntel'>> & Pick<RoomHostOptions, 'onSave' | 'onAsk' | 'onIntel'>;
+  private readonly o: Required<Omit<RoomHostOptions, 'onSave' | 'onAsk' | 'onIntel' | 'clientId' | 'onSuperseded'>> & Pick<RoomHostOptions, 'onSave' | 'onAsk' | 'onIntel' | 'clientId' | 'onSuperseded'>;
   private saved: SavedRoom;
   private peers = new Map<string, Peer>();
   private members = new Map<string, Member>();
@@ -90,6 +121,9 @@ export class RoomHost {
   // ------------------------------------------------------------- admin actions
 
   setLive(s: LiveSnapshot): void {
+    // A running match keeps the room alive (saved at most once a minute).
+    const now = this.o.now();
+    if (s.match && now - (this.saved.lastActiveAt ?? 0) > 60_000) { this.saved.lastActiveAt = now; this.save(); }
     // Check-ins last one round.
     const round = s.match?.round ?? 0;
     if (round !== this.checkRound) { this.checkins.clear(); this.checkRound = round; }
@@ -185,6 +219,15 @@ export class RoomHost {
     setTimeout(() => this.o.transport.leave(), 200);
   }
 
+  /** Stop hosting without closing the room (a newer host has it). */
+  private stepDown(epoch: number): void {
+    if (this.ended) return;
+    this.ended = true;
+    if (this.timer) clearTimeout(this.timer);
+    this.o.transport.leave();
+    this.o.onSuperseded?.(epoch);
+  }
+
   // ------------------------------------------------------------- views
 
   /** The admin's own screen. */
@@ -213,6 +256,7 @@ export class RoomHost {
       pending: forId === HOST_ID ? [...this.pending.values()].map(({ peer: _p, ...r }) => r) : [],
       permissions: { ...this.saved.permissions }, tournament: this.saved.tournament,
       slots: slotsFor(this.live.match?.map, this.live.match?.ourSide).map(s => ({ ...s })), you: forId, createdAt: this.saved.createdAt,
+      epoch: this.saved.epoch ?? 0, expiresAt: roomExpiresAt(this.saved), ...(this.o.clientId ? { hostClientId: this.o.clientId } : {}),
     };
   }
 
@@ -234,6 +278,8 @@ export class RoomHost {
     const m = parseMemberMessage(raw);
     if (!m) return;
     if (m.t === 'hello') { this.hello(peer, m); return; }
+    // A member follows a newer host: hosting moved while we were away. Step down quietly.
+    if (m.t === 'stale') { if (m.epoch > (this.saved.epoch ?? 0)) this.stepDown(m.epoch); return; }
     const member = peer.memberId ? this.members.get(peer.memberId) : undefined;
     if (!member) return; // only approved members can do anything else
     switch (m.t) {
@@ -396,5 +442,9 @@ export class RoomHost {
     }
   }
 
-  private send(peer: string, msg: HostMessage): void { this.o.transport.send(msg, peer); }
+  private send(peer: string, msg: HostMessage): void {
+    // Every welcome and state says which hosting generation sent it (members follow the newest).
+    const m = msg.t === 'welcome' || msg.t === 'state' ? { ...msg, epoch: this.saved.epoch ?? 0 } : msg;
+    this.o.transport.send(m, peer);
+  }
 }

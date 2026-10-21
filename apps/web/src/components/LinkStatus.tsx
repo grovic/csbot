@@ -20,7 +20,7 @@ export function LinkStatusView({ view, session }: { view: SessionView; session: 
   const link = view.link ?? { status: 'connecting' as const, since: Date.now() };
   const host = view.screen?.room?.hostName;
   const code = view.code ? formatCode(view.code) : '';
-  const now = useTicker(1000, link.status === 'connecting');
+  const now = useTicker(1000, link.status === 'connecting' || link.status === 'host-offline');
   const slow = now - link.since > 10_000;
 
   if (link.status === 'approved') return <span data-testid="link-status" data-status="approved" hidden />;
@@ -33,6 +33,10 @@ export function LinkStatusView({ view, session }: { view: SessionView; session: 
     return (
       <div className={'linkbar ' + link.status} data-testid="link-status" data-status={link.status} role="status">
         <span className="pulse" />{text}
+        {session.canTakeOver(now) && (
+          <button className="btn small" type="button" onClick={() => session.takeOver()} data-testid="take-over"
+            title="Host the room from this PC: same link, same members, the match read continues from your own game data">Take over as host</button>
+        )}
       </div>
     );
   }

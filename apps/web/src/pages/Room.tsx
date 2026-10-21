@@ -186,7 +186,11 @@ export function RoomPage({ view, session }: { view: SessionView; session: Sessio
           <Perm id="perm-intel" title="Members log intel" desc="map clicks and hotkeys feed the shared forecast (M4)" on={perms.intel} enabled={admin} onChange={v => setPerm({ intel: v })} />
           <Perm id="perm-ask" title="Members ask the coach" desc="uses the host's Claude plan, with a quota per member (M5)" on={perms.ask} enabled={admin} onChange={v => setPerm({ ask: v })} />
           <Perm id="perm-editSlot" title="Members pick their own slot" desc="otherwise only the admin assigns slots" on={perms.editSlot} enabled={admin} onChange={v => setPerm({ editSlot: v })} />
+          <Perm id="perm-handover" title="Members take over hosting" desc="if your PC drops, a member with the desktop app keeps the room going" on={perms.handover !== false} enabled={admin} onChange={v => setPerm({ handover: v })} />
           <Perm id="tournament-toggle" title="Tournament mode (whole room)" desc="turns off live calls and the forecast on every screen" on={room.tournament} enabled={admin} onChange={v => session.setTournament(v)} />
+          {room.expiresAt !== undefined && (
+            <p className="note" data-testid="room-expiry">The room and its link expire a day after its last match ({new Date(room.expiresAt).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })} if unused).</p>
+          )}
         </div>
         {view.role === 'member' ? (
           <div className="card" data-testid="your-device">

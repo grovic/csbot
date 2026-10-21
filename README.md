@@ -28,6 +28,8 @@ Teammates who only want to watch and log intel don't need it: they open the room
 
 - **M4c:** on your T halves, the map shows where their CTs likely hold and which site is likely light. Logging "4 on B" turns the call to "A likely light · go A".
 
+- **M8 (part):** if the host's PC drops, a desktop member takes over the room with one click. Members follow by themselves, and the old host rejoins as a member when it comes back. Rooms expire a day after their last match.
+
 - **M4e:** squad markers in a room: each player's marker is planned, on spot, rotating to a site with a countdown, or dead. Players check in with buttons under the map, or Num5 / Num4 / Num6 on the desktop app. Positions are only what players report; the game never sends teammates' positions.
 
 - **M4d:** a T playbook for every map: a default, an A and a B exec, an eco and a force play, each with planned spots and a job for every player. The call picks by your money and their likely-light site, and switches to the right exec when intel comes in.

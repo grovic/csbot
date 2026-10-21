@@ -241,6 +241,13 @@ Randoms show their planned spot and a "random" tag, unless a dead room member is
 - **If the host drops**, the room shows "host offline" and pauses. Members keep reconnecting through the same room ID.
 - **Every member keeps the last snapshot** locally, so nothing is lost when the host's PC crashes.
 - **To take over**, the admin (or any desktop member with Claude Code, if the admin allows it) becomes the new hub. They resume from the newest snapshot any member has, keeping the round history and economy model. API keys don't transfer. The new host uses their own, or runs without scouting refresh.
+- *Built (M8):*
+  - **Taking over:** after the host has been offline for 10 s, a desktop member sees "Take over as host".
+    - The room keeps its code, key and members, and everyone rejoins without being asked.
+    - The match read continues from the new host's own csbot, which tracked the match from their own game data all along.
+    - The admin can turn this off ("Members take over hosting").
+  - **Who hosts:** every hosting generation has an epoch, and members follow the newest. If the old host's csbot comes back, members tell it, and it steps down and rejoins as a member without approval.
+  - **Expiry:** rooms expire a day after their last match.
 
 ### 3.9 Security and privacy
 
@@ -631,7 +638,8 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
    - *Done:*
      - The installer and auto-update: an unsigned per-user NSIS installer on GitHub Releases. v0.5.0 is published; pushing a `v*` tag releases.
      - A secret scan in CI.
-   - *Pending:* code signing (Azure Trusted Signing), host handover, and performance work.
+   - *Done:* host handover and room expiry (section 3.8).
+   - *Pending:* code signing (Azure Trusted Signing) and performance work.
 
 **V1 exit criteria:**
 - buy-read accuracy ≥ 80% and money-band coverage ≥ 85% on 50 held-out demos

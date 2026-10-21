@@ -21,9 +21,11 @@ export interface RoomPermissions {
   ask: boolean;
   /** Members may pick their own slot (position) instead of the admin assigning it. */
   editSlot: boolean;
+  /** A desktop member may take over hosting when the host's PC drops. */
+  handover: boolean;
 }
 
-export const DEFAULT_PERMISSIONS: RoomPermissions = { intel: true, ask: true, editSlot: true };
+export const DEFAULT_PERMISSIONS: RoomPermissions = { intel: true, ask: true, editSlot: true, handover: true };
 
 export interface RoomMember {
   /** Stable per device (the member's clientId); the host's own entry uses 'host'. */
@@ -56,6 +58,12 @@ export interface RoomView {
   /** Which member this view is for. */
   you: string;
   createdAt: number;
+  /** Hosting generation: 0 for the room's creator, +1 at each handover. Members follow the newest. */
+  epoch?: number;
+  /** The host device's client id, so a takeover can let the old host back in without asking. */
+  hostClientId?: string;
+  /** When the room expires without activity (epoch ms). */
+  expiresAt?: number;
 }
 
 /** How this screen is connected to its room. */
@@ -89,6 +97,8 @@ export const MemberMessage = z.discriminatedUnion('t', [
   z.object({ t: z.literal('intel'), zone: z.string().min(1).max(32).regex(/^[a-z0-9_]+$/), count: z.number().int().min(0).max(5) }),
   /** Squad check-in for the member's own slot: on my spot, or rotating to a site. */
   z.object({ t: z.literal('checkin'), state: z.enum(['spot', 'rotate']), site: z.enum(['A', 'B']).optional() }),
+  /** A host with an older epoch is still sending: hosting moved (handover), so it should step down. */
+  z.object({ t: z.literal('stale'), epoch: z.number().int().min(0).max(1_000_000) }),
   /** A question for the coach (the host checks the ask permission and the member's quota). */
   z.object({ t: z.literal('ask'), text: z.string().trim().min(2).max(300) }),
   z.object({ t: z.literal('bye') }),
@@ -97,8 +107,8 @@ export type MemberMessage = z.infer<typeof MemberMessage>;
 
 /** Host → member. Not schema-validated in depth (the host is trusted by its members), only by type. */
 export type HostMessage =
-  | { t: 'welcome'; v: number; status: 'pending' | 'approved' | 'denied' | 'full' | 'version'; detail?: string }
-  | { t: 'state'; room: RoomView; live: LiveSnapshot }
+  | { t: 'welcome'; v: number; status: 'pending' | 'approved' | 'denied' | 'full' | 'version'; detail?: string; epoch?: number }
+  | { t: 'state'; room: RoomView; live: LiveSnapshot; epoch?: number }
   /** Sent on join and whenever scouting changes (too big to ride along with every state). */
   | { t: 'scout'; scout: ScoutView }
   /** Sent on join and whenever the coach changes (chat, call log, budget). */
