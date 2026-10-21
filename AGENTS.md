@@ -7,7 +7,7 @@ Guidance for any coding agent working in this repository.
 - **The project owner does not run anything.** The agent does all of the work: installing dependencies, building, testing, git, screenshots, deployments, and maintaining docs.
 - **The owner approves and discusses.** Ask with a yes/no or a short multiple-choice question, recommendation first, and batch questions together.
 - **Ask before** anything outward-facing or hard to undo:
-  - pushing to GitHub, publishing GitHub Pages or Releases, deploying the relay
+  - pushing to GitHub, publishing GitHub Pages or Releases
   - creating accounts or spending money (code signing, paid tiers)
   - installing software or background processes on this PC
   - writing into the CS2 install folder
@@ -52,10 +52,13 @@ csbot is a second-screen companion for Counter-Strike 2 squads. An admin's deskt
 - Claude Code installed and signed in with claude.ai
 - CS2 at `C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive`. Leave the existing `gamestate_integration_logitech.cfg` untouched.
 - `gh` CLI is not installed. Git remote: `https://github.com/grovic/csbot`
+- Agent shells inherit `ELECTRON_RUN_AS_NODE=1`, which turns Electron into plain Node. Every Electron launch must remove it (`apps/desktop/scripts/start.mjs` and the e2e/footprint scripts do).
+- Electron launches for tests or measurements use `CSBOT_HIDDEN=1` so no window appears on the owner's screen.
 
 ## Repository conventions
 
-- pnpm workspaces + turbo monorepo, TypeScript everywhere. Layout in PROPOSAL §10: `apps/{desktop,web}`, `packages/{engine,gsi,protocol,ui}`, `services/relay`, `tools/`.
+- pnpm workspaces + turbo monorepo, TypeScript everywhere. Layout in PROPOSAL §10: `apps/{desktop,web}`, `packages/{engine,gsi,protocol,room,ui}`, `tools/`.
+- Rooms are peer-to-peer (PROPOSAL §3.4b). Never add a feature that makes users create an account or depend on a server we run.
 - Work on a branch per milestone or feature, and merge through reviewed PRs once the repo is on GitHub.
 - **Tests:**
   - engine unit tests against fixtures and demo truth

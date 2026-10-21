@@ -1,0 +1,81 @@
+{
+  "at": "2026-10-21T16:11:44.012Z",
+  "electron": "v45.0.0",
+  "cores": 16,
+  "os": "Windows_NT 10.0.26300",
+  "options": {
+    "idleS": 15,
+    "durS": 120,
+    "speed": "1",
+    "tick": "0.25"
+  },
+  "payloadsReceived": 247,
+  "payloadRate": 2.058333333333333,
+  "idle": {
+    "samples": 12,
+    "wsAvgMB": 395.3990885416667,
+    "wsPeakMB": 396.66015625,
+    "privAvgMB": 156.9384765625,
+    "privPeakMB": 158.609375,
+    "cpuOneCorePct": 2.390961677512653,
+    "cpuMachinePct": 0.1494351048445408,
+    "cpuPeakOneCorePct": 3.243719090009893,
+    "cpuPeakMachinePct": 0.2027324431256183,
+    "byType": {
+      "Browser": {
+        "wsAvgMB": 113.69401041666667,
+        "privAvgMB": 37.288411458333336,
+        "cpuSec": 0.049906000000000006
+      },
+      "GPU": {
+        "wsAvgMB": 112.10188802083333,
+        "privAvgMB": 78.64713541666667,
+        "cpuSec": 0.14570399999999994
+      },
+      "Utility": {
+        "wsAvgMB": 75.2724609375,
+        "privAvgMB": 12.5576171875,
+        "cpuSec": 0.010112999999999997
+      },
+      "Tab": {
+        "wsAvgMB": 94.33072916666667,
+        "privAvgMB": 28.4453125,
+        "cpuSec": 0.058813000000000004
+      }
+    }
+  },
+  "replay": {
+    "samples": 118,
+    "wsAvgMB": 437.12331170550846,
+    "wsPeakMB": 443.38671875,
+    "privAvgMB": 268.233249470339,
+    "privPeakMB": 278.34765625,
+    "cpuOneCorePct": 3.3544306376043997,
+    "cpuMachinePct": 0.20965191485027498,
+    "cpuPeakOneCorePct": 11.20434353405725,
+    "cpuPeakMachinePct": 0.7002714708785781,
+    "byType": {
+      "Browser": {
+        "wsAvgMB": 117.501953125,
+        "privAvgMB": 69.44312764830508,
+        "cpuSec": 0.861718
+      },
+      "GPU": {
+        "wsAvgMB": 130.744968220339,
+        "privAvgMB": 146.16856461864407,
+        "cpuSec": 1.929447
+      },
+      "Utility": {
+        "wsAvgMB": 75.29727224576271,
+        "privAvgMB": 12.550979872881356,
+        "cpuSec": 0.004733000000000001
+      },
+      "Tab": {
+        "wsAvgMB": 113.57911811440678,
+        "privAvgMB": 40.07057733050848,
+        "cpuSec": 1.156158
+      }
+    }
+  },
+  "leftoverProcesses": []
+}

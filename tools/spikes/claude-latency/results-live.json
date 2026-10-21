@@ -1,0 +1,246 @@
+[
+  {
+    "model": "haiku",
+    "initMs": 1425,
+    "rounds": [
+      {
+        "label": "warm-up (match start)",
+        "toolMs": null,
+        "resultMs": 5015,
+        "toolCalls": [],
+        "costUsd": 0.0005475,
+        "inTokens": 2,
+        "outTokens": 210,
+        "cacheRead": 0,
+        "isError": false,
+        "cacheWrite": 1567
+      },
+      {
+        "label": "R9 freeze (enemy eco read)",
+        "toolMs": 2625,
+        "resultMs": 4885,
+        "toolCalls": [
+          "mcp__csbot__publish_call"
+        ],
+        "costUsd": 0.0009207099999999999,
+        "inTokens": 4,
+        "outTokens": 416,
+        "cacheRead": 3441,
+        "call": {
+          "head": "Anti-eco · stack B",
+          "sub": "Round 9 freeze time · enemy eco 55%",
+          "jobs": {
+            "rdx": "Hold A long with aggression; take early duels, trade fast.",
+            "kairo": "Stack B with nyx; hit B site and pressure it.",
+            "nyx": "Play B with kairo; rotate to support A if needed.",
+            "mbt": "Anchor B from a safe angle; watch for eco rushes.",
+            "zeph": "Not in the room; no assignment."
+          },
+          "steps": [
+            "Stack B 3–2 setup",
+            "Force early contacts on B",
+            "Rotate to A if needed"
+          ]
+        },
+        "isError": false,
+        "cacheWrite": 652
+      },
+      {
+        "label": "R9 live intel (3 at B apps)",
+        "toolMs": 3272,
+        "resultMs": 5460,
+        "toolCalls": [
+          "mcp__csbot__publish_call"
+        ],
+        "costUsd": 0.00138311,
+        "inTokens": 4,
+        "outTokens": 549,
+        "cacheRead": 4630,
+        "call": {
+          "head": "B rush incoming · shift to B",
+          "sub": "1:39 live · kairo spotted 3 at B Apps · B 94%",
+          "jobs": {
+            "rdx": "Leave A, rotate to B; hold with kairo and nyx.",
+            "kairo": "Hold B Apps position; trade the 3 spotted enemies.",
+            "nyx": "Hold B with kairo; crossfire and call positions.",
+            "mbt": "Anchor B from safe angle; cover the rush path.",
+            "zeph": "Not in the room; no assignment."
+          },
+          "steps": [
+            "Rotate all to B",
+            "Hold B Apps crossfire",
+            "Trade, don't chase"
+          ]
+        },
+        "isError": false,
+        "cacheWrite": 706
+      },
+      {
+        "label": "R10 freeze (full buy read)",
+        "toolMs": 2843,
+        "resultMs": 4384,
+        "toolCalls": [
+          "mcp__csbot__publish_call"
+        ],
+        "costUsd": 0.0017940699999999998,
+        "inTokens": 4,
+        "outTokens": 474,
+        "cacheRead": 5996,
+        "call": {
+          "head": "Full buy incoming · expect A",
+          "sub": "Round 10 freeze · R9 won · enemy full buy 49%",
+          "jobs": {
+            "rdx": "Take A side; hold long with trade-focused spacing.",
+            "kairo": "Play B with mbt; hold and call rotations early.",
+            "nyx": "Support A with rdx; flash and cover the entry.",
+            "mbt": "Anchor B with kairo; watch for split pushes.",
+            "zeph": "Not in the room; no assignment."
+          },
+          "steps": [
+            "Expect A open (41%)",
+            "Standard 2-1-2 setup",
+            "Rotate fast to A"
+          ]
+        },
+        "isError": false,
+        "cacheWrite": 568
+      }
+    ],
+    "stderr": "",
+    "mcp": [
+      {
+        "name": "csbot",
+        "status": "connected",
+        "source": "dynamic"
+      }
+    ],
+    "tools": [
+      "mcp__csbot__publish_call"
+    ],
+    "exit": 0,
+    "totalMs": 20115,
+    "published": 3
+  },
+  {
+    "model": "sonnet",
+    "initMs": 1240,
+    "rounds": [
+      {
+        "label": "warm-up (match start)",
+        "toolMs": null,
+        "resultMs": 3981,
+        "toolCalls": [],
+        "costUsd": 0.0064489000000000005,
+        "inTokens": 2,
+        "outTokens": 4,
+        "cacheRead": 0,
+        "isError": false,
+        "cacheWrite": 1569
+      },
+      {
+        "label": "R9 freeze (enemy eco read)",
+        "toolMs": 3793,
+        "resultMs": 5817,
+        "toolCalls": [
+          "mcp__csbot__publish_call"
+        ],
+        "costUsd": 0.013220200000000001,
+        "inTokens": 4,
+        "outTokens": 313,
+        "cacheRead": 2853,
+        "call": {
+          "head": "Anti-eco · stack B",
+          "sub": "Enemy on eco 55%, $1,450–2,800 each. Hold tight, trade.",
+          "jobs": {
+            "rdx": "B stack anchor, hold close angle, trade teammates fast",
+            "kairo": "B stack, play tight with rdx, no solo peeks",
+            "nyx": "B stack, hold off-angle, refrag any contact",
+            "mbt": "A anchor, hold site and call rotations early",
+            "zeph": "A anchor with mbt, hold site, rotate only on info"
+          },
+          "steps": [
+            "Stack B 3–2",
+            "Play tight, trade",
+            "Don't overpeek"
+          ]
+        },
+        "isError": false,
+        "cacheWrite": 837
+      },
+      {
+        "label": "R9 live intel (3 at B apps)",
+        "toolMs": 5439,
+        "resultMs": 9409,
+        "toolCalls": [
+          "mcp__csbot__publish_call"
+        ],
+        "costUsd": 0.0186532,
+        "inTokens": 4,
+        "outTokens": 324,
+        "cacheRead": 4130,
+        "call": {
+          "head": "B rush · hold Apps",
+          "sub": "3 seen B Apps, forecast B 94%. Stack and rotate.",
+          "jobs": {
+            "rdx": "A player: call A clear, rotate to B once A stays quiet",
+            "kairo": "Hold B Apps contact, fall back and trade, call updates",
+            "nyx": "B anchor, hold crossfire on Apps exit, trade kairo",
+            "mbt": "Rotate to B now, hold crossfire with nyx",
+            "zeph": "Stay B, hold close angle, trade teammates, no solo pushes"
+          },
+          "steps": [
+            "Stack B",
+            "rdx rotates late",
+            "Trade, use utility"
+          ]
+        },
+        "isError": false,
+        "cacheWrite": 443
+      },
+      {
+        "label": "R10 freeze (full buy read)",
+        "toolMs": 3090,
+        "resultMs": 3922,
+        "toolCalls": [
+          "mcp__csbot__publish_call"
+        ],
+        "costUsd": 0.024058000000000003,
+        "inTokens": 4,
+        "outTokens": 318,
+        "cacheRead": 5008,
+        "call": {
+          "head": "Full buy · A lean",
+          "sub": "Enemy full buy 49%. After a save they open A 41%.",
+          "jobs": {
+            "rdx": "A anchor, hold site, use utility to delay and call contact",
+            "kairo": "A support, stay close to rdx, trade and hold crossfire",
+            "nyx": "Mid/B flex, watch rotations, hold info, rotate to A on contact",
+            "mbt": "B anchor, hold site, delay any push and call early",
+            "zeph": "Hold B with mbt, play safe, trade, rotate only on info"
+          },
+          "steps": [
+            "Std 2-1-2",
+            "Lean A",
+            "Rotate on info"
+          ]
+        },
+        "isError": false,
+        "cacheWrite": 429
+      }
+    ],
+    "stderr": "",
+    "mcp": [
+      {
+        "name": "csbot",
+        "status": "connected",
+        "source": "dynamic"
+      }
+    ],
+    "tools": [
+      "mcp__csbot__publish_call"
+    ],
+    "exit": 0,
+    "totalMs": 23449,
+    "published": 3
+  }
+]

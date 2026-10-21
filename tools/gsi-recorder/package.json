@@ -1,0 +1,15 @@
+{
+  "name": "@csbot/gsi-recorder",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "csbot-record": "src/record.ts"
+  },
+  "dependencies": {
+    "@csbot/gsi": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

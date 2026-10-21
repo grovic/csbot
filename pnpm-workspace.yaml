@@ -1,0 +1,9 @@
+packages:
+  - apps/*
+  - packages/*
+  - services/*
+  - tools/*
+  - tools/spikes/*
+onlyBuiltDependencies:
+  - electron
+  - esbuild
