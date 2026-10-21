@@ -289,6 +289,27 @@ describe('asking the coach from a room', () => {
   });
 });
 
+describe('intel from a room', () => {
+  it('passes intel on with the member name, and respects the intel permission and tournament mode', async () => {
+    const net = new MemoryNetwork();
+    const got: string[] = [];
+    const host = new RoomHost({
+      transport: net.transport({ code: CODE, key: KEY, role: 'host' }), room: newSavedRoom(CODE, KEY), hostName: 'rdx', throttleMs: 0,
+      onIntel: async (from, zone, count) => { got.push(`${from.name}:${zone}:${count}`); return zone === 'nowhere' ? { ok: false, error: 'Unknown zone' } : { ok: true }; },
+    });
+    const client = new RoomClient({ transport: net.transport({ code: CODE, key: KEY, role: 'member' }), clientId: 'client-kairo', name: 'kairo', device: 'web' });
+    const flush = async () => { for (let i = 0; i < 6; i++) { await net.settle(); await new Promise(r => setTimeout(r, 1)); } };
+    await flush(); host.approve('client-kairo'); await flush();
+    expect(await client.logIntel('bapps', 3)).toEqual({ ok: true });
+    expect(await client.logIntel('nowhere', 1)).toEqual({ ok: false, error: 'Unknown zone' });
+    host.setTournament(true); await flush();
+    expect((await client.logIntel('bapps', 1)).error).toMatch(/Tournament/);
+    host.setTournament(false); host.setPermissions({ intel: false }); await flush();
+    expect((await client.logIntel('bapps', 1)).error).toMatch(/turned off intel/);
+    expect(got).toEqual(['kairo:bapps:3', 'kairo:nowhere:1']);
+  });
+});
+
 describe('robustness', () => {
   it('ignores malformed messages and rate-limits floods', async () => {
     const { net, host, join, flush } = await setup();

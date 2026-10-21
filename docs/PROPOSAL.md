@@ -605,6 +605,10 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
 6. **M6 · Debrief:** analysis, calibration reports, progress tracking.
 7. **M7 · Extras:** 2D replay, lineup library, anti-strat builder, Stream Deck, push-to-talk, practice export, Wingman, Premier roster (if M0 passed).
 8. **M8 · Hardening:** host handover, signing, auto-update, performance, closed beta with a few squads → **V1 release**.
+   - *Done:*
+     - The installer and auto-update: an unsigned per-user NSIS installer on GitHub Releases. v0.5.0 is published; pushing a `v*` tag releases.
+     - A secret scan in CI.
+   - *Pending:* code signing (Azure Trusted Signing), host handover, and performance work.
 
 **V1 exit criteria:**
 - buy-read accuracy ≥ 80% and money-band coverage ≥ 85% on 50 held-out demos

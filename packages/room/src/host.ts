@@ -45,6 +45,8 @@ export interface RoomHostOptions {
   rateLimit?: number;
   /** A member's question for the coach (already checked against the room's ask permission). */
   onAsk?: (from: CoachAsker, text: string) => Promise<{ ok: boolean; error?: string }>;
+  /** A member's intel (already checked against the room's intel permission and tournament mode). */
+  onIntel?: (from: { id: string; name: string }, zone: string, count: number) => Promise<{ ok: boolean; error?: string }>;
 }
 
 interface Peer { id: string; memberId?: string; device?: DeviceKind; times: number[] }
@@ -56,7 +58,7 @@ const EMPTY_LIVE: LiveSnapshot = {
 };
 
 export class RoomHost {
-  private readonly o: Required<Omit<RoomHostOptions, 'onSave' | 'onAsk'>> & Pick<RoomHostOptions, 'onSave' | 'onAsk'>;
+  private readonly o: Required<Omit<RoomHostOptions, 'onSave' | 'onAsk' | 'onIntel'>> & Pick<RoomHostOptions, 'onSave' | 'onAsk' | 'onIntel'>;
   private saved: SavedRoom;
   private peers = new Map<string, Peer>();
   private members = new Map<string, Member>();
@@ -215,6 +217,7 @@ export class RoomHost {
       case 'rename': member.name = m.name; this.save(); this.schedule(true); break;
       case 'bye': this.dropPeer(peerId); break;
       case 'ask': void this.ask(member, m.text, peerId); break;
+      case 'intel': void this.intel(member, m.zone, m.count, peerId); break;
     }
   }
 
@@ -257,6 +260,15 @@ export class RoomHost {
     if (!this.o.onAsk) { this.send(peer, { t: 'askResult', ok: false, error: "The host's coach isn't available." }); return; }
     const r = await this.o.onAsk({ id: member.id, name: member.name, role: 'member' }, text).catch((e: Error) => ({ ok: false, error: e.message }));
     this.send(peer, { t: 'askResult', ok: r.ok, ...(r.error ? { error: r.error } : {}) });
+  }
+
+  private async intel(member: Member, zone: string, count: number, peer: string): Promise<void> {
+    const refuse = (error: string) => this.send(peer, { t: 'intelResult', ok: false, error });
+    if (!this.saved.permissions.intel) { refuse('The admin turned off intel from members.'); return; }
+    if (this.saved.tournament) { refuse('Tournament mode is on: no live forecast.'); return; }
+    if (!this.o.onIntel) { refuse("The host can't take intel right now."); return; }
+    const r = await this.o.onIntel({ id: member.id, name: member.name }, zone, count).catch((e: Error) => ({ ok: false, error: e.message }));
+    this.send(peer, { t: 'intelResult', ok: r.ok, ...(r.error ? { error: r.error } : {}) });
   }
 
   private memberGsi(member: Member, payload: GsiPayload, now: number): void {

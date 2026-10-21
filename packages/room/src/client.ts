@@ -37,6 +37,7 @@ export class RoomClient {
   private pendingScout?: ScoutView;
   private pendingCoach?: CoachView;
   private askWaiter?: (r: { ok: boolean; error?: string }) => void;
+  private intelWaiters: ((r: { ok: boolean; error?: string }) => void)[] = [];
 
   constructor(o: RoomClientOptions) {
     this.o = { now: Date.now, gsiMinGapMs: 100, ...o };
@@ -81,6 +82,20 @@ export class RoomClient {
 
   setSlot(slot: string | null): void { this.sendMsg({ t: 'slot', slot }); }
 
+  /** Log intel (zone, enemies seen; 0 = clear). Resolves with the host's verdict; the effect arrives in the next state. */
+  logIntel(zone: string, count: number, timeoutMs = 10_000): Promise<{ ok: boolean; error?: string }> {
+    if (this.state.status !== 'approved') return Promise.resolve({ ok: false, error: 'Not connected to the host.' });
+    return new Promise(resolve => {
+      const done = (r: { ok: boolean; error?: string }) => { clearTimeout(timer); resolve(r); };
+      const timer = setTimeout(() => {
+        const i = this.intelWaiters.indexOf(done);
+        if (i >= 0) { this.intelWaiters.splice(i, 1); resolve({ ok: false, error: "The host didn't confirm. Try again." }); }
+      }, timeoutMs);
+      this.intelWaiters.push(done);
+      this.sendMsg({ t: 'intel', zone, count });
+    });
+  }
+
   /** Ask the coach. Resolves with the host's verdict (quota, permission), not the answer: that arrives in the chat. */
   ask(text: string, timeoutMs = 20_000): Promise<{ ok: boolean; error?: string }> {
     if (this.state.status !== 'approved') return Promise.resolve({ ok: false, error: 'Not connected to the host.' });
@@ -122,6 +137,10 @@ export class RoomClient {
         if (this.state.screen) { this.state = { ...this.state, screen: { ...this.state.screen, coach: m.coach } }; this.emit(); }
         else this.pendingCoach = m.coach;
         break;
+      case 'intelResult': {
+        this.intelWaiters.shift()?.({ ok: m.ok, ...(m.error ? { error: m.error } : {}) });
+        break;
+      }
       case 'askResult': {
         const w = this.askWaiter;
         this.askWaiter = undefined;

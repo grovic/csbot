@@ -4,6 +4,16 @@ A second-screen companion for Counter-Strike 2 squads.
 - One teammate hosts a room from the desktop app. It reads their game through official Valve GSI and runs their own Claude Code.
 - The rest of the squad joins from the web or the desktop app. Everyone sees the same scouting, live calls, and debrief, with their own job highlighted.
 
+## Install
+
+Download `csbot-Setup-<version>.exe` from the [latest release](https://github.com/grovic/csbot/releases/latest) and run it.
+- It installs for your user only, with no admin rights.
+- During the beta the installer isn't signed, so Windows shows "unknown publisher". Click **More info → Run anyway**.
+- csbot updates itself.
+- Uninstalling keeps your settings and recordings in `%APPDATA%\csbot`.
+
+Teammates who only want to watch and log intel don't need it: they open the room's invite link in a browser.
+
 ## Status
 
 **M1 (core host), M2 (rooms), M3 (Scout) and M5 (live coach) are built.**

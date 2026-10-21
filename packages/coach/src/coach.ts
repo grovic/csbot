@@ -38,7 +38,7 @@ export const COACH_SCHEMA = {
   },
 } as const;
 
-export type Trigger = 'warmup' | 'freeze' | 'plant' | 'question';
+export type Trigger = 'warmup' | 'freeze' | 'intel' | 'plant' | 'question';
 
 export interface RosterEntry { name: string; slot?: string; random?: boolean }
 
@@ -89,6 +89,10 @@ export function eventMessage(trigger: Exclude<Trigger, 'question'>, live: LiveSn
       return `Match starting on ${mapName(live.match?.map)}. Get ready; calls come at each freeze time. Reply with type "answer" and answer "ready". Facts: ${facts}`;
     case 'freeze':
       return `Freeze time, round ${live.match?.round}. Write the team call for this round. Facts: ${facts}`;
+    case 'intel': {
+      const seen = (live.intel ?? []).map(i => `${i.by.join(' + ')}: ${i.count ? `${i.count} at ${i.zoneName}` : `${i.zoneName} clear`} (${i.t}s into the round)`).join('; ');
+      return `Intel in round ${live.match?.round}: ${seen || 'none'}. The forecast moved (estimate). Write the updated mid-round call: who rotates where, who holds. Facts: ${facts}`;
+    }
     case 'plant':
       return `The bomb was just planted in round ${live.match?.round} (the game doesn't tell players the site). Write the post-plant call. Facts: ${facts}`;
   }
