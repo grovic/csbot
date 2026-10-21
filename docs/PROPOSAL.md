@@ -51,7 +51,7 @@ The idea is sound and buildable. Five hard constraints shape the design.
 | Recognize the current game (Premier, FACEIT, …) | ✅ | GSI `map.mode`/`map.name` + FACEIT match lookup (fallback: paste the room link) |
 | Info on all 10 players | ✅ FACEIT · ⚠️ Premier | FACEIT gives the full roster with Steam IDs. Premier: GSI has no roster. Candidates are the console `status` output (via `-condebug`, **to verify**), the room members, and demos after the match. |
 | Opponent stats, preferred maps | ✅ | FACEIT per-map stats, match and veto history; Leetify ratings; demo tendencies |
-| Minimap with teammates' positions | ⚠️ room members, partly live | A player's own GSI has no position while they're alive. Room markers combine planned spots, one-key check-ins, rotations with a countdown, and **live dots for teammates a dead room member is watching**. If the probe shows CS2 does send your own position, every member sharing GSI becomes a live dot. See section 3.7. |
+| Minimap with teammates' positions | ⚠️ room members, reported | The probe settled it in a real match: GSI sends players **no positions at all**, alive or dead. Room markers combine planned spots, one-key check-ins, rotations with a countdown, and deaths. Exact positions come in the post-match replay. See section 3.7. |
 | Fog of war / enemy heatmap | ✅ as a forecast | Prior from demos + route timing + Bayesian update from the room's intel |
 | Team budget | ✅ | Exact for every room member who shares their own GSI. Randoms come from the last time someone spectated them. |
 | Enemy budget / eco detection | ✅ | GSI gives both teams' score, `consecutive_round_losses`, and how each round was won. Income model + spend priors, calibrated against demos. |
@@ -204,8 +204,8 @@ Every source of teammate positions we considered:
 
 | Source | Exact? | Status |
 |---|---|---|
-| A player's own GSI while alive (`player_position`) | yes | **Probably not sent.** Library docs list position as spectator-only. `tools/gsi-probe` settles it in 10 minutes. If it *is* sent, every member sharing GSI becomes a live dot, and the rest of this table becomes a fallback. |
-| A **dead room member's** GSI while they watch a teammate | yes | Likely, since GSI then follows the watched player as an in-eye observer. Probe result 2. In competitive, dead players can only watch their own team, so this never exposes an enemy. |
+| A player's own GSI while alive (`player_position`) | yes | **Not sent.** Probe, competitive de_dust2, 2026-10-21: 0 of 299 payloads while alive had a position, even with `player_position` requested. |
+| A **dead room member's** GSI while they watch a teammate | yes | **Not sent.** Same probe: GSI follows the watched teammate (name, team, state) but 0 of 180 payloads had a position. Dead members still log intel from what they watch. |
 | A coach seat (FACEIT/ESEA coach slot) in the room | yes, whole team | Optional for squads with a coach. Platform rules vary, and only our own team's data is kept. |
 | Planned spot from the call (the player's job) | no, planned | Always available. Drawn as a dashed marker. |
 | One-key check-ins: on my spot (Num5), rotating A/B (Num4/6), tap on phone, voice "I'm short" | no, reported | Always available. Solid marker. A rotation animates along the route with a countdown (rotation time from demos). |
@@ -572,7 +572,7 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
 
 ### M0: technical spikes (each with a go/no-go)
 1. **GSI as a player** on FACEIT and Premier. Confirm the fields, the `map.mode` value, and latency. **Run `tools/gsi-probe` first.** It settles squad positions (section 3.7): is your own position sent while alive, and is the watched teammate's position sent while dead?
-   - *Status:* the probe is installed on the owner's PC and waiting for one real match.
+   - *Status:* done (2026-10-21, competitive de_dust2, 596 payloads). No position while alive (0/299) or while watching a teammate (0/180), and no `allplayers`. Squad markers stay planned spots, check-ins and rotations (section 3.7).
 2. ~~**GSI to a remote HTTPS URL.**~~ Dropped: with no relay, there's nothing for a web member's CS2 to post to. Members share GSI through the desktop app.
 3. **Premier roster** from `status` / `-condebug`.
    - *Status:* needs one `status` in a real match. The only `console.log` on the PC is from a map-editor session.
@@ -623,7 +623,7 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
 | Risk | Mitigation |
 |---|---|
 | Valve changes GSI fields | Recorder corpus + contract tests. Fields and rules live in data files. |
-| No positions while alive *and* none while dead (probe 1 and 2 = NO) | Squad markers rely on planned spots, check-ins, and rotation timing. Exact positions come in the post-match replay. |
+| No positions while alive *and* none while dead (**confirmed** by the probe, 2026-10-21) | Squad markers rely on planned spots, check-ins, and rotation timing. Exact positions come in the post-match replay. |
 | No Premier roster source | FACEIT-first. Premier uses the room members + post-match learning. |
 | Anthropic terms or plan usage change | Per-match budgets and member quotas. API-key mode on the same code path. |
 | Direct connection fails on strict networks | Same-LAN and most home networks connect directly. Fallbacks: the host forwards traffic when its router allows UPnP, or the squad runs open-source coturn. M2 measures the failure rate. |
