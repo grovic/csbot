@@ -1,7 +1,7 @@
 // In-browser demo: a fictional synthetic match replayed through the real engine on a virtual clock.
 // Same code path as the host (toGameState → MatchTracker → snapshot), so the demo shows real behavior.
 
-import { MatchTracker } from '@csbot/engine';
+import { GEOS, MatchTracker } from '@csbot/engine';
 import { FULL_MATCH, syntheticMatch, toGameState, type RecordedPayload } from '@csbot/gsi';
 import type { LiveSnapshot } from '@csbot/protocol';
 import type { SnapshotSource } from './source.ts';
@@ -13,10 +13,12 @@ export interface DemoOptions {
   at?: number | string;
   /** Stay frozen after the fast-forward (deterministic screenshots). */
   pause?: boolean;
+  /** Play the demo on this map (any map csbot has), Mirage by default. */
+  map?: string;
 }
 
-export function demoRecording(): RecordedPayload[] {
-  return syntheticMatch({ rounds: FULL_MATCH, lean: true });
+export function demoRecording(map = 'de_mirage'): RecordedPayload[] {
+  return syntheticMatch({ rounds: FULL_MATCH, lean: true, map });
 }
 
 /**
@@ -53,11 +55,12 @@ export function readDemoOptions(search: string): DemoOptions {
     speed: Number.isFinite(speed) && speed > 0 ? speed : 1,
     at: at === null ? undefined : /^\d+$/.test(at) ? Number(at) : at,
     pause: q.get('pause') === '1',
+    ...(q.get('map') && GEOS[q.get('map')!] ? { map: q.get('map')! } : {}),
   };
 }
 
 export function demoSource(opts: DemoOptions = {}): SnapshotSource {
-  const rec = demoRecording();
+  const rec = demoRecording(opts.map);
   const speed = opts.speed ?? 1;
   const first = rec[0]!.t, end = rec[rec.length - 1]!.t + 6000;
   let tracker = new MatchTracker({ source: 'demo', playbookHandle: 'a' });

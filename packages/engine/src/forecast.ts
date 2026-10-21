@@ -1,28 +1,53 @@
 // Enemy position forecast: a mixture over plans × players × timing, updated by the room's intel.
-// Coordinates are map units 0..1000 (schematic). Real maps are built from demo positions later.
+// Maps are the real layouts (map units 0..1000, see geometry.ts); routes walk the map's graph.
 
 import { BUY_TYPES, type BuyProbs, type BuyType } from './economy.ts';
+import { distanceToZone, routeThrough, walkableAt, type GeoZone, type MapGeo, type Point, type Site, type Waypoint } from './geometry.ts';
 
-export type Site = 'A' | 'B';
-export type Point = readonly [x: number, y: number];
-export type Rect = readonly [x: number, y: number, w: number, h: number];
-/** [x, y, seconds since round start at full run speed] */
-export type Waypoint = readonly [x: number, y: number, t: number];
+export type { Point, Site, Waypoint } from './geometry.ts';
+export type Zone = GeoZone;
 
-export interface Zone { id: string; name: string; rect: Rect; site?: Site }
-export interface Plan { id: string; name: string; site: Site; speed: number; lineup: readonly string[]; delay: readonly number[] }
+export interface Plan {
+  id: string;
+  name: string;
+  site: Site;
+  /** Pace as a share of knife-out run speed (a rush ≈ 0.85, a slow default ≈ 0.4). */
+  speed: number;
+  /** One route id per enemy player. */
+  lineup: readonly string[];
+  /** Seconds after the round goes live before each player starts walking. */
+  delay: readonly number[];
+}
+
+/**
+ * A map's enemy (T) plans as authored. Routes are zone ids walked in order from T spawn: each zone is
+ * entered at its nearest doorway, or crossed through its middle with a trailing `*` (`palace*`).
+ */
+export interface MapPlans {
+  map: string;
+  roundTime?: number;
+  routes: Readonly<Record<string, readonly string[]>>;
+  plans: readonly Plan[];
+  planPriorByBuy: Readonly<Record<BuyType, Readonly<Record<string, number>>>>;
+}
 
 export interface MapModel {
   id: string;
+  name: string;
   roundTime: number;
+  geo: MapGeo;
   zones: readonly Zone[];
   routes: Readonly<Record<string, readonly Waypoint[]>>;
   plans: readonly Plan[];
   planPriorByBuy: Readonly<Record<BuyType, Readonly<Record<string, number>>>>;
-  /** Zone → [route, waypoint index] used for "earliest enemy arrival". */
-  timed: Readonly<Record<string, readonly [string, number]>>;
-  /** Fastest plan speed, used for earliest arrivals. */
-  rushSpeed: number;
+}
+
+export function buildMapModel(geo: MapGeo, p: MapPlans): MapModel {
+  if (p.map !== geo.id) throw new Error(`plans for ${p.map} given to ${geo.id}`);
+  const routes: Record<string, readonly Waypoint[]> = {};
+  for (const [id, zones] of Object.entries(p.routes)) routes[id] = routeThrough(geo, 'T', zones);
+  for (const plan of p.plans) for (const r of plan.lineup) if (!routes[r]) throw new Error(`${geo.id}: plan ${plan.id} uses unknown route ${r}`);
+  return { id: geo.id, name: geo.name, roundTime: p.roundTime ?? 115, geo, zones: geo.zones, routes, plans: p.plans, planPriorByBuy: p.planPriorByBuy };
 }
 
 export interface Intel {
@@ -36,7 +61,9 @@ export interface Intel {
 
 export type PlanProbs = Record<string, number>;
 
-const SPREAD: readonly Point[] = [[0, 0], [16, -12], [-14, 12], [12, 16], [-16, -10]];
+const SPREAD: readonly Point[] = [[0, 0], [12, -9], [-10, 9], [9, 12], [-12, -8]];
+/** Map units per second above which a route leg is a level change, not a walk (runs are ≤ ~70). */
+const LEVEL_JUMP = 150;
 const TIMING_SAMPLES: readonly (readonly [dt: number, w: number])[] = [[-6, 0.1], [-3, 0.2], [0, 0.4], [3, 0.2], [6, 0.1]];
 
 export function positionOnRoute(route: readonly Waypoint[], tt: number): Point {
@@ -45,7 +72,9 @@ export function positionOnRoute(route: readonly Waypoint[], tt: number): Point {
   for (let i = 1; i < route.length; i++) {
     const a = route[i - 1]!, b = route[i]!;
     if (tt <= b[2]) {
-      const f = (tt - a[2]) / (b[2] - a[2]);
+      // A leg far faster than anyone runs is a change of level drawn apart (Nuke): jump, don't slide.
+      if (Math.hypot(b[0] - a[0], b[1] - a[1]) > LEVEL_JUMP * Math.max(0.1, b[2] - a[2])) return tt < b[2] ? [a[0], a[1]] : [b[0], b[1]];
+      const f = b[2] > a[2] ? (tt - a[2]) / (b[2] - a[2]) : 1;
       return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
     }
   }
@@ -80,25 +109,19 @@ function normalize(p: PlanProbs): PlanProbs {
   return out;
 }
 
-export function distanceToRect(p: Point, r: Rect): number {
-  const dx = Math.max(r[0] - p[0], 0, p[0] - (r[0] + r[2]));
-  const dy = Math.max(r[1] - p[1], 0, p[1] - (r[1] + r[3]));
-  return Math.hypot(dx, dy);
-}
-
-function zone(map: MapModel, id: string): Zone {
-  const z = map.zones.find(z => z.id === id);
-  if (!z) throw new Error(`unknown zone ${id} on ${map.id}`);
-  return z;
+function zoneIndex(map: MapModel, id: string): number {
+  const i = map.zones.findIndex(z => z.id === id);
+  if (i < 0) throw new Error(`unknown zone ${id} on ${map.id}`);
+  return i;
 }
 
 /** Expected number of a plan's players near a zone at time t. */
 export function expectedInZone(map: MapModel, plan: Plan, zoneId: string, t: number): number {
-  const r = zone(map, zoneId).rect;
+  const zi = zoneIndex(map, zoneId);
   let e = 0;
   for (const p of enemyPositions(map, plan, t)) {
-    const d = distanceToRect(p, r);
-    e += Math.exp(-(d * d) / (2 * 35 * 35));
+    const d = distanceToZone(map.geo, zi, p);
+    e += Math.exp(-(d * d) / (2 * 30 * 30));
   }
   return e;
 }
@@ -135,15 +158,14 @@ export function topPlan(post: PlanProbs): string {
   return Object.keys(post).reduce((a, b) => ((post[a] ?? 0) >= (post[b] ?? 0) ? a : b));
 }
 
+/** Earliest time (s, knife out) a T can reach the zone from spawn. Undefined for unknown or unreachable zones. */
 export function earliestArrival(map: MapModel, zoneId: string): number | undefined {
-  const timed = map.timed[zoneId];
-  if (!timed) return undefined;
-  const wp = map.routes[timed[0]]?.[timed[1]];
-  return wp ? wp[2] / map.rushSpeed : undefined;
+  const t = map.geo.arrive[zoneId]?.[0];
+  return t !== undefined && t >= 0 ? t : undefined;
 }
 
 export function isWalkable(map: MapModel, x: number, y: number, pad = 0): boolean {
-  return map.zones.some(z => x >= z.rect[0] - pad && x <= z.rect[0] + z.rect[2] + pad && y >= z.rect[1] - pad && y <= z.rect[1] + z.rect[3] + pad);
+  return walkableAt(map.geo, x, y, pad);
 }
 
 export interface HeatOptions {
@@ -154,8 +176,22 @@ export interface HeatOptions {
   plantedSite?: Site;
 }
 
+const masks = new WeakMap<MapGeo, Map<number, Uint8Array>>();
+function walkMask(geo: MapGeo, size: number): Uint8Array {
+  let per = masks.get(geo);
+  if (!per) { per = new Map(); masks.set(geo, per); }
+  let m = per.get(size);
+  if (!m) {
+    m = new Uint8Array(size * size);
+    const cell = 1000 / size;
+    for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) m[j * size + i] = walkableAt(geo, (i + 0.5) * cell, (j + 0.5) * cell, 3) ? 1 : 0;
+    per.set(size, m);
+  }
+  return m;
+}
+
 /**
- * Heat grid (row-major, size×size, values 0..1 after saturation), zero outside walkable zones.
+ * Heat grid (row-major, size×size, values 0..1 after saturation), zero off the floor.
  * Every client computes this locally from the plan posterior, so only compact state crosses the wire.
  */
 export function heatGrid(map: MapModel, post: PlanProbs, t: number, opts: HeatOptions = {}): Float32Array {
@@ -176,26 +212,22 @@ export function heatGrid(map: MapModel, post: PlanProbs, t: number, opts: HeatOp
     if (w < 0.004) continue;
     for (const [dt, sw] of TIMING_SAMPLES) {
       const tt = Math.max(0, t + dt);
-      const sig = 24 + Math.min(tt, 45) * 0.45;
+      const sig = 18 + Math.min(tt, 45) * 0.35;
       for (const p of enemyPositions(map, plan, tt)) splat(p[0], p[1], w * sw, sig);
     }
   }
   if (opts.plantedSite) {
     const site = map.zones.find(z => z.site === opts.plantedSite);
-    if (site) splat(site.rect[0] + site.rect[2] / 2, site.rect[1] + site.rect[3] / 2, 1.6, 70);
+    if (site) splat(site.at[0], site.at[1], 1.6, 55);
   }
   const now = opts.now ?? t;
   for (const it of opts.intel ?? []) {
     const age = now - it.t;
     if (age < 0 || age > 25 || !it.count) continue;
-    const r = zone(map, it.zone).rect;
-    splat(r[0] + r[2] / 2, r[1] + r[3] / 2, 0.5 * it.count * Math.exp(-age / 10), 34);
+    const z = map.zones[zoneIndex(map, it.zone)]!;
+    splat(z.at[0], z.at[1], 0.5 * it.count * Math.exp(-age / 10), 28);
   }
-  for (let j = 0; j < size; j++) {
-    for (let i = 0; i < size; i++) {
-      const n = j * size + i;
-      heat[n] = isWalkable(map, (i + 0.5) * cell, (j + 0.5) * cell, 4) ? 1 - Math.exp(-heat[n]! * 1.6) : 0;
-    }
-  }
+  const mask = walkMask(map.geo, size);
+  for (let n = 0; n < size * size; n++) heat[n] = mask[n] ? 1 - Math.exp(-heat[n]! * 1.6) : 0;
   return heat;
 }

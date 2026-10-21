@@ -7,8 +7,8 @@ import type { SteamApi, SteamBans, SteamSummary } from './steam.ts';
 import { ApiError } from './http.ts';
 
 export const SAMPLE_MATCH_ID = '1-00000000-0000-4000-8000-000000000001';
-export const SAMPLE_POOL = ['de_mirage', 'de_ancient', 'de_nuke', 'de_anubis', 'de_inferno', 'de_dust2', 'de_train'] as const;
-const LABEL: Record<string, string> = { de_mirage: 'Mirage', de_ancient: 'Ancient', de_nuke: 'Nuke', de_anubis: 'Anubis', de_inferno: 'Inferno', de_dust2: 'Dust2', de_train: 'Train' };
+export const SAMPLE_POOL = ['de_mirage', 'de_ancient', 'de_nuke', 'de_anubis', 'de_inferno', 'de_dust2', 'de_cache'] as const;
+const LABEL: Record<string, string> = { de_mirage: 'Mirage', de_ancient: 'Ancient', de_nuke: 'Nuke', de_anubis: 'Anubis', de_inferno: 'Inferno', de_dust2: 'Dust2', de_cache: 'Cache' };
 
 type MapLine = [matches: number, winRate: number, kd: number];
 interface SamplePlayer {
@@ -17,7 +17,7 @@ interface SamplePlayer {
   steam: { years: number; hours?: number; vac?: [bans: number, days: number]; private?: boolean };
 }
 
-// Map order in each tuple list: mirage, ancient, nuke, anubis, inferno, dust2, train.
+// Map order in each tuple list: mirage, ancient, nuke, anubis, inferno, dust2, cache.
 const m = (...rows: MapLine[]): Record<string, MapLine> => Object.fromEntries(SAMPLE_POOL.map((id, i) => [id, rows[i]!]));
 
 const PLAYERS: SamplePlayer[] = [
@@ -162,7 +162,7 @@ export const SAMPLE_REPORT = {
     'Stay close together for trades against the Holo-vex-Okami three-stack.',
     'Lean on kairo, 1.25 K/D on Mirage, to open rounds, with quick refrags.',
   ],
-  veto: "Ban Ancient (they win 67%, we win 47%) and Train, then pick Mirage. They'll likely ban Nuke and Anubis.",
+  veto: "Ban Ancient (they win 67%, we win 47%) and Cache, then pick Mirage. They'll likely ban Nuke and Anubis.",
   tips: {
     Holo: 'Likely AWP, 1.46 K/D on Mirage. Use utility before peeking him and always trade.',
     vex: '2,310 ELO with 210 Mirage games. Queues with Holo, so expect him to trade.',

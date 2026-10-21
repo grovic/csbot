@@ -7,7 +7,7 @@
 // already on screen, so Claude's only has to be better, not first.
 
 import { z } from 'zod';
-import { lossBonus, PLAYBOOKS, slotsFor } from '@csbot/engine';
+import { GEOS, lossBonus, PLAYBOOKS, slotsFor } from '@csbot/engine';
 import type { CallView, CoachAsker, CoachConfig, LiveSnapshot, ScoutView } from '@csbot/protocol';
 
 export const COACH_SYSTEM = `You are the live coach inside csbot, a second-screen companion for a Counter-Strike 2 squad.
@@ -19,7 +19,7 @@ For a game event, answer with type "call": the team call for this moment.
 - steps: at most 3 chips of max 4 words.
 - why: 1 to 3 short facts from the message that justify the call.
 For a question, answer with type "answer": a direct, practical answer in under 45 words in "answer". Leave the call fields empty.
-Rules: use only facts in the message and earlier messages of this match. Never invent stats, positions or enemy habits. Enemy money and positions are estimates: say "likely". Plain English, no filler.`;
+Rules: use only facts in the message and earlier messages of this match. Name places with the map's callouts listed in the facts. Never invent stats, positions or enemy habits. Enemy money and positions are estimates: say "likely". Plain English, no filler.`;
 
 /** Output schema for `claude -p --json-schema` (one session, every turn). Lengths live in prose. */
 export const COACH_SCHEMA = {
@@ -64,6 +64,8 @@ export function matchFacts(live: LiveSnapshot, roster: readonly RosterEntry[], s
     score: m ? `${m.score.us}-${m.score.them}` : undefined, lastRounds: last, ourLossStreak: m?.ourLossStreak,
     roster: slots.map(s => ({ slot: s.id, position: s.label, player: bySlot.get(s.id)?.name ?? 'unassigned', ...(bySlot.get(s.id)?.random ? { random: true } : {}) })),
   };
+  const geo = m?.map ? GEOS[m.map] : undefined;
+  if (geo) facts.callouts = geo.zones.map(z => z.name);
   if (live.enemy) {
     const e = live.enemy;
     facts.enemyEconomyEstimate = { perPlayer: `${money(e.lo)}-${money(e.hi)}`, read: e.read, buy: Object.fromEntries(Object.entries(e.buy).map(([k, v]) => [k, pct(v)])), lossBonusLevel: e.streak, nextLossPays: money(lossBonus(e.streak + 1)), savedLastRound: e.saved };

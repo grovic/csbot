@@ -1,10 +1,10 @@
-import { MIRAGE } from '@csbot/engine';
+import { MAPS } from '@csbot/engine';
 import type { CoachView, LiveSnapshot, RoomView } from '@csbot/protocol';
 import { useEffect, useRef, useState } from 'react';
 import { claudeCallFor, secs } from '../data/coachInfo.ts';
 import { clockStr, pct } from '../format.ts';
 
-const planName = (id: string) => MIRAGE.plans.find(p => p.id === id)?.name ?? id;
+const planName = (map: string, id: string) => MAPS[map]?.plans.find(p => p.id === id)?.name ?? id;
 
 /** "Claude Code · sonnet · 3.1 s", from the call log entry that wrote this round's call. */
 function claudeMeta(coach: CoachView | undefined, round: number): string {
@@ -70,9 +70,8 @@ export function CallCard({ snap, room, coach }: { snap: LiveSnapshot; room?: Roo
   }
   const left = m?.clock.phase === 'live' ? m.clock.endsIn : undefined;
   const kick = { pre: `Team call · round ${c.round}`, mid: `Update · ${left !== undefined ? clockStr(left) : `round ${c.round}`}`, post: `Post-plant · round ${c.round}`, over: `Round ${c.round} result` }[c.kind];
-  const plans = snap.forecast && snap.forecast.map === MIRAGE.id
-    ? Object.entries(snap.forecast.plans).sort((a, b) => b[1] - a[1]).slice(0, 3)
-    : [];
+  const fmap = snap.forecast && MAPS[snap.forecast.map] ? snap.forecast.map : undefined;
+  const plans = fmap ? Object.entries(snap.forecast!.plans).sort((a, b) => b[1] - a[1]).slice(0, 3) : [];
   return (
     <div className="call" ref={ref} data-testid="call" data-kind={c.kind}>
       <div className="kick">{kick}</div>
@@ -92,7 +91,7 @@ export function CallCard({ snap, room, coach }: { snap: LiveSnapshot; room?: Roo
         <div className="why" data-testid="why">
           {c.why.length > 0 && <div><h4>Facts</h4><ul>{c.why.map(w => <li key={w}>{w}</li>)}</ul></div>}
           {plans.length > 0 && (
-            <div><h4>Enemy plans (estimate)</h4><ul>{plans.map(([id, p]) => <li key={id}>{planName(id)} · {pct(p)}</li>)}</ul></div>
+            <div><h4>Enemy plans (estimate)</h4><ul>{plans.map(([id, p]) => <li key={id}>{planName(fmap!, id)} · {pct(p)}</li>)}</ul></div>
           )}
         </div>
       )}

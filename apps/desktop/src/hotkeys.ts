@@ -6,7 +6,7 @@
 // Num1/2/3 = the same zones clear. Pure logic with an injectable shortcut API: tests never register
 // real global hotkeys.
 
-import { MIRAGE, type MapModel } from '@csbot/engine';
+import { GEOS } from '@csbot/engine';
 import type { HostInfo } from '@csbot/protocol';
 
 export interface ShortcutApi {
@@ -23,11 +23,15 @@ export interface HotkeyDef {
   kind: 'sighting' | 'clear';
 }
 
-const MODELS: Readonly<Record<string, MapModel>> = { de_mirage: MIRAGE };
-
-/** Entry zones per map, in Num7/8/9 (sighting) and Num1/2/3 (clear) order. */
+/** Entry zones per map, A approach / mid / B approach, in Num7/8/9 (sighting) and Num1/2/3 (clear) order. */
 export const HOTKEY_ZONES: Readonly<Record<string, readonly [string, string, string]>> = {
+  de_ancient: ['mainhall', 'middle', 'tsidelower'],
+  de_anubis: ['tsideupper', 'middle', 'outsidelong'],
+  de_cache: ['amain', 'mid', 'bmain'],
+  de_dust2: ['longdoors', 'topofmid', 'uppertunnel'],
+  de_inferno: ['apartments', 'middle', 'banana'],
   de_mirage: ['aramp', 'topmid', 'bapps'],
+  de_nuke: ['lobby', 'outside', 'ramp'],
 };
 
 export function hotkeysFor(map: string | undefined): HotkeyDef[] {
@@ -39,7 +43,7 @@ export function hotkeysFor(map: string | undefined): HotkeyDef[] {
   ];
 }
 
-const zoneName = (map: string | undefined, zone: string) => (map ? MODELS[map]?.zones.find(z => z.id === zone)?.name : undefined) || zone;
+const zoneName = (map: string | undefined, zone: string) => (map ? GEOS[map]?.zones.find(z => z.id === zone)?.name : undefined) || zone;
 
 export interface TimerApi {
   set(fn: () => void, ms: number): unknown;

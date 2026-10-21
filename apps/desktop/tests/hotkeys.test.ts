@@ -52,7 +52,7 @@ describe('intel hotkeys: registration', () => {
     expect(hotkeysFor('de_mirage').map(d => `${d.key}:${d.zone}:${d.kind}`)).toEqual([
       'Num7:aramp:sighting', 'Num8:topmid:sighting', 'Num9:bapps:sighting', 'Num1:aramp:clear', 'Num2:topmid:clear', 'Num3:bapps:clear',
     ]);
-    expect(hotkeysFor('de_inferno')).toEqual([]);
+    expect(hotkeysFor('de_vertigo')).toEqual([]);
   });
 
   it('registers only while enabled, follows the map, and unregisters on dispose', () => {
@@ -66,7 +66,7 @@ describe('intel hotkeys: registration', () => {
     expect(hk.status()).toMatchObject({ enabled: true, keys: expect.arrayContaining([{ key: 'Num9', zone: 'bapps', zoneName: 'B Apps', kind: 'sighting' }]) });
     sc.registered.get('num3')!(); // Num3: B Apps clear
     expect(logs).toEqual([['bapps', 0]]);
-    hk.setMap('de_inferno');
+    hk.setMap('de_vertigo');
     expect(sc.registered.size).toBe(0);
     expect(hk.status()).toEqual({ enabled: true, keys: [], error: 'No map model for this map yet.' });
     hk.setMap('de_mirage');

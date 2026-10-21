@@ -1,6 +1,6 @@
 # csbot: V1 proposal
 
-> Status: proposal plus a clickable design demo (`docs/prototype/index.html`, screenshots in `docs/prototype/screens/`). Nothing is built yet.
+> Status: M1–M5 are built, with real maps for the whole pool (section 12 has the details). The clickable design demo (`docs/prototype/index.html`, screenshots in `docs/prototype/screens/`) is the original design reference; its map is a hand-drawn sketch, while the app uses the real maps.
 > Every player, stat, and demo in the prototype is fictional.
 
 csbot is a second-screen companion for Counter-Strike 2, built for squads (5-stacks and gathers).
@@ -401,7 +401,10 @@ Target: **the call is on every screen ≤ 8 s after the round ends (p95)**. The 
 - **Calibration:** band coverage and buy-read accuracy are measured against demo truth after every match.
 
 ### 7.3 Position forecast ("fog of war")
-- **Zone polygons and route graphs** per map are built from demo positions (`last_place_name`) and real trajectories. No Valve radar art needed.
+- **Map geometry** for the seven competitive maps comes from the CS2 map files: the nav mesh (walkable floor) and the `env_cs_place` callout volumes (the place names CS2 itself uses).
+  - `tools/map-build` reads these on the developer's PC and generates zone outlines, a lookup grid, a walking graph and earliest arrival times. The app ships that output; users' copies never read game files.
+  - No Valve radar art is used.
+  - Demo positions (`last_place_name`, trajectories) will later calibrate timings and plan odds.
 - **Plans:** T plans (lineups, routes, timing distributions) and CT setups.
 - **Prior:** P(plan | opponent, buy type, score state) from the opponent's demos. When there's little data, it falls back to population priors.
 - **Heat** is a mixture over plans × players × timing, masked to walkable areas, with a "+10 s" preview.
@@ -581,6 +584,7 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
 5. **Claude Code:** warm stream-json latency p50/p95, MCP from `claude -p`, usage per match on Pro vs Max.
    - **Done: go.** 3.1–5.4 s to screen with Sonnet (section 6.4, `tools/spikes/claude-latency`). Plan usage per match is still to measure.
 6. **demoparser2** (Node binding) on FACEIT and Valve demos. Auto-build Mirage zones and routes.
+   - *Status:* zones and routes no longer need demos. They come from the map files (`tools/map-build`, section 7.3). Demos are still needed to calibrate plan odds and timings, and for spike 9. HLTV's demo downloads sit behind a bot check, so demos have to be downloaded in a browser (the owner's own match first).
    - *Status:* needs a demo file. There are none on the PC yet.
 7. **Peer-to-peer rooms:** a host plus 5 clients over WebRTC with Trystero signaling on public Nostr relays. Measure join time, latency, reconnects, and how often direct connection fails on the squad's real networks.
    - **Done on one PC: go.** 5/5 members joined through public Nostr relays in 0.5–1.1 s, and a wrong-key peer was refused (`tools/spikes/p2p-rooms`). Still to measure in M2: direct connection success between the squad's real home networks.
@@ -598,7 +602,10 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
    - *Built:* FACEIT and Steam clients, cache, Scout page, the AI briefing (structured output, no MCP needed), and encrypted key storage.
    - *Waiting:* real responses, once the owner adds keys.
    - *Deferred:* Leetify (optional), and automatic FACEIT match detection (spike 4).
-4. **M4 · Forecast:** demo ingest, zones and routes for the map pool, plan priors, heat, intel from all members, gather mode. *M4a (intel from all members: map clicks, optional numpad hotkeys, PLAN CHANGED with a mid-round call) is built; demo ingest needs demo files.*
+4. **M4 · Forecast:** demo ingest, zones and routes for the map pool, plan priors, heat, intel from all members, gather mode.
+   - *M4a, built:* intel from all members (map clicks, optional numpad hotkeys), and PLAN CHANGED with a mid-round call.
+   - *M4b, built:* real maps for the whole pool (Ancient, Anubis, Cache, Dust II, Inferno, Mirage, Nuke), all generated from the CS2 map files. Each map has callout zones, timed routes, enemy plans with first-estimate odds by buy, and a CT playbook (anti-eco and default setups). Intel clicks work anywhere inside a zone.
+   - *Still to do:* calibrating odds and timings with demos, and enemy CT setups for our T halves.
 5. **M5 · Live coach:** playbook, live session, per-player jobs, Coach page, voice, tournament mode, quotas.
    - *Built.* One warm session per match. Claude's call replaces the engine's on every screen.
    - *Measured through the app's own runner:* warm-up 2.2 s, round call 3.0 s (Sonnet, low effort), about $0.011 at API-equivalent prices for both.
@@ -632,7 +639,7 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
 | Host PC drops mid-match | Every member keeps the last snapshot; another desktop member takes over |
 | League rules on live assistance | Room-wide tournament mode |
 | Model makes things up | Tool-only facts, playbook-bound calls, eval set from votes |
-| Map art licensing | Our own schematic maps from demo positions |
+| Map art licensing | Our own outlines traced from the nav mesh (walkable floor) and callout volumes. No Valve radar images. |
 
 **Decisions needed:**
 1. **Repo and hosting owner:** GitHub org or account for Pages and Releases (e.g. `csbot-app`), and whether the repo is public from day one.

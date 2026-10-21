@@ -1,50 +1,85 @@
-import { heatGrid, MIRAGE, slotsFor } from '@csbot/engine';
+import { GEOS, gridCells, heatGrid, MAPS, slotsFor, zoneAt, type GeoZone, type MapGeo } from '@csbot/engine';
 import type { IntelView, LiveSnapshot, RoomView } from '@csbot/protocol';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { clockStr, mapName } from '../format.ts';
 
 const G = 160;
-const HIDE_LABEL = new Set(['kitchen', 'ticket', 'tramp', 'tapps']);
-const LABEL_POS: Record<string, readonly [number, number]> = {
-  mid: [600, 442], under: [505, 290], ctspawn: [180, 625], asite: [460, 830], bsite: [330, 108], market: [215, 455], window: [342, 480], short: [320, 345],
-};
-const center = (r: readonly number[]) => [r[0]! + r[2]! / 2, r[1]! + r[3]! / 2] as const;
-const zoneName = (id: string) => { const z = MIRAGE.zones.find(x => x.id === id); return z?.name || id; };
-/** Zones you can log intel on, biggest first so smaller zones sit on top and win the click. */
-const CLICK_ZONES = [...MIRAGE.zones].sort((a, b) => b.rect[2] * b.rect[3] - a.rect[2] * a.rect[3]);
 /** Intel pins fade over this many seconds (they stay visible, dimmed, for the rest of the round). */
 const FADE_S = 25;
+/** Zones smaller than this many lookup cells get no label (they still take clicks and hovers). */
+const LABEL_MIN_CELLS = 260;
 
-function MapBase() {
+interface ZoneInfo { zone: GeoZone; index: number; cells: number }
+/** The part of the 0..1000 map square the map occupies (map units), so the panel can crop to it. */
+interface View { x: number; y: number; w: number; h: number }
+
+const viewCache = new WeakMap<MapGeo, View>();
+function viewOf(geo: MapGeo): View {
+  let v = viewCache.get(geo);
+  if (v) return v;
+  const n = geo.grid.size, cells = gridCells(geo), k = 1000 / n;
+  let x0 = n, y0 = n, x1 = 0, y1 = 0;
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) if (cells[j * n + i]) { x0 = Math.min(x0, i); y0 = Math.min(y0, j); x1 = Math.max(x1, i); y1 = Math.max(y1, j); }
+  const pad = 14;
+  const x = Math.max(0, x0 * k - pad), y = Math.max(0, y0 * k - pad);
+  v = { x, y, w: Math.min(1000, (x1 + 1) * k + pad) - x, h: Math.min(1000, (y1 + 1) * k + pad) - y };
+  viewCache.set(geo, v);
+  return v;
+}
+/** CSS position of a map point inside the cropped panel. */
+const pos = (v: View, x: number, y: number) => ({ left: ((x - v.x) / v.w) * 100 + '%', top: ((y - v.y) / v.h) * 100 + '%' });
+
+const infoCache = new WeakMap<MapGeo, ZoneInfo[]>();
+/** Zones with their size, biggest first. */
+function zoneInfo(geo: MapGeo): ZoneInfo[] {
+  let info = infoCache.get(geo);
+  if (info) return info;
+  const counts = new Array<number>(geo.zones.length).fill(0);
+  for (const v of gridCells(geo)) if (v) counts[v - 1]!++;
+  info = geo.zones.map((zone, index) => ({ zone, index, cells: counts[index]! })).sort((a, b) => b.cells - a.cells);
+  infoCache.set(geo, info);
+  return info;
+}
+
+/** Where the lower level sits (Nuke): the box around its zones, for its caption. */
+function lowerLevel(geo: MapGeo): { name: string; x: number; y: number } | undefined {
+  const lower = geo.zones.filter(z => z.level);
+  const name = geo.world.levels[1]?.name;
+  if (!lower.length || !name) return undefined;
+  return { name, x: Math.min(...lower.map(z => z.at[0])) - 30, y: Math.min(...lower.map(z => z.at[1])) - 60 };
+}
+
+function MapBase({ geo, view: v }: { geo: MapGeo; view: View }) {
+  const low = lowerLevel(geo);
   return (
-    <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden>
-      <g>{MIRAGE.zones.map(z => <rect key={'o' + z.id} x={z.rect[0]} y={z.rect[1]} width={z.rect[2]} height={z.rect[3]} rx={8} fill="#363d4a" stroke="#363d4a" strokeWidth={10} />)}</g>
-      <g>{MIRAGE.zones.map(z => <rect key={'f' + z.id} x={z.rect[0]} y={z.rect[1]} width={z.rect[2]} height={z.rect[3]} rx={8} fill={z.site ? '#252b35' : '#20252d'} />)}</g>
-      <rect x={395} y={690} width={130} height={110} rx={10} fill="#2b323d" />
-      <rect x={150} y={125} width={150} height={110} rx={10} fill="#2b323d" />
-      <rect x={855} y={372} width={6} height={40} rx={3} fill="#c98500" />
-      <rect x={100} y={572} width={6} height={40} rx={3} fill="#3987e5" />
+    <svg viewBox={`${v.x} ${v.y} ${v.w} ${v.h}`} preserveAspectRatio="none" aria-hidden data-testid="map-floor" data-map={geo.id}>
+      <path d={geo.floor} fill="#20252d" fillRule="evenodd" stroke="#3a4250" strokeWidth={4} strokeLinejoin="round" />
+      <g>{geo.zones.filter(z => z.site).map(z => <path key={z.id} d={z.path} fill="#2a313c" fillRule="evenodd" />)}</g>
+      <g fill="none" stroke="#2d343f" strokeWidth={1.4}>{geo.zones.map(z => <path key={z.id} d={z.path} />)}</g>
+      <circle cx={geo.spawn.T[0]} cy={geo.spawn.T[1]} r={7} fill="#c98500" opacity={0.85} />
+      <circle cx={geo.spawn.CT[0]} cy={geo.spawn.CT[1]} r={7} fill="#3987e5" opacity={0.85} />
+      {low && <text x={low.x} y={low.y} fill="#6b7280" fontSize={22} fontWeight={700} letterSpacing={2}>{low.name.toUpperCase()} LEVEL</text>}
     </svg>
   );
 }
 
-function Labels() {
+function Labels({ geo, view }: { geo: MapGeo; view: View }) {
   return (
     <>
-      {MIRAGE.zones.filter(z => z.name && !HIDE_LABEL.has(z.id)).map(z => {
-        const c = LABEL_POS[z.id] ?? center(z.rect);
-        return <div key={z.id} className={'zlabel' + (z.site ? ' site' : '')} style={{ left: c[0] / 10 + '%', top: c[1] / 10 + '%' }}>{z.name}</div>;
-      })}
+      {zoneInfo(geo).filter(i => i.zone.site || i.cells >= LABEL_MIN_CELLS).map(({ zone: z }) => (
+        <div key={z.id} className={'zlabel' + (z.site ? ' site' : '')} style={pos(view, z.at[0], z.at[1])}>{z.name}</div>
+      ))}
     </>
   );
 }
 
 /** Heat image (G×G RGBA) from the plan forecast. Same color ramp as the prototype. */
-function useHeatImage(plans: Record<string, number> | undefined, t: number): ImageData | undefined {
-  const key = plans ? Object.entries(plans).map(([k, v]) => k + v.toFixed(3)).join() + '|' + Math.round(t) : '';
+function useHeatImage(map: string | undefined, plans: Record<string, number> | undefined, t: number): ImageData | undefined {
+  const key = plans ? map + Object.entries(plans).map(([k, v]) => k + v.toFixed(3)).join() + '|' + Math.round(t) : '';
   return useMemo(() => {
-    if (!plans) return undefined;
-    const heat = heatGrid(MIRAGE, plans, Math.round(t), { size: G });
+    const model = map ? MAPS[map] : undefined;
+    if (!plans || !model) return undefined;
+    const heat = heatGrid(model, plans, Math.round(t), { size: G });
     const img = new ImageData(G, G);
     const d = img.data;
     for (let n = 0; n < G * G; n++) {
@@ -57,9 +92,10 @@ function useHeatImage(plans: Record<string, number> | undefined, t: number): Ima
   }, [key]);
 }
 
-function HeatCanvas({ img }: { img: ImageData }) {
+function HeatCanvas({ img, geo, view: v }: { img: ImageData; geo: MapGeo; view: View }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const small = useMemo(() => { const c = document.createElement('canvas'); c.width = c.height = G; return c; }, []);
+  const floor = useMemo(() => new Path2D(geo.floor), [geo]);
   useEffect(() => {
     const cv = ref.current;
     if (!cv) return;
@@ -69,27 +105,25 @@ function HeatCanvas({ img }: { img: ImageData }) {
       if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
       small.getContext('2d')!.putImageData(img, 0, 0);
       const ctx = cv.getContext('2d')!;
+      const sx = w / v.w, sy = h / v.h;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, w, h);
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(small, 0, 0, w, h);
-      // Clip the blur to walkable zones.
+      ctx.drawImage(small, -v.x * sx, -v.y * sy, 1000 * sx, 1000 * sy);
+      // Clip the blur to the floor.
       ctx.globalCompositeOperation = 'destination-in';
+      ctx.setTransform(sx, 0, 0, sy, -v.x * sx, -v.y * sy);
       ctx.fillStyle = '#000';
-      const sx = w / 1000, sy = h / 1000;
-      ctx.beginPath();
-      for (const z of MIRAGE.zones) {
-        const [x, y, zw, zh] = z.rect;
-        if (ctx.roundRect) ctx.roundRect(x * sx, y * sy, zw * sx, zh * sy, 8 * sx); else ctx.rect(x * sx, y * sy, zw * sx, zh * sy);
-      }
-      ctx.fill();
+      ctx.fill(floor, 'evenodd');
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.globalCompositeOperation = 'source-over';
     };
     paint();
     const ro = new ResizeObserver(paint);
     ro.observe(cv);
     return () => ro.disconnect();
-  }, [img, small]);
+  }, [img, small, floor, v]);
   return <canvas ref={ref} data-testid="heat" aria-hidden />;
 }
 
@@ -104,28 +138,27 @@ function slotNamer(room?: RoomView, map?: string) {
 const initials = (names: string[]) => names.map(n => n.trim().slice(0, 2).toUpperCase()).join('+');
 
 /** Seconds since the round went live, at the snapshot (the forecast carries it; else the round clock). */
-function liveSeconds(snap: LiveSnapshot): number | undefined {
+function liveSeconds(snap: LiveSnapshot, roundTime: number): number | undefined {
   if (snap.forecast?.liveT !== undefined) return snap.forecast.liveT;
   const c = snap.match?.clock;
-  return c?.phase === 'live' && c.endsIn !== undefined ? Math.max(0, MIRAGE.roundTime - c.endsIn) : undefined;
+  return c?.phase === 'live' && c.endsIn !== undefined ? Math.max(0, roundTime - c.endsIn) : undefined;
 }
 
 /** Pins at each zone with intel this round: count (✓ clear), who saw it, dimmed with age. */
-function IntelPins({ intel, now }: { intel: IntelView[]; now?: number }) {
+function IntelPins({ geo, view, intel, now, roundTime }: { geo: MapGeo; view: View; intel: IntelView[]; now?: number; roundTime: number }) {
   return (
     <>
       {intel.map((it, i) => {
-        const z = MIRAGE.zones.find(x => x.id === it.zone);
+        const z = geo.zones.find(x => x.id === it.zone);
         if (!z) return null;
-        const c = center(z.rect);
-        // Alternate above/below the zone centre so neighbouring pins don't sit on the labels.
-        const dy = i % 2 ? 34 : -36;
+        // Alternate above/below the zone label so neighbouring pins don't sit on it.
+        const dy = i % 2 ? 30 : -30;
         const age = now === undefined ? 0 : Math.max(0, now - it.t);
         const opacity = Math.max(0.4, 1 - (age / FADE_S) * 0.6);
         const what = it.count ? `${it.count} at ${it.zoneName}` : `${it.zoneName} clear`;
         return (
-          <div key={it.zone + it.t} className={'ipin' + (it.count ? '' : ' clear')} style={{ left: c[0] / 10 + '%', top: (c[1] + dy) / 10 + '%', opacity }}
-            title={`${it.by.join(' + ')}: ${what} · ${clockStr(MIRAGE.roundTime - it.t)}`} data-testid="intel-pin" data-zone={it.zone} data-count={it.count}>
+          <div key={it.zone + it.t} className={'ipin' + (it.count ? '' : ' clear')} style={{ ...pos(view, z.at[0], z.at[1] + dy), opacity }}
+            title={`${it.by.join(' + ')}: ${what} · ${clockStr(roundTime - it.t)}`} data-testid="intel-pin" data-zone={it.zone} data-count={it.count}>
             <b>{it.count ? it.count : '✓'}</b><span>{initials(it.by)}</span>
           </div>
         );
@@ -137,15 +170,18 @@ function IntelPins({ intel, now }: { intel: IntelView[]; now?: number }) {
 interface Pop { zone: string; x: number; y: number }
 
 /**
- * Click a zone during a live round: how many enemies (or clear), shared with the room.
+ * Click anywhere in a zone during a live round: how many enemies (or clear), shared with the room.
+ * Each zone also has a small button at its label (keyboard and screen readers).
  * `block` is why intel can't be logged right now (the click then shows it instead of the choices).
  */
-function IntelLayer({ block, onIntel, clockLeft }: { block?: string; onIntel: (zone: string, count: number) => Promise<string | undefined>; clockLeft?: number }) {
+function IntelLayer({ geo, view: v, block, onIntel, clockLeft }: { geo: MapGeo; view: View; block?: string; onIntel: (zone: string, count: number) => Promise<string | undefined>; clockLeft?: number }) {
   const [pop, setPop] = useState<Pop>();
+  const [hover, setHover] = useState<string>();
   const [err, setErr] = useState<string>();
   const [busy, setBusy] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
   const errTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const zoneName = (id: string) => geo.zones.find(z => z.id === id)?.name ?? id;
 
   const showErr = (e: string) => {
     setErr(e);
@@ -170,33 +206,49 @@ function IntelLayer({ block, onIntel, clockLeft }: { block?: string; onIntel: (z
       if (e.key === 'Escape') { setPop(undefined); return; }
       if (/^[0-5]$/.test(e.key)) { e.preventDefault(); void choose(Number(e.key)); }
     };
-    const onDown = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest('.intel-pop, .zhit')) setPop(undefined); };
+    const onDown = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest('.intel-pop, .zhit, .zcatch')) setPop(undefined); };
     window.addEventListener('keydown', onKey);
     window.addEventListener('mousedown', onDown);
     return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('mousedown', onDown); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pop, busy]);
 
-  const click = (zone: string, ev: React.MouseEvent) => {
-    if (block) { setPop(undefined); showErr(block); return; }
+  const at = (ev: React.MouseEvent) => {
     const r = wrap.current!.getBoundingClientRect();
-    setErr(undefined);
-    setPop({ zone, x: ev.clientX - r.left, y: ev.clientY - r.top });
+    return { x: ev.clientX - r.left, y: ev.clientY - r.top, mx: v.x + ((ev.clientX - r.left) / r.width) * v.w, my: v.y + ((ev.clientY - r.top) / r.height) * v.h };
   };
+  const open = (zone: string, ev: React.MouseEvent) => {
+    if (block) { setPop(undefined); showErr(block); return; }
+    const p = at(ev);
+    setErr(undefined);
+    setPop({ zone, x: p.x, y: p.y });
+  };
+  const onMapClick = (ev: React.MouseEvent) => {
+    const p = at(ev);
+    const z = zoneAt(geo, p.mx, p.my);
+    if (z) open(z.id, ev); else setPop(undefined);
+  };
+  const onMove = (ev: React.MouseEvent) => { const p = at(ev); setHover(zoneAt(geo, p.mx, p.my)?.id); };
 
   const w = wrap.current?.getBoundingClientRect();
   const left = pop && w ? Math.max(4, Math.min(pop.x + 8, w.width - 236)) : 0;
   const top = pop && w ? Math.max(4, Math.min(pop.y + 8, w.height - 96)) : 0;
+  const lit = geo.zones.find(z => z.id === (pop?.zone ?? hover));
   return (
-    <div className="zlayer" ref={wrap}>
-      {CLICK_ZONES.map(z => (
-        <button key={z.id} type="button" className={'zhit' + (pop?.zone === z.id ? ' on' : '') + (block ? ' blocked' : '')}
-          style={{ left: z.rect[0] / 10 + '%', top: z.rect[1] / 10 + '%', width: z.rect[2] / 10 + '%', height: z.rect[3] / 10 + '%' }}
-          onClick={e => click(z.id, e)} data-testid="map-zone" data-zone={z.id}
-          aria-label={`${z.name || z.id}: log intel`} title={z.name || undefined}>
-          {z.name && <span className="zname">{z.name}</span>}
-        </button>
+    <div className={'zlayer' + (block ? ' blocked' : '')} ref={wrap}>
+      {lit && (
+        <svg className="zhl" viewBox={`${v.x} ${v.y} ${v.w} ${v.h}`} preserveAspectRatio="none" aria-hidden>
+          <path d={lit.path} fillRule="evenodd" />
+        </svg>
+      )}
+      <div className="zcatch" onClick={onMapClick} onMouseMove={onMove} onMouseLeave={() => setHover(undefined)} title={lit?.name} />
+      {zoneInfo(geo).map(({ zone: z }) => (
+        <button key={z.id} type="button" className={'zhit' + (pop?.zone === z.id ? ' on' : '')}
+          style={pos(v, z.at[0], z.at[1])}
+          onClick={e => { e.stopPropagation(); open(z.id, e); }} onMouseEnter={() => setHover(z.id)}
+          data-testid="map-zone" data-zone={z.id} aria-label={`${z.name}: log intel`} />
       ))}
+      {lit && !pop && <div className="zname" style={pos(v, lit.at[0], lit.at[1])}>{lit.name}</div>}
       {pop && (
         <div className="intel-pop" style={{ left, top }} data-testid="intel-pop" role="dialog" aria-label={`Intel at ${zoneName(pop.zone)}`}>
           <div className="ttl">Enemies at <b>{zoneName(pop.zone)}</b>{clockLeft !== undefined ? ` · ${clockStr(clockLeft)}` : ''} · shared with the room</div>
@@ -222,54 +274,57 @@ export function MapPanel({ snap, room, intelBlock, onIntel }: {
   onIntel?: (zone: string, count: number) => Promise<string | undefined>;
 }) {
   const m = snap.match;
-  const f = snap.forecast && snap.forecast.map === MIRAGE.id ? snap.forecast : undefined;
+  const geo = m?.map ? GEOS[m.map] : undefined;
+  const model = m?.map ? MAPS[m.map] : undefined;
+  const roundTime = model?.roundTime ?? 115;
+  const f = snap.forecast && model && snap.forecast.map === model.id ? snap.forecast : undefined;
   const [ahead, setAhead] = useState(0);
-  const now = liveSeconds(snap);
-  const img = useHeatImage(f?.plans, (f?.liveT ?? 0) + (f?.liveT !== undefined ? ahead : 0));
-  const isMirage = m?.map === MIRAGE.id;
+  const now = liveSeconds(snap, roundTime);
+  const img = useHeatImage(m?.map, f?.plans, (f?.liveT ?? 0) + (f?.liveT !== undefined ? ahead : 0));
 
-  if (!m || !isMirage) {
+  if (!m || !geo) {
     return (
       <div className="mapcol" data-testid="map">
         <div className="map">
           <div className="map-empty"><div className="box">
-            <b>{m ? `No map model for ${mapName(m.map)} yet` : 'No map yet'}</b>
-            {m ? 'Map models (zones, routes, plan priors) are built from demos in M4. Mirage has a schematic model today.' : 'The map appears when the match starts.'}
+            <b>{m ? `No map for ${mapName(m.map)}` : 'No map yet'}</b>
+            {m ? 'csbot has the seven competitive maps. This one is not among them.' : 'The map appears when the match starts.'}
           </div></div>
         </div>
       </div>
     );
   }
 
+  const view = viewOf(geo);
   const spots = snap.setupSpots ?? [];
-  const who = slotNamer(room, snap.match?.map);
+  const who = slotNamer(room, m.map);
   const intel = snap.intel ?? [];
   const clockLeft = m.clock.phase === 'live' && m.clock.endsIn !== undefined ? m.clock.endsIn : undefined;
   return (
     <div className="mapcol" data-testid="map">
-      <div className={'map' + (onIntel && !intelBlock ? ' can-intel' : '')}>
-        <MapBase />
-        {img && <HeatCanvas img={img} />}
+      <div className={'map' + (onIntel && !intelBlock ? ' can-intel' : '')} style={{ aspectRatio: `${view.w} / ${view.h}`, maxWidth: Math.round(560 * Math.min(1, view.w / view.h)) }}>
+        <MapBase geo={geo} view={view} />
+        {img && <HeatCanvas img={img} geo={geo} view={view} />}
         {/* Zones under the markers layer (which lets clicks through); the popover still floats above. */}
-        {onIntel && <IntelLayer {...(intelBlock ? { block: intelBlock } : {})} onIntel={onIntel} {...(clockLeft !== undefined ? { clockLeft } : {})} />}
+        {onIntel && <IntelLayer geo={geo} view={view} {...(intelBlock ? { block: intelBlock } : {})} onIntel={onIntel} {...(clockLeft !== undefined ? { clockLeft } : {})} />}
         <div className="map-html">
-          <Labels />
+          <Labels geo={geo} view={view} />
           {spots.map(s => {
             const me = s.player === snap.youHandle;
             return (
-              <div key={s.player} className={'mk' + (me ? ' me' : '')} style={{ left: s.at[0] / 10 + '%', top: s.at[1] / 10 + '%' }}
+              <div key={s.player} className={'mk' + (me ? ' me' : '')} style={pos(view, s.at[0], s.at[1])}
                 title={`${me ? 'You' : who(s.player)} · ${s.label} · planned spot`} data-testid={me ? 'marker-you' : 'marker'} data-slot={s.player}>
                 <i>{me ? 'YOU' : ''}</i>
                 <span>{me ? s.label : `${who(s.player)} · ${s.label}`}</span>
               </div>
             );
           })}
-          <IntelPins intel={intel} {...(now !== undefined ? { now } : {})} />
+          <IntelPins geo={geo} view={view} intel={intel} {...(now !== undefined ? { now } : {})} roundTime={roundTime} />
         </div>
         {!f && (
           <div className="map-empty bottom"><div className="box" data-testid="map-note">
-            <b>{m.ourSide === 'T' ? 'Forecast covers Mirage CT side for now' : 'Forecast arrives at freeze time'}</b>
-            {m.ourSide === 'T' ? 'Enemy CT setups get modeled from demos in M4.' : 'It starts from the enemy buy read.'}
+            <b>{!model ? `No forecast for ${geo.name} yet` : m.ourSide === 'T' ? 'Forecast covers your CT halves' : 'Forecast arrives at freeze time'}</b>
+            {!model ? 'The map and intel work; enemy plans for it come in an update.' : m.ourSide === 'T' ? 'Enemy CT setups come in a later update. Intel you log still reaches the room.' : 'It starts from the enemy buy read.'}
           </div></div>
         )}
       </div>
@@ -285,7 +340,7 @@ export function MapPanel({ snap, room, intelBlock, onIntel }: {
           ? <span className="chip est" data-testid="forecast-basis" data-basis="intel" title="The buy read, updated by the room's intel this round">updated by intel</span>
           : <span className="chip est" data-testid="forecast-basis" data-basis="prior" title="From the enemy buy read only. Click a zone during the round to log intel.">from the buy read</span>)}
       </div>
-      {onIntel && !intelBlock && <div className="maphint muted small">Click a zone to log what you see. Everyone's forecast updates.</div>}
+      {onIntel && !intelBlock && <div className="maphint muted small">Click where you see enemies. Everyone's forecast updates.</div>}
       {spots.length > 0 && (
         <div className="mapkey">{snap.youHandle && <span><i className="k-you" />your planned spot</span>}<span><i className="k-plan" />{snap.youHandle ? "teammates' planned spots (playbook)" : 'planned spots (playbook)'}</span></div>
       )}

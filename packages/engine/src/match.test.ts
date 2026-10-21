@@ -168,8 +168,8 @@ describe('connection and match lifecycle', () => {
   it('resets on a new map', () => {
     const t = new MatchTracker();
     run(syntheticMatch({ rounds: FIRST_HALF.slice(0, 3) }), t);
-    const { last } = run(syntheticMatch({ rounds: FIRST_HALF.slice(0, 1), map: 'de_inferno', start: Date.UTC(2026, 9, 22) }), t);
-    expect(last.match!.map).toBe('de_inferno');
+    const { last } = run(syntheticMatch({ rounds: FIRST_HALF.slice(0, 1), map: 'de_vertigo', start: Date.UTC(2026, 9, 22) }), t);
+    expect(last.match!.map).toBe('de_vertigo');
     expect(last.match!.history).toHaveLength(1);
     expect(last.forecast).toBeUndefined(); // no map model for Inferno yet
   });
