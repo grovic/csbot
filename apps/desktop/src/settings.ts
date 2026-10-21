@@ -20,6 +20,8 @@ export interface Settings {
   coach?: CoachConfig;
   /** Numpad intel hotkeys (M4a). Off unless the user turns them on: they take the keys from the game. */
   intelHotkeys?: boolean;
+  /** This PC's player, remembered from CS2's own data (matches demos to "us" when CS2 is closed). */
+  steamId?: string;
 }
 
 /** A stored coach config, field by field (anything invalid falls back to the default). */
@@ -59,6 +61,7 @@ export function loadSettings(dir: string): Settings {
     ...(typeof raw.faceitNickname === 'string' && raw.faceitNickname.trim() ? { faceitNickname: raw.faceitNickname.trim().slice(0, 32) } : {}),
     ...(raw.coach !== undefined ? { coach: coachConfigFrom(raw.coach) } : {}),
     ...(raw.intelHotkeys === true ? { intelHotkeys: true } : {}),
+    ...(typeof raw.steamId === 'string' && /^7656\d{13}$/.test(raw.steamId) ? { steamId: raw.steamId } : {}),
   };
   if (JSON.stringify(s) !== JSON.stringify(raw)) {
     fs.mkdirSync(dir, { recursive: true });

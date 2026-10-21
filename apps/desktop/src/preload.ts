@@ -1,8 +1,8 @@
 // Sandboxed preload: exposes window.csbot (CsbotBridge) to the renderer. Only electron's renderer
 // modules are available here, so this file imports nothing at runtime except 'electron'.
 
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import type { CfgInstallResult, CoachView, CsbotBridge, HostInfo, LiveSnapshot, ScoutView } from '@csbot/protocol';
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron';
+import type { CfgInstallResult, CoachView, CsbotBridge, DebriefView, HostInfo, LiveSnapshot, ScoutView } from '@csbot/protocol';
 
 const bridge: CsbotBridge = {
   onSnapshot(cb) {
@@ -31,6 +31,18 @@ const bridge: CsbotBridge = {
     ipcRenderer.on('csbot:gsi', handler);
     return () => { ipcRenderer.removeListener('csbot:gsi', handler); };
   },
+  onDebrief(cb) {
+    let pushed = false;
+    const handler = (_e: IpcRendererEvent, v: DebriefView) => { pushed = true; cb(v); };
+    ipcRenderer.on('csbot:debrief', handler);
+    void ipcRenderer.invoke('csbot:debriefLatest').then((v: DebriefView | undefined) => { if (v && !pushed) cb(v); }, () => undefined);
+    return () => { ipcRenderer.removeListener('csbot:debrief', handler); };
+  },
+  selectMatch: id => ipcRenderer.invoke('csbot:selectMatch', id) as Promise<void>,
+  ingestDemo: file => ipcRenderer.invoke('csbot:ingestDemo', file) as Promise<{ ok: boolean; error?: string }>,
+  writeWorkOn: id => ipcRenderer.invoke('csbot:writeWorkOn', id) as Promise<{ ok: boolean; error?: string }>,
+  openReplays: () => ipcRenderer.invoke('csbot:openReplays') as Promise<void>,
+  pathForFile: file => webUtils.getPathForFile(file),
   onScout(cb) {
     let pushed = false;
     const handler = (_e: IpcRendererEvent, v: ScoutView) => { pushed = true; cb(v); };

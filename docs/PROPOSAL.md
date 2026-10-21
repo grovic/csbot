@@ -599,14 +599,17 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
    - **Done: go.** 3.1–5.4 s to screen with Sonnet (section 6.4, `tools/spikes/claude-latency`). Plan usage per match is still to measure.
 6. **demoparser2** (Node binding) on FACEIT and Valve demos. Auto-build Mirage zones and routes.
    - *Status:* zones and routes no longer need demos. They come from the map files (`tools/map-build`, section 7.3). Demos are still needed to calibrate plan odds and timings, and for spike 9. HLTV's demo downloads sit behind a bot check, so demos have to be downloaded in a browser (the owner's own match first).
-   - *Status:* needs a demo file. There are none on the PC yet.
+   - **Done: go.**
+     - `@laihoe/demoparser2` (MIT) reads a 60 MB CS2 demo in about 0.3 s (`packages/demo`, tested on demoparser's own public test demo).
+     - It gives money at the start of each round, the equipment value once bought, plant sites and every death with its position.
+     - In the installed app it runs in a worker thread, with the native module unpacked next to the app archive.
 7. **Peer-to-peer rooms:** a host plus 5 clients over WebRTC with Trystero signaling on public Nostr relays. Measure join time, latency, reconnects, and how often direct connection fails on the squad's real networks.
    - **Done on one PC: go.** 5/5 members joined through public Nostr relays in 0.5–1.1 s, and a wrong-key peer was refused (`tools/spikes/p2p-rooms`). Still to measure in M2: direct connection success between the squad's real home networks.
 8. **Electron footprint** on a gaming PC (RAM/CPU during a match).
    - **Done: go,** with a hidden window: 268 MB private memory and 0.2% CPU while hosting (`tools/spikes/electron-footprint`). To re-measure with a visible window during a real match.
 9. **Economy rules** checked against demo truth.
    - *Status:* partly done with a real GSI recording (competitive de_dust2, 2026-10-21, kept on the owner's PC only). Players never get `round_wins`. The half's last round ends in an `intermission` payload and the match's last in a `gameover` one. An exploded bomb is never reported. Each half starts at loss-bonus level 1, so a lost pistol round pays $1,900. The tracker now handles all four: 23 of 23 rounds are recorded with the right winner. Enemy money still needs demo truth.
-   - *Status:* needs demo files, same as spike 6.
+   - *Status:* the tooling is done. Each debrief with a demo measures buy-read accuracy, money-band coverage and site-read accuracy (M6). Calibrating the economy model still needs the squad's own demos.
 
 ### Milestones
 1. **M1 · Core host:** Electron shell, GSI server + recorder/replayer, engine (economy), Live (banner, tiles, scoreboard with host data).
@@ -633,6 +636,23 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
    - *Measured through the app's own runner:* warm-up 2.2 s, round call 3.0 s (Sonnet, low effort), about $0.011 at API-equivalent prices for both.
    - *Memory:* the `claude` process uses about 224 MB, in addition to csbot's roughly 290 MB.
 6. **M6 · Debrief:** analysis, calibration reports, progress tracking.
+   - *Built:* every match a desktop app is open for is recorded from its own GSI and kept on that PC. Each round holds our buy, the enemy estimate, the forecast, the call, the intel and the player's own round.
+   - **The Debrief page shows:**
+     - the result
+     - an HLTV 1.0-style rating
+     - rounds won by side and by our buy
+     - the enemy money estimate per round
+     - a round-by-round table
+     - progress across matches: rating trend, win rate by map
+     - Claude's "work on next" (one call on the host's Claude plan)
+   - **With the match demo** (added from the replays folder, a file picker, or drag and drop; .dem, .dem.gz, .dem.zst):
+     - buy-read accuracy, money-band coverage and site-read accuracy
+     - their real money next to the estimate
+     - opening duels
+     - where you died
+     A demo of a match csbot wasn't open for is rebuilt from the demo alone, as long as your Steam ID is in it.
+   - Room members get the host's debrief.
+   - *Not built:* "calls followed" (it needs player positions at set times, which demos have) and a FACEIT demo download (Downloads API access).
 7. **M7 · Extras:** 2D replay, lineup library, anti-strat builder, Stream Deck, push-to-talk, practice export, Wingman, Premier roster (if M0 passed).
 8. **M8 · Hardening:** host handover, signing, auto-update, performance, closed beta with a few squads → **V1 release**.
    - *Done:*

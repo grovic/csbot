@@ -23,7 +23,21 @@ execFileSync(process.execPath, [path.join(desktop, 'build.mjs')], { stdio: 'inhe
 
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(path.join(out, 'dist'), { recursive: true });
-for (const f of ['main.cjs', 'preload.cjs']) fs.copyFileSync(path.join(desktop, 'dist', f), path.join(out, 'dist', f));
+for (const f of ['main.cjs', 'preload.cjs', 'demo-worker.cjs']) fs.copyFileSync(path.join(desktop, 'dist', f), path.join(out, 'dist', f));
+
+// The demo parser is a native module (prebuilt per platform): stage its package and the Windows binary.
+const { createRequire } = await import('node:module');
+const parserDir = fs.realpathSync(path.dirname(createRequire(path.join(desktop, 'package.json')).resolve('@laihoe/demoparser2/package.json')));
+// The platform binary is the parser's own optional dependency (pnpm keeps it next to the parser).
+const binDir = fs.realpathSync(path.dirname(createRequire(path.join(parserDir, 'package.json')).resolve('@laihoe/demoparser2-win32-x64-msvc/package.json')));
+// Only what loads at runtime: the loader (index.js, package.json) and the binary right next to it,
+// which the loader tries first (electron-builder drops the separate platform package).
+const parserOut = path.join(out, 'native', 'demoparser2');
+fs.mkdirSync(parserOut, { recursive: true });
+for (const f of ['index.js', 'package.json']) fs.copyFileSync(path.join(parserDir, f), path.join(parserOut, f));
+const bin = fs.readdirSync(binDir).find(f => f.endsWith('.node'));
+if (!bin) throw new Error('demo parser binary missing');
+fs.copyFileSync(path.join(binDir, bin), path.join(parserOut, bin));
 fs.cpSync(webDist, path.join(out, 'web'), { recursive: true });
 fs.cpSync(path.join(desktop, 'assets'), path.join(out, 'assets'), { recursive: true });
 

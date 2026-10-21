@@ -12,7 +12,7 @@ import {
 } from '@csbot/room';
 import { trysteroTransport } from '@csbot/room/trystero';
 import {
-  EMPTY_COACH, EMPTY_SCOUT, type CoachConfig, type CoachView, type CsbotBridge, type LinkStatus, type LiveSnapshot, type RoomPermissions,
+  EMPTY_COACH, EMPTY_DEBRIEF, EMPTY_SCOUT, type CoachConfig, type CoachView, type CsbotBridge, type DebriefView, type LinkStatus, type LiveSnapshot, type RoomPermissions,
   type ScoutView, type ScreenState,
 } from '@csbot/protocol';
 import { demoCoach } from './demoCoach.ts';
@@ -56,11 +56,18 @@ export interface SessionView {
   scout?: ScoutView;
   /** The live coach from this PC's own source (demo, or the desktop app). Read through `coachOf(view)`. */
   coach?: CoachView;
+  /** The debrief from this PC's own source (demo, or the desktop app). Read through `debriefOf(view)`. */
+  debrief?: DebriefView;
 }
 
 /** The scouting this screen shows: from the room when joined, else this PC's own. */
 export function scoutOf(v: SessionView): ScoutView {
   return v.screen?.scout ?? v.scout ?? EMPTY_SCOUT;
+}
+
+/** The debrief this screen shows: from the room when joined, else this PC's own. */
+export function debriefOf(v: SessionView): DebriefView {
+  return v.screen?.debrief ?? v.debrief ?? EMPTY_DEBRIEF;
 }
 
 /** The coach this screen shows: from the room when joined, else this PC's own. */
@@ -168,6 +175,7 @@ export class Session {
   private startSource(which: 'demo' | 'none'): void {
     const src = which === 'demo' ? demoSource(readDemoOptions(this.win.location.search)) : noneSource();
     this.reset({ role: which, kind: which, ...(which === 'demo' ? { scout: { ...EMPTY_SCOUT, status: 'loading' as const }, coach: demoCoach() } : {}) });
+    if (which === 'demo') void import('./demoDebrief.ts').then(m => { if (this.view.role === 'demo') this.set({ debrief: m.demoDebrief(readDemoOptions(this.win.location.search).map) }); });
     this.demo = which === 'demo' ? src : undefined;
     let alive = true;
     this.stops.push(() => { alive = false; });
@@ -190,6 +198,7 @@ export class Session {
     this.reset({ role: 'solo', kind: 'desktop', device: 'desktop' });
     this.watchOwnScout();
     this.watchOwnCoach();
+    this.watchOwnDebrief();
     this.stops.push(b.onSnapshot(live => {
       this.lastLive = live;
       const { scout, coach } = this.view;
@@ -208,6 +217,35 @@ export class Session {
   }
 
   /** Desktop solo/host: this PC's scouting, from the main process. */
+  private watchOwnDebrief(onDebrief?: (d: DebriefView) => void): void {
+    const b = this.bridge;
+    if (!b?.onDebrief) return;
+    this.stops.push(b.onDebrief(d => {
+      onDebrief?.(d);
+      this.set({ debrief: d });
+    }));
+  }
+
+  // ---------------------------------------------------------------- debrief (desktop solo / host)
+
+  /** This screen runs the debrief (the desktop app, not joined to someone else's room). */
+  get canDebrief(): boolean {
+    return !!this.bridge?.onDebrief && (this.view.role === 'solo' || this.view.role === 'host');
+  }
+  selectMatch(id: string): void { if (this.canDebrief) void this.bridge!.selectMatch?.(id); }
+  async ingestDemo(file?: string): Promise<string | undefined> {
+    if (!this.canDebrief || !this.bridge?.ingestDemo) return 'Adding demos needs the csbot desktop app.';
+    const r = await this.bridge.ingestDemo(file);
+    return r.ok ? undefined : r.error || undefined;
+  }
+  async writeWorkOn(id: string): Promise<string | undefined> {
+    if (!this.canDebrief || !this.bridge?.writeWorkOn) return "Claude's notes come from the csbot desktop app.";
+    const r = await this.bridge.writeWorkOn(id);
+    return r.ok ? undefined : r.error ?? 'Not written.';
+  }
+  openReplays(): void { if (this.canDebrief) void this.bridge?.openReplays?.(); }
+  pathForFile(f: File): string | undefined { try { return this.bridge?.pathForFile?.(f); } catch { return undefined; } }
+
   private watchOwnScout(onScout?: (s: ScoutView) => void): void {
     const b = this.bridge;
     if (!b?.onScout) return;
@@ -408,6 +446,7 @@ export class Session {
     this.host = host;
     // Scouting and the coach go to every member on each update (and to joiners on approval).
     this.watchOwnScout(s => host.setScout(s));
+    this.watchOwnDebrief(d => host.setDebrief(d));
     this.watchOwnCoach(c => host.setCoach(c));
     this.stops.push(b.onSnapshot(live => { this.lastLive = live; host.setLive(live); }));
     // Tell the host process who's in the room, so scouting labels members vs randoms.

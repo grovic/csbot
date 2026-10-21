@@ -220,7 +220,7 @@ function Calls({ coach }: { coach: CoachView }) {
           <div className="muted">Nothing yet. The coach warms up when a match starts.</div>
         ) : (
           <div className="tw">
-            <table className="t" data-testid="call-log">
+            <div className="scroll-x"><table className="t" data-testid="call-log">
               <thead><tr><th>Round</th><th>Type</th><th>Status</th><th>Model</th><th className="r">Time</th><th>Headline</th><th className="r">Usage</th></tr></thead>
               <tbody>
                 {coach.calls.map(c => (
@@ -235,7 +235,7 @@ function Calls({ coach }: { coach: CoachView }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         )}
       </div>

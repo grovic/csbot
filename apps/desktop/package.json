@@ -1,7 +1,7 @@
 {
   "name": "@csbot/desktop",
   "productName": "csbot",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "private": true,
   "type": "module",
   "main": "dist/main.cjs",
@@ -16,10 +16,13 @@
   },
   "dependencies": {
     "@csbot/coach": "workspace:*",
+    "@csbot/debrief": "workspace:*",
+    "@csbot/demo": "workspace:*",
     "@csbot/engine": "workspace:*",
     "@csbot/gsi": "workspace:*",
     "@csbot/protocol": "workspace:*",
     "@csbot/scout": "workspace:*",
+    "@laihoe/demoparser2": "^0.42.0",
     "electron-updater": "^6.8.9"
   },
   "devDependencies": {

@@ -129,10 +129,9 @@ test('settings in the browser explains hosting', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('placeholder pages', async ({ page }) => {
+test('every page is real: Debrief and Coach have no placeholders left', async ({ page }) => {
   const errors = await open(page, 'at=live-2&pause=1', '#/debrief');
-  await expect(page.getByTestId('placeholder')).toContainText('Coming in M6');
-  // The Coach page is real since M5.
+  await expect(page.getByTestId('debrief')).toBeVisible();
   await page.goto('./?at=live-2&pause=1#/coach');
   await expect(page.getByTestId('coach-page')).toBeVisible();
   await expect(page.getByTestId('placeholder')).toHaveCount(0);

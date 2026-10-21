@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, globalShortcut, ipcMain, Menu, safeStorage, screen, session, shell, type IpcMainInvokeEvent } from 'electron';
-import type { CfgInstallResult, CoachAsker, CoachConfig, CoachView, ScoutView } from '@csbot/protocol';
+import type { CfgInstallResult, CoachAsker, CoachConfig, CoachView, DebriefView, ScoutView } from '@csbot/protocol';
 import { COACH_SCHEMA, COACH_SYSTEM } from '@csbot/coach';
 import { CoachService } from './coach/service.ts';
 import { ClaudeCoachSession } from './coach/session.ts';
@@ -15,7 +15,9 @@ import { loadSettings, readEnv, saveSettings, type Settings } from './settings.t
 import { rendererUrlFor, samePage, webIndexFor } from './urls.ts';
 import { Updater } from './updater.ts';
 import { loadWindowState, restorableBounds, saveWindowState } from './window-state.ts';
-import { claudeCommand, detectClaude, runAnalyst } from './scout/claude.ts';
+import { claudeCommand, detectClaude, runAnalyst, runClaudeJson } from './scout/claude.ts';
+import { DebriefService } from './debrief/service.ts';
+import { parseDemoFile } from './debrief/demo.ts';
 import { FileStore } from './scout/file-cache.ts';
 import { KEY_SERVICES, Secrets, type KeyService } from './scout/secrets.ts';
 import { ScoutService } from './scout/service.ts';
@@ -35,6 +37,7 @@ function run(): void {
   let win: BrowserWindow | null = null;
   let host: Host | null = null;
   let scout: ScoutService | null = null;
+  let debrief: DebriefService | null = null;
   let coach: CoachService | null = null;
   let hotkeys: IntelHotkeys | null = null;
   /** Names of the members in this host's room (set by the renderer that runs the room). */
@@ -138,6 +141,26 @@ function run(): void {
       for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('csbot:scout', v);
     };
     scout.onChange(sendScout);
+
+    // Debrief (M6): every match this PC sees is recorded; demos add the truth; Claude writes "work on next".
+    // The installed app keeps the demo parser's native module unpacked under resources (see stage.mjs).
+    if (app.isPackaged) process.env.CSBOT_PARSER_PATH = path.join(process.resourcesPath, 'app.asar.unpacked', 'native', 'demoparser2');
+    const cs2 = detectCs2(env.steamPath ? { steamPath: env.steamPath } : {});
+    debrief = new DebriefService({
+      dir: path.join(userData, 'matches'),
+      onChange: (v: DebriefView) => { for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('csbot:debrief', v); },
+      runClaude: o => runClaudeJson({ ...o, model: 'opus', effort: 'high', timeoutMs: 120_000, tag: 'debrief' }, claude),
+      parseDemo: parseDemoFile,
+      ourSteamId: () => host?.latest().me?.steamid ?? settings.steamId,
+      ...(cs2 ? { replaysDir: path.join(cs2.cs2Path, 'game', 'csgo', 'replays') } : {}),
+      log,
+    });
+    host.onSnapshot(s => {
+      debrief?.observe(s);
+      // Remember our Steam ID (from our own GSI) for demos read later with CS2 closed.
+      const id = s.me?.steamid;
+      if (id && /^7656\d{13}$/.test(id) && settings.steamId !== id) { settings = { ...settings, steamId: id }; saveSettings(userData, settings); }
+    });
     void scout.init().then(async () => {
       if (process.env.CSBOT_KEY_CHECK !== 'off') {
         const k = await scout?.verifyKeys();
@@ -237,6 +260,38 @@ function run(): void {
       return scout ? scout.setNickname(nick || null) : { ok: false, error: 'csbot is shutting down' };
     });
     ipcMain.handle('csbot:scoutLatest', e => { guard(e); return scout?.current; });
+    ipcMain.handle('csbot:debriefLatest', e => { guard(e); return debrief?.view(); });
+    ipcMain.handle('csbot:selectMatch', (e, id: unknown) => { guard(e); if (typeof id === 'string') debrief?.select(id); });
+    ipcMain.handle('csbot:writeWorkOn', (e, id: unknown) => {
+      guard(e);
+      if (typeof id !== 'string') return { ok: false, error: 'Invalid request.' };
+      if (coach?.inTournament) return { ok: false, error: 'Tournament mode is on: no coaching.' };
+      return debrief ? debrief.writeWorkOn(id) : { ok: false, error: 'csbot is shutting down' };
+    });
+    ipcMain.handle('csbot:ingestDemo', async (e, file: unknown) => {
+      guard(e);
+      if (!debrief) return { ok: false, error: 'csbot is shutting down' };
+      let f = typeof file === 'string' ? file : undefined;
+      if (f !== undefined && !/\.dem(\.(gz|zst))?$/i.test(f)) return { ok: false, error: 'That is not a demo file (.dem, .dem.gz or .dem.zst).' };
+      if (!f) {
+        const w = BrowserWindow.fromWebContents(e.sender) ?? undefined;
+        const { dialog } = await import('electron');
+        const replays = debrief.view().demo?.replaysDir;
+        const pick = await dialog.showOpenDialog(w!, {
+          title: 'Add a match demo', properties: ['openFile'],
+          ...(replays && fs.existsSync(replays) ? { defaultPath: replays } : {}),
+          filters: [{ name: 'CS2 demos', extensions: ['dem', 'gz', 'zst'] }],
+        });
+        if (pick.canceled || !pick.filePaths[0]) return { ok: false, error: '' };
+        f = pick.filePaths[0];
+      }
+      return debrief.ingest(f);
+    });
+    ipcMain.handle('csbot:openReplays', async e => {
+      guard(e);
+      const dir = debrief?.view().demo?.replaysDir;
+      if (dir) { fs.mkdirSync(dir, { recursive: true }); await shell.openPath(dir); }
+    });
     ipcMain.handle('csbot:scoutMatch', async (e, linkOrId: unknown) => {
       guard(e);
       if (typeof linkOrId !== 'string' || linkOrId.length > 500) return { ok: false, error: 'Paste a FACEIT match link.' };
@@ -340,6 +395,7 @@ function run(): void {
       if (host) w.webContents.send('csbot:snapshot', host.latest());
       if (scout) w.webContents.send('csbot:scout', scout.current);
       if (coach) w.webContents.send('csbot:coach', coach.view);
+      if (debrief) w.webContents.send('csbot:debrief', debrief.view());
     });
     if (!app.isPackaged) {
       w.webContents.on('before-input-event', (_e, input) => {

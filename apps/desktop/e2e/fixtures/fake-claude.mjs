@@ -87,6 +87,16 @@ function oneShot() {
         process.stdout.write(JSON.stringify({ type: 'result', subtype: 'success', is_error: true, result: 'Not logged in · Please run /login' }));
         return;
       }
+      // The debrief's "work on next" asks for { team, you }.
+      const schema = args[args.indexOf('--json-schema') + 1] ?? '';
+      if (schema.includes('"you"')) {
+        process.stdout.write(JSON.stringify({
+          type: 'result', subtype: 'success', is_error: false, result: '', total_cost_usd: 0,
+          modelUsage: { 'claude-fake-opus': { inputTokens: 1, outputTokens: 1 } },
+          structured_output: { team: ['Save on T when their read is a full buy.', 'Log intel earlier.'], you: ['Play the second angle on A.'] },
+        }));
+        return;
+      }
       process.stdout.write(JSON.stringify({
         type: 'result', subtype: 'success', is_error: false, result: '', total_cost_usd: 0,
         modelUsage: { 'claude-fake-opus': { inputTokens: 1, outputTokens: 1 } },

@@ -74,36 +74,46 @@ export type AnalystResult = Pick<ScoutReport, 'summary' | 'things' | 'plan' | 'v
 
 export class AnalystError extends Error {}
 
-/** One structured call: `claude -p --output-format json --json-schema …` with the scouting file on stdin. */
-export async function runAnalyst(view: ScoutView, cmd = claudeCommand(), o: AnalystOptions = {}): Promise<AnalystResult> {
-  const model = o.model ?? 'opus';
-  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'csbot-analyst-'));
+/**
+ * One structured call on the user's Claude Code: `claude -p --output-format json --json-schema …`, the
+ * system prompt from a file, the input on stdin, every tool off, in an empty temp dir.
+ */
+export async function runClaudeJson(o: { system: string; schema: object; input: string; model: string; effort: string; timeoutMs: number; tag: string }, cmd = claudeCommand()): Promise<{ output: unknown; model: string; ms: number }> {
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), `csbot-${o.tag}-`));
   const t0 = Date.now();
   try {
-    fs.writeFileSync(path.join(work, 'system.md'), ANALYST_SYSTEM);
+    fs.writeFileSync(path.join(work, 'system.md'), o.system);
     const args = [
-      '-p', '--output-format', 'json', '--json-schema', JSON.stringify(ANALYST_SCHEMA),
-      '--model', model, '--effort', o.effort ?? 'high',
+      '-p', '--output-format', 'json', '--json-schema', JSON.stringify(o.schema),
+      '--model', o.model, '--effort', o.effort,
       '--system-prompt-file', path.join(work, 'system.md'),
       '--tools', '', '--strict-mcp-config', '--permission-mode', 'dontAsk', '--no-session-persistence',
     ];
     let r: Run;
     try {
-      r = await run(cmd, args, { stdin: 'Scouting file for the next match:\n' + analystInput(view), cwd: work, timeoutMs: o.timeoutMs ?? 90_000 });
+      r = await run(cmd, args, { stdin: o.input, cwd: work, timeoutMs: o.timeoutMs });
     } catch (e) {
       throw new AnalystError((e as NodeJS.ErrnoException).code === 'ENOENT' ? "Claude Code isn't installed on this PC." : `Couldn't start Claude Code: ${(e as Error).message}`);
     }
     const ms = Date.now() - t0;
-    if (r.timedOut) throw new AnalystError(`Claude Code took longer than ${Math.round((o.timeoutMs ?? 90_000) / 1000)} s.`);
+    if (r.timedOut) throw new AnalystError(`Claude Code took longer than ${Math.round(o.timeoutMs / 1000)} s.`);
     let out: { is_error?: boolean; result?: unknown; structured_output?: unknown; modelUsage?: Record<string, unknown> };
     try { out = JSON.parse(r.stdout); } catch { throw new AnalystError(r.code === 0 ? 'Claude Code returned something that isn\'t JSON.' : `Claude Code stopped (exit ${r.code}).`); }
     if (out.is_error) throw new AnalystError(`Claude Code: ${String(out.result ?? 'error').slice(0, 200)}`);
-    if (out.structured_output === undefined) throw new AnalystError('Claude Code returned no structured report.');
-    let parsed: ReturnType<typeof parseAnalyst>;
-    try { parsed = parseAnalyst(out.structured_output, view); } catch { throw new AnalystError("Claude Code's report didn't match the expected format."); }
-    const used = Object.keys(out.modelUsage ?? {})[0];
-    return { ...parsed, model: used ?? model, ms };
+    if (out.structured_output === undefined) throw new AnalystError('Claude Code returned no structured answer.');
+    return { output: out.structured_output, model: Object.keys(out.modelUsage ?? {})[0] ?? o.model, ms };
   } finally {
     fs.rmSync(work, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
   }
+}
+
+/** The scouting report: the scouting file on stdin, the analyst schema back. */
+export async function runAnalyst(view: ScoutView, cmd = claudeCommand(), o: AnalystOptions = {}): Promise<AnalystResult> {
+  const r = await runClaudeJson({
+    system: ANALYST_SYSTEM, schema: ANALYST_SCHEMA, input: 'Scouting file for the next match:\n' + analystInput(view),
+    model: o.model ?? 'opus', effort: o.effort ?? 'high', timeoutMs: o.timeoutMs ?? 90_000, tag: 'analyst',
+  }, cmd);
+  let parsed: ReturnType<typeof parseAnalyst>;
+  try { parsed = parseAnalyst(r.output, view); } catch { throw new AnalystError("Claude Code's report didn't match the expected format."); }
+  return { ...parsed, model: r.model, ms: r.ms };
 }

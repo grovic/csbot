@@ -1,5 +1,6 @@
 import type { ScoutView } from './scout.ts';
 import type { CoachAsker, CoachConfig, CoachView } from './coach.ts';
+import type { DebriefView } from './debrief.ts';
 
 // Wire types shared by the host, the desktop renderer and (from M2) room members.
 // The host builds a LiveSnapshot from its GSI feed; every screen renders only from snapshots.
@@ -247,6 +248,18 @@ export interface CsbotBridge {
   onCheckIn?(cb: (state: 'spot' | 'rotate', site?: 'A' | 'B') => void): () => void;
   /** Scouting for the current match (M3). Called with the latest view right away. */
   onScout?(cb: (s: ScoutView) => void): () => void;
+  /** The debrief: the match being reviewed and every match kept on this PC. */
+  onDebrief?(cb: (d: DebriefView) => void): () => void;
+  /** Review another kept match. */
+  selectMatch?(id: string): Promise<void>;
+  /** Add a match demo: a file path (drag and drop) or none to pick one. Attaches the truth to its match. */
+  ingestDemo?(file?: string): Promise<{ ok: boolean; error?: string }>;
+  /** Ask the user's Claude Code for the "work on next" of a kept match. */
+  writeWorkOn?(id: string): Promise<{ ok: boolean; error?: string }>;
+  /** Open CS2's replays folder (where downloaded match demos land). */
+  openReplays?(): Promise<void>;
+  /** The file path of a dropped file (Electron 32+: File.path is gone). */
+  pathForFile?(file: File): string;
   /** Scout a FACEIT match from its room link or id. */
   scoutMatch?(linkOrId: string): Promise<{ ok: boolean; error?: string }>;
   /** Load the fictional sample match (no keys needed). */
@@ -285,3 +298,4 @@ export interface CsbotBridge {
 export * from './room.ts';
 export * from './scout.ts';
 export * from './coach.ts';
+export * from './debrief.ts';

@@ -32,6 +32,6 @@ export const PHASE_UI: Record<Phase, { cls: string; label: string; hint: string 
   bomb: { cls: 'bomb', label: 'BOMB PLANTED', hint: 'Bomb timer' },
   over: { cls: 'over', label: 'ROUND OVER', hint: 'Next round in' },
   halftime: { cls: 'neutral', label: 'HALFTIME', hint: 'Sides swap · enemy money resets' },
-  gameover: { cls: 'neutral', label: 'MATCH OVER', hint: 'Debrief arrives in M6' },
+  gameover: { cls: 'neutral', label: 'MATCH OVER', hint: 'The debrief is ready' },
   paused: { cls: 'neutral', label: 'PAUSED', hint: 'Match paused' },
 };

@@ -6,7 +6,7 @@ import { useHashRoute, useSession } from './hooks.ts';
 import { CoachPage } from './pages/Coach.tsx';
 import { Join } from './pages/Join.tsx';
 import { Live } from './pages/Live.tsx';
-import { Placeholder } from './pages/Placeholder.tsx';
+import { Debrief } from './pages/Debrief.tsx';
 import { RoomPage } from './pages/Room.tsx';
 import { Scout } from './pages/Scout.tsx';
 import { Settings } from './pages/Settings.tsx';
@@ -26,7 +26,7 @@ export function App() {
   else if (route === 'room') page = <RoomPage view={v} session={session} />;
   else if (route === 'settings') page = <Settings snap={live} kind={v.kind} scout={scoutOf(v)} session={session} />;
   else if (route === 'scout') page = <Scout view={v} session={session} />;
-  else if (route === 'debrief') page = <Placeholder milestone="Coming in M6" title="Debrief" text="Result, buy-read accuracy, enemy money per round and what to work on next, built from the match demo." />;
+  else if (route === 'debrief') page = <Debrief view={v} session={session} />;
   else if (route === 'coach') page = <CoachPage view={v} session={session} />;
   else if (live) page = <Live snap={live} receivedAt={v.receivedAt} rate={v.rate} kind={v.kind} role={v.role} room={v.screen?.room} scout={scoutOf(v)} coach={coachOf(v)} session={session} />;
 

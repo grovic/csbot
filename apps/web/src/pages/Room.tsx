@@ -131,7 +131,7 @@ export function RoomPage({ view, session }: { view: SessionView; session: Sessio
               {online} device{online === 1 ? '' : 's'} connected, directly to the host · handshake through {view.signaling === 'ws' ? 'a self-hosted relay' : 'public Nostr relays (no account)'}
             </div></div><span /></div>
           <div className="conn-row"><span className="ic ok">✓</span>
-            <div><div className="ttl">Calls</div><div className="d">Made once on the host and sent to every screen. Claude Code calls arrive in M5.</div></div><span /></div>
+            <div><div className="ttl">Calls</div><div className="d">Made once on the host (its engine, or its own Claude Code) and sent to every screen.</div></div><span /></div>
           {admin && (
             <div className="mt"><button className="btn danger" type="button" onClick={() => session.endRoom()} data-testid="end-room">End room for everyone</button></div>
           )}
@@ -157,7 +157,7 @@ export function RoomPage({ view, session }: { view: SessionView; session: Sessio
       <div className="card mt">
         <div className="card-h"><h3>Members</h3><span className="muted small">a slot gives each player their own job in every call · one player per slot</span></div>
         <div className="tw">
-          <table className="t" data-testid="members">
+          <div className="scroll-x"><table className="t" data-testid="members">
             <thead><tr><th>Player</th><th>Role</th><th>Device</th><th>Shares own GSI</th><th>Status</th><th>Slot</th>{admin && <th />}</tr></thead>
             <tbody>
               {room.members.map(m => {
@@ -176,15 +176,15 @@ export function RoomPage({ view, session }: { view: SessionView; session: Sessio
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         </div>
       </div>
 
       <div className="grid2 mt">
         <div className="card">
           <div className="card-h"><h3>Permissions</h3><span className="muted small">{admin ? 'you can change these' : 'set by the admin'}</span></div>
-          <Perm id="perm-intel" title="Members log intel" desc="map clicks and hotkeys feed the shared forecast (M4)" on={perms.intel} enabled={admin} onChange={v => setPerm({ intel: v })} />
-          <Perm id="perm-ask" title="Members ask the coach" desc="uses the host's Claude plan, with a quota per member (M5)" on={perms.ask} enabled={admin} onChange={v => setPerm({ ask: v })} />
+          <Perm id="perm-intel" title="Members log intel" desc="map clicks and hotkeys feed the shared forecast" on={perms.intel} enabled={admin} onChange={v => setPerm({ intel: v })} />
+          <Perm id="perm-ask" title="Members ask the coach" desc="uses the host's Claude plan, with a quota per member" on={perms.ask} enabled={admin} onChange={v => setPerm({ ask: v })} />
           <Perm id="perm-editSlot" title="Members pick their own slot" desc="otherwise only the admin assigns slots" on={perms.editSlot} enabled={admin} onChange={v => setPerm({ editSlot: v })} />
           <Perm id="perm-handover" title="Members take over hosting" desc="if your PC drops, a member with the desktop app keeps the room going" on={perms.handover !== false} enabled={admin} onChange={v => setPerm({ handover: v })} />
           <Perm id="tournament-toggle" title="Tournament mode (whole room)" desc="turns off live calls and the forecast on every screen" on={room.tournament} enabled={admin} onChange={v => session.setTournament(v)} />
