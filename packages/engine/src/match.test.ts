@@ -107,12 +107,35 @@ describe('calls and the YOU line', () => {
     expect(over.head).toBe('Round lost');
   });
 
-  it('falls back to a generic call on T side', () => {
+  it('on T side: a generic call plus the read on their CT setup', () => {
     const { snaps: t } = run(syntheticMatch({ rounds: FIRST_HALF, ourSide: 'T' }));
-    const c = at(t, 2, 'freezetime').call!;
-    expect(c.head).toBe('Enemy eco likely');
-    expect(c.you).toBeUndefined();
-    expect(at(t, 2, 'freezetime').forecast).toBeUndefined();
+    const s = at(t, 2, 'freezetime');
+    expect(s.call!.head).toBe('Enemy eco likely');
+    expect(s.call!.you).toBeUndefined();
+    const f = s.forecast!;
+    expect(f.enemy).toBe('CT');
+    expect(f.basis).toBe('prior');
+    expect(f.site.A + f.site.B).toBeCloseTo(1, 6);
+    expect(Object.keys(f.plans)).toEqual(expect.arrayContaining(['default', 'stackA', 'stackB']));
+    expect(s.call!.why.some(w => /^Their likely setup: .+ lighter \d+% \(estimate\)$/.test(w))).toBe(true);
+  });
+
+  it('on T side: intel of a B stack turns the call to "A likely light"', () => {
+    const t = new MatchTracker({ playbookHandle: 'a' });
+    let live: { at: number } | undefined;
+    for (const { t: ts, p } of syntheticMatch({ rounds: FIRST_HALF, ourSide: 'T' })) {
+      t.ingest(toGameState(p, ts));
+      const s = t.snapshot(ts);
+      if (s.match?.round === 3 && s.match.clock.phase === 'live') { live = { at: ts }; break; }
+    }
+    expect(live).toBeDefined();
+    t.addIntel({ zone: 'bsite', count: 3, by: 'kairo', at: live!.at + 20_000 });
+    const s = t.snapshot(live!.at + 20_000);
+    expect(s.forecast!.basis).toBe('intel');
+    expect(s.forecast!.site.A).toBeGreaterThan(0.7);
+    expect(s.call!.kind).toBe('mid');
+    expect(s.call!.head).toMatch(/^A likely light · \d+%$/);
+    expect(s.call!.steps[0]).toBe('Go A');
   });
 
   it('forecasts the enemy plan from the buy read on CT', () => {

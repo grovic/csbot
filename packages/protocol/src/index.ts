@@ -79,9 +79,12 @@ export interface EnemyView {
 export interface ForecastView {
   /** Map model id the plan ids belong to (engine map models). */
   map: string;
-  /** Prior or posterior over enemy plans. */
+  /** Prior or posterior over enemy plans (their CT setups when `enemy` is 'CT'). */
   plans: Record<string, number>;
+  /** Enemy T: how likely each site gets hit. Enemy CT: how likely each site is the lighter one to hit. */
   site: { A: number; B: number };
+  /** 'CT' on our T halves (absent = enemy T, our CT halves). */
+  enemy?: 'CT';
   topPlan: { id: string; name: string; p: number };
   /** Seconds since the round went live (for the heat map). */
   liveT?: number;

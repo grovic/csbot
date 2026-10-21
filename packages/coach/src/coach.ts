@@ -72,7 +72,9 @@ export function matchFacts(live: LiveSnapshot, roster: readonly RosterEntry[], s
   }
   if (live.forecast) {
     const f = live.forecast;
-    facts.forecastEstimate = { siteA: pct(f.site.A), siteB: pct(f.site.B), topPlan: `${f.topPlan.name} ${pct(f.topPlan.p)}`, basis: f.basis };
+    facts.forecastEstimate = f.enemy === 'CT'
+      ? { theirLikelySetup: `${f.topPlan.name} ${pct(f.topPlan.p)}`, lighterSiteA: pct(f.site.A), lighterSiteB: pct(f.site.B), basis: f.basis }
+      : { siteA: pct(f.site.A), siteB: pct(f.site.B), topPlan: `${f.topPlan.name} ${pct(f.topPlan.p)}`, basis: f.basis };
   }
   if (live.call) facts.engineCall = { head: live.call.head, setup: live.call.setup };
   if (setups.length) facts.playbookSetups = setups;
@@ -93,7 +95,10 @@ export function eventMessage(trigger: Exclude<Trigger, 'question'>, live: LiveSn
       return `Freeze time, round ${live.match?.round}. Write the team call for this round. Facts: ${facts}`;
     case 'intel': {
       const seen = (live.intel ?? []).map(i => `${i.by.join(' + ')}: ${i.count ? `${i.count} at ${i.zoneName}` : `${i.zoneName} clear`} (${i.t}s into the round)`).join('; ');
-      return `Intel in round ${live.match?.round}: ${seen || 'none'}. The forecast moved (estimate). Write the updated mid-round call: who rotates where, who holds. Facts: ${facts}`;
+      const ask = live.match?.ourSide === 'T'
+        ? 'Write the updated mid-round call: which site to hit and how the team gets there.'
+        : 'Write the updated mid-round call: who rotates where, who holds.';
+      return `Intel in round ${live.match?.round}: ${seen || 'none'}. The forecast moved (estimate). ${ask} Facts: ${facts}`;
     }
     case 'plant':
       return `The bomb was just planted in round ${live.match?.round} (the game doesn't tell players the site). Write the post-plant call. Facts: ${facts}`;

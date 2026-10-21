@@ -32,6 +32,21 @@ export const PLANS_NUKE: MapPlans = {
     half: { aRush: 0.16, aExec: 0.22, rampRush: 0.14, bSplit: 0.16, secretB: 0.12, slowA: 0.2 },
     full: { aRush: 0.06, aExec: 0.32, rampRush: 0.06, bSplit: 0.2, secretB: 0.14, slowA: 0.22 },
   },
+  defense: {
+    setups: [
+      { id: 'default', name: 'Standard (heaven, A, garage, ramp, B)', holds: ['heaven', 'asite', 'garage:mid', 'ramp:B', 'bsite'] },
+      { id: 'stackA', name: 'Stack A (ramp to hell, outside to mini)', holds: ['heaven', 'asite', 'hell:A', 'mini', 'bsite'] },
+      { id: 'stackB', name: 'Stack B (ramp + secret + 2 on B)', holds: ['heaven', 'ramp:B', 'secret:B', 'bsite', 'bsite'] },
+      { id: 'outsidePush', name: 'Outside push for picks', holds: ['heaven', 'outside:mid', 'outside:mid', 'ramp:B', 'bsite'] },
+      { id: 'retakeB', name: 'Light B, ramp + admin retake', holds: ['heaven', 'asite', 'garage:mid', 'ramp:B', 'admin'] },
+    ],
+    priorByBuy: {
+      eco: { default: 0.18, stackA: 0.28, stackB: 0.22, outsidePush: 0.2, retakeB: 0.12 },
+      force: { default: 0.28, stackA: 0.22, stackB: 0.18, outsidePush: 0.18, retakeB: 0.14 },
+      half: { default: 0.36, stackA: 0.17, stackB: 0.14, outsidePush: 0.16, retakeB: 0.17 },
+      full: { default: 0.45, stackA: 0.13, stackB: 0.1, outsidePush: 0.15, retakeB: 0.17 },
+    },
+  },
 };
 
 export const PLAYBOOK_NUKE: PlaybookDef = {

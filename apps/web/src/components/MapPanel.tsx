@@ -74,10 +74,10 @@ function Labels({ geo, view }: { geo: MapGeo; view: View }) {
 }
 
 /** Heat image (G×G RGBA) from the plan forecast. Same color ramp as the prototype. */
-function useHeatImage(map: string | undefined, plans: Record<string, number> | undefined, t: number): ImageData | undefined {
-  const key = plans ? map + Object.entries(plans).map(([k, v]) => k + v.toFixed(3)).join() + '|' + Math.round(t) : '';
+function useHeatImage(map: string | undefined, enemy: 'CT' | undefined, plans: Record<string, number> | undefined, t: number): ImageData | undefined {
+  const key = plans ? map + (enemy ?? 'T') + Object.entries(plans).map(([k, v]) => k + v.toFixed(3)).join() + '|' + Math.round(t) : '';
   return useMemo(() => {
-    const model = map ? MAPS[map] : undefined;
+    const model = map ? (enemy === 'CT' ? MAPS[map]?.ct : MAPS[map]) : undefined;
     if (!plans || !model) return undefined;
     const heat = heatGrid(model, plans, Math.round(t), { size: G });
     const img = new ImageData(G, G);
@@ -275,12 +275,14 @@ export function MapPanel({ snap, room, intelBlock, onIntel }: {
 }) {
   const m = snap.match;
   const geo = m?.map ? GEOS[m.map] : undefined;
-  const model = m?.map ? MAPS[m.map] : undefined;
-  const roundTime = model?.roundTime ?? 115;
+  const base = m?.map ? MAPS[m.map] : undefined;
+  // The plans behind the forecast: their attack on our CT halves, their setups on our T halves.
+  const model = snap.forecast?.enemy === 'CT' ? base?.ct : base;
+  const roundTime = base?.roundTime ?? 115;
   const f = snap.forecast && model && snap.forecast.map === model.id ? snap.forecast : undefined;
   const [ahead, setAhead] = useState(0);
   const now = liveSeconds(snap, roundTime);
-  const img = useHeatImage(m?.map, f?.plans, (f?.liveT ?? 0) + (f?.liveT !== undefined ? ahead : 0));
+  const img = useHeatImage(m?.map, f?.enemy, f?.plans, (f?.liveT ?? 0) + (f?.liveT !== undefined ? ahead : 0));
 
   if (!m || !geo) {
     return (
@@ -323,13 +325,13 @@ export function MapPanel({ snap, room, intelBlock, onIntel }: {
         </div>
         {!f && (
           <div className="map-empty bottom"><div className="box" data-testid="map-note">
-            <b>{!model ? `No forecast for ${geo.name} yet` : m.ourSide === 'T' ? 'Forecast covers your CT halves' : 'Forecast arrives at freeze time'}</b>
-            {!model ? 'The map and intel work; enemy plans for it come in an update.' : m.ourSide === 'T' ? 'Enemy CT setups come in a later update. Intel you log still reaches the room.' : 'It starts from the enemy buy read.'}
+            <b>{!base ? `No forecast for ${geo.name} yet` : 'Forecast arrives at freeze time'}</b>
+            {!base ? 'The map and intel work; enemy plans for it come in an update.' : m.ourSide === 'T' ? 'It starts from the enemy buy read: where their CTs likely hold.' : 'It starts from the enemy buy read.'}
           </div></div>
         )}
       </div>
       <div className="mapbar">
-        <span className="cap"><i className="ramp" />estimated enemy presence, not game data</span>
+        <span className="cap"><i className="ramp" />{f?.enemy === 'CT' ? 'estimated defenders, not game data' : 'estimated enemy presence, not game data'}</span>
         {f?.liveT !== undefined && (
           <div className="seg" data-testid="forecast-seg" role="group" aria-label="Forecast time">
             <button type="button" className={ahead === 0 ? 'on' : ''} onClick={() => setAhead(0)}>Now</button>

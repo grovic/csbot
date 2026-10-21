@@ -28,6 +28,23 @@ export const PLANS_ANCIENT: MapPlans = {
     half: { aRush: 0.12, aExec: 0.18, midA: 0.14, bRush: 0.16, bExec: 0.16, midB: 0.1, slowA: 0.14 },
     full: { aRush: 0.05, aExec: 0.24, midA: 0.2, bRush: 0.06, bExec: 0.2, midB: 0.12, slowA: 0.13 },
   },
+  // Enemy CT setups for our T halves: one hold zone per defender. B is far from CT spawn, so low buys
+  // lean towards stacking it.
+  defense: {
+    setups: [
+      { id: 'default', name: 'Standard 2-1-2 (donut, top mid, cave)', holds: ['asite', 'sidehall', 'topofmid', 'sideentrance', 'bsite'] },
+      { id: 'stackA', name: 'Stack A (main + donut)', holds: ['asite', 'asite', 'sidehall', 'topofmid', 'bsite'] },
+      { id: 'stackB', name: 'Stack B (site + cave)', holds: ['asite', 'topofmid', 'sideentrance', 'bsite', 'bsite'] },
+      { id: 'midPush', name: 'Mid control push (3 mid)', holds: ['asite', 'topofmid', 'middle', 'middle', 'bsite'] },
+      { id: 'retake', name: 'Light sites, play the retake', holds: ['asite', 'ctspawn', 'house', 'alley', 'bsite'] },
+    ],
+    priorByBuy: {
+      eco: { default: 0.2, stackA: 0.25, stackB: 0.27, midPush: 0.18, retake: 0.1 },
+      force: { default: 0.3, stackA: 0.18, stackB: 0.2, midPush: 0.18, retake: 0.14 },
+      half: { default: 0.38, stackA: 0.15, stackB: 0.15, midPush: 0.17, retake: 0.15 },
+      full: { default: 0.44, stackA: 0.11, stackB: 0.11, midPush: 0.19, retake: 0.15 },
+    },
+  },
 };
 
 export const PLAYBOOK_ANCIENT: PlaybookDef = {

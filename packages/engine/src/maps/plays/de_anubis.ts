@@ -28,6 +28,22 @@ export const PLANS_ANUBIS: MapPlans = {
     half: { bRush: 0.16, bExec: 0.18, midB: 0.12, aRush: 0.12, aExec: 0.16, midA: 0.13, slowA: 0.13 },
     full: { bRush: 0.05, bExec: 0.22, midB: 0.14, aRush: 0.05, aExec: 0.24, midA: 0.16, slowA: 0.14 },
   },
+  defense: {
+    setups: [
+      { id: 'default', name: 'Standard 2-1-2', holds: ['asite', 'walkway', 'middle:mid', 'backofb', 'bsite'] },
+      { id: 'stackA', name: 'Stack A (site + heaven + walkway)', holds: ['asite', 'asite', 'walkway', 'middle:mid', 'bsite'] },
+      { id: 'stackB', name: 'Stack B (site + pillar + connector)', holds: ['asite', 'middle:mid', 'connector', 'bsite', 'bsite'] },
+      { id: 'midPush', name: 'Mid control (mid doors + canal push)', holds: ['asite', 'middle:mid', 'middoors', 'canal', 'bsite'] },
+      { id: 'bMainPush', name: 'B main push for info', holds: ['asite', 'walkway', 'middle:mid', 'outsidelong', 'bsite'] },
+      { id: 'retake', name: 'Light sites, play the retake', holds: ['asite', 'tunnel', 'ctspawn', 'palaceinterior', 'bsite'] },
+    ],
+    priorByBuy: {
+      eco: { default: 0.16, stackA: 0.22, stackB: 0.24, midPush: 0.14, bMainPush: 0.16, retake: 0.08 },
+      force: { default: 0.26, stackA: 0.17, stackB: 0.18, midPush: 0.13, bMainPush: 0.14, retake: 0.12 },
+      half: { default: 0.34, stackA: 0.14, stackB: 0.14, midPush: 0.13, bMainPush: 0.11, retake: 0.14 },
+      full: { default: 0.42, stackA: 0.11, stackB: 0.11, midPush: 0.13, bMainPush: 0.09, retake: 0.14 },
+    },
+  },
 };
 
 export const PLAYBOOK_ANUBIS: PlaybookDef = {

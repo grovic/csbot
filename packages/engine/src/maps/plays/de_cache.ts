@@ -31,6 +31,21 @@ export const PLANS_CACHE: MapPlans = {
     half: { aRush: 0.14, aExec: 0.18, midA: 0.14, bRush: 0.16, bExec: 0.16, midB: 0.1, slowA: 0.12 },
     full: { aRush: 0.05, aExec: 0.26, midA: 0.18, bRush: 0.06, bExec: 0.18, midB: 0.13, slowA: 0.14 },
   },
+  defense: {
+    setups: [
+      { id: 'default', name: 'Standard 2-1-2 (A + highway, Z AWP, checkers + B)', holds: ['asite', 'highway', 'connector', 'checkers', 'bsite'] },
+      { id: 'stackA', name: 'Stack A (quad + truck + highway)', holds: ['asite', 'truck', 'highway', 'connector', 'bsite'] },
+      { id: 'stackB', name: 'Stack B (headshot + heaven + checkers)', holds: ['asite', 'connector', 'checkers', 'bsite', 'bsite'] },
+      { id: 'midPush', name: 'Mid push (highway + Z up to white box)', holds: ['asite', 'mid', 'mid', 'checkers', 'bsite'] },
+      { id: 'retake', name: 'Light sites, play the retake', holds: ['truck', 'connector', 'ctlane', 'ctspawn', 'treeroom'] },
+    ],
+    priorByBuy: {
+      eco: { default: 0.2, stackA: 0.24, stackB: 0.26, midPush: 0.2, retake: 0.1 },
+      force: { default: 0.3, stackA: 0.17, stackB: 0.19, midPush: 0.2, retake: 0.14 },
+      half: { default: 0.38, stackA: 0.14, stackB: 0.16, midPush: 0.17, retake: 0.15 },
+      full: { default: 0.48, stackA: 0.1, stackB: 0.11, midPush: 0.16, retake: 0.15 },
+    },
+  },
 };
 
 export const PLAYBOOK_CACHE: PlaybookDef = {

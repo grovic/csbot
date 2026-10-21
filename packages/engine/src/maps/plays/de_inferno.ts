@@ -32,6 +32,23 @@ export const PLANS_INFERNO: MapPlans = {
     half: { bRush: 0.14, bExec: 0.2, aRush: 0.12, aExec: 0.17, aSplit: 0.11, slowB: 0.13, slowA: 0.13 },
     full: { bRush: 0.04, bExec: 0.25, aRush: 0.04, aExec: 0.24, aSplit: 0.15, slowB: 0.14, slowA: 0.14 },
   },
+  // Enemy CT setups for our T halves: one hold zone per defender (`:mid` = counts toward neither site).
+  // The arch player is the mid rotator (`arch:mid`): Inferno's arch is on the A side but rotates to B via CT.
+  defense: {
+    setups: [
+      { id: 'default', name: 'Standard 2-1-2 (pit, short, arch, banana, B)', holds: ['pit', 'topofmid', 'arch:mid', 'banana', 'bsite'] },
+      { id: 'stackA', name: 'Stack A (pit, short, site)', holds: ['pit', 'topofmid', 'asite', 'arch:mid', 'bsite'] },
+      { id: 'stackB', name: 'Stack B (banana + 2 on site)', holds: ['asite', 'arch:mid', 'banana', 'bsite', 'bsite'] },
+      { id: 'bananaPush', name: 'Banana control push (2 up banana)', holds: ['pit', 'topofmid', 'banana', 'banana', 'bsite'] },
+      { id: 'retake', name: 'Light sites, play the retake', holds: ['library', 'arch:mid', 'ctspawn', 'ctspawn', 'bsite'] },
+    ],
+    priorByBuy: {
+      eco: { default: 0.18, stackA: 0.24, stackB: 0.28, bananaPush: 0.22, retake: 0.08 },
+      force: { default: 0.28, stackA: 0.18, stackB: 0.22, bananaPush: 0.2, retake: 0.12 },
+      half: { default: 0.36, stackA: 0.15, stackB: 0.17, bananaPush: 0.18, retake: 0.14 },
+      full: { default: 0.45, stackA: 0.11, stackB: 0.12, bananaPush: 0.17, retake: 0.15 },
+    },
+  },
 };
 
 export const PLAYBOOK_INFERNO: PlaybookDef = {
