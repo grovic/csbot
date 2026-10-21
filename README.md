@@ -25,7 +25,7 @@ A second-screen companion for Counter-Strike 2 squads.
 
 ## Design
 
-**Proposal:** [docs/PROPOSAL.md](docs/PROPOSAL.md) covers rooms and roles, architecture (Electron + GitHub Pages + room relay), tech stack, feature list, roadmap, and the fair-play boundary.
+**Proposal:** [docs/PROPOSAL.md](docs/PROPOSAL.md) covers rooms and roles, architecture (Electron + GitHub Pages + peer-to-peer rooms, no server), tech stack, feature list, roadmap, and the fair-play boundary.
 
 **First test to run:** [tools/gsi-probe](tools/gsi-probe/README.md) is a 10-minute check that decides how teammates' positions work on the room map.
 

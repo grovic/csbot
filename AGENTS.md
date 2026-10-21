@@ -7,7 +7,7 @@ Guidance for any coding agent working in this repository.
 - **The project owner does not run anything.** The agent does all of the work: installing dependencies, building, testing, git, screenshots, deployments, and maintaining docs.
 - **The owner approves and discusses.** Ask with a yes/no or a short multiple-choice question, recommendation first, and batch questions together.
 - **Ask before** anything outward-facing or hard to undo:
-  - pushing to GitHub, publishing GitHub Pages or Releases, deploying the relay
+  - pushing to GitHub, publishing GitHub Pages or Releases
   - creating accounts or spending money (code signing, paid tiers)
   - installing software or background processes on this PC
   - writing into the CS2 install folder
@@ -57,7 +57,8 @@ csbot is a second-screen companion for Counter-Strike 2 squads. An admin's deskt
 
 ## Repository conventions
 
-- pnpm workspaces + turbo monorepo, TypeScript everywhere. Layout in PROPOSAL §10: `apps/{desktop,web}`, `packages/{engine,gsi,protocol,ui}`, `services/relay`, `tools/`.
+- pnpm workspaces + turbo monorepo, TypeScript everywhere. Layout in PROPOSAL §10: `apps/{desktop,web}`, `packages/{engine,gsi,protocol,room,ui}`, `tools/`.
+- Rooms are peer-to-peer (PROPOSAL §3.4b). Never add a feature that makes users create an account or depend on a server we run.
 - Work on a branch per milestone or feature, and merge through reviewed PRs once the repo is on GitHub.
 - **Tests:**
   - engine unit tests against fixtures and demo truth

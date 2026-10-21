@@ -21,7 +21,7 @@ How it runs:
 |---|---|
 | Apps | **Electron desktop app** (host or member) and the **same React app on GitHub Pages** (member). Windows first. |
 | Rooms | The admin's desktop app **hosts** a room, and squad members **join** with an invite link. Same screens for everyone, with a personal YOU. Roles: admin and member. |
-| Room relay | A tiny **Cloudflare Worker with one Durable Object per room**, end-to-end encrypted. GitHub Pages is static, so the relay lives outside it. |
+| Room connection | **Peer-to-peer, no server, no accounts.** Members connect straight to the host's desktop app over WebRTC. The first handshake goes through public Nostr relays (open infrastructure), encrypted with the room key from the invite link. Nobody signs up anywhere and nothing runs in the cloud. |
 | Live game data | **Valve Game State Integration (GSI) only**: the host's own GSI, plus each member's own GSI if they share it |
 | Public data | FACEIT Data API, Steam Web API, Leetify (optional), demo files. All fetched by the host, so keys never leave the host. |
 | AI layer | The admin's own **Claude Code CLI**, run headless (`claude -p`, stream-json) with a local MCP server. **One call per event, broadcast to the room.** |
@@ -109,7 +109,7 @@ From Anthropic's Claude Code *Legal and compliance* page:
 | See every page, live | ✅ | ✅ | ✅ (also on a phone) |
 | Personal YOU line, marker, money | ✅ | ✅ | ✅ |
 | Log intel, ask the coach, vote on calls | ✅ | ✅ | ✅ |
-| Own GSI shared with the room | ✅ local | ✅ local → room | ✅ via a downloadable room GSI cfg (**spike**: GSI posting to an HTTPS URL) |
+| Own GSI shared with the room | ✅ local | ✅ local → room | ❌ (a browser can't receive GSI; install the desktop app to share) |
 | Global hotkeys, voice callouts | ✅ | ✅ | voice only |
 | Runs Claude Code, engines, API calls, demo parsing | ✅ | only after a handover | ❌ |
 | Change calls, playbook, AI settings, permissions | ✅ | ❌ | ❌ |
@@ -152,7 +152,30 @@ From Anthropic's Claude Code *Legal and compliance* page:
 - **Member → host:** `intent` messages (`intel`, `ask`, `vote`, `position`), plus `gsi` when the member shares their own GSI. The host validates them, applies them, and rebroadcasts.
 - **Each client runs the same `packages/engine`.** Only compact state goes over the wire: the plan posterior, the round clock, and intel. Every client renders the heatmap and timings locally, which keeps traffic to a few KB per update and the animation smooth.
 - **Duplicate intel** (same zone within 3 s from two players) is merged, and each event keeps its author ("kairo: 3 at B apps").
-- **Added latency** (host → relay → member) is about 50–150 ms. That's negligible next to the 2–4 s AI calls.
+- **Added latency:** host → member is one direct WebRTC hop, typically 20–80 ms. That's negligible next to the 3–5 s AI calls.
+
+### 3.4b How devices connect (no server, no accounts)
+
+Joining has to be as simple as opening a link: no sign-up for anyone, nothing to host, nothing to pay.
+
+- **Topology:** a star. Each member opens one WebRTC data channel to the host's desktop app. WebRTC is built into every browser, so this works from the GitHub Pages site and from phones.
+- **Finding each other (signaling):**
+  - Peers exchange their connection offers through **public Nostr relays**. Nostr is an open protocol with many free relays and no accounts.
+  - The open-source **Trystero** library (MIT) handles this, with several relays at once for redundancy. BitTorrent trackers or MQTT brokers are fallback options it supports too.
+  - The offers are encrypted with the room key, so the relays only see an opaque blob under a hashed room ID. Room data never touches them; it flows directly between devices.
+- **Getting through home routers:**
+  - Public STUN servers (no account) let most home connections reach each other directly.
+  - **Same network** (LAN party, same house): direct, always works.
+  - **Strict networks** (some mobile carriers, corporate or school networks) can block direct connections. Those members need a TURN server that forwards traffic. Options, none of them needed for normal use:
+    - the host's desktop app offers itself as the forwarder when the router allows it (UPnP)
+    - a squad that wants it can run the open-source coturn with one command
+  - M2 measures how often direct connection fails across the squad's real networks.
+- **Encryption:** WebRTC encrypts every channel (DTLS). csbot adds its own AES-GCM layer with the room key, so only people with the invite link can read or send room messages.
+- **What others can see:** members see the host's IP address, as in any peer-to-peer game. The public relays see that someone joined *a* room, never which room or what was said.
+- **Rejected alternatives:**
+  - a hosted relay (Cloudflare, Supabase, PartyKit): somebody has to create an account and run it
+  - the host as a plain WebSocket server: members would need port forwarding on the admin's router
+  - Tailscale or ZeroTier: everyone needs an account
 
 ### 3.5 Same screen, personal YOU
 
@@ -203,25 +226,25 @@ Randoms show their planned spot and a "random" tag, unless a dead room member is
 
 ### 3.8 Host failure and handover
 
-- **If the host drops**, the room shows "host offline" and pauses.
-- **The relay keeps the last encrypted snapshot.**
-- **To take over**, the admin (or any desktop member with Claude Code, if the admin allows it) resumes the room from that snapshot and keeps the round history and economy model. API keys don't transfer. The new host uses their own, or runs without scouting refresh.
+- **If the host drops**, the room shows "host offline" and pauses. Members keep reconnecting through the same room ID.
+- **Every member keeps the last snapshot** locally, so nothing is lost when the host's PC crashes.
+- **To take over**, the admin (or any desktop member with Claude Code, if the admin allows it) becomes the new hub. They resume from the newest snapshot any member has, keeping the round history and economy model. API keys don't transfer. The new host uses their own, or runs without scouting refresh.
 
 ### 3.9 Security and privacy
 
-- **End-to-end encryption:** AES-GCM with the room key from the link fragment, via WebCrypto in both Node and browsers. The relay only sees ciphertext, room IDs, and presence.
+- **End-to-end encryption:** AES-GCM with the room key from the link fragment, via WebCrypto in both Node and browsers, on top of WebRTC's own DTLS. The public signaling relays only see encrypted offers under a hashed room ID.
 - **No secrets in the web bundle.** API keys, Claude credentials, and demo files stay on the host.
 - **Member GSI:**
   - each member's room GSI cfg carries a per-member token
   - the host accepts only allow-listed GSI components
   - spectator-only data is dropped
-- **Relay limits:** per-room connection limits, rate limits on intents, and room expiry.
+- **Host limits:** the host caps connections per room, rate-limits intents, and only accepts members the admin approved.
 - **Web app hardening:** a strict Content-Security-Policy and no third-party scripts.
 
 ### 3.10 Cost
 
 - **GitHub Pages** (web app) and **GitHub Releases** (desktop installers and auto-update): free.
-- **Cloudflare Workers + Durable Objects:** the free tier should cover several squads. Verify current limits before launch.
+- **Rooms:** free. No server: devices talk directly, and the public Nostr relays only carry the handshake.
 - **Windows code signing** is the main recurring cost. It avoids SmartScreen warnings and anti-virus false positives.
 
 ---
@@ -232,22 +255,22 @@ Randoms show their planned spot and a "random" tag, unless a dead room member is
             ┌────────────────────── Admin's PC (host) ───────────────────────┐
  CS2 ──GSI─▶│ Electron main (Node)                                            │
  (localhost)│  gsi server · spectator guard · recorder                        │
-            │  engine (shared TS) · sources (FACEIT/Steam/Leetify) · demo     │      ┌──── Room relay (Cloudflare) ────┐
- claude CLI │  ai orchestrator ⇄ MCP server (127.0.0.1)                       │ WSS  │ Worker + Durable Object / room  │
-   ⇅ MCP    │  room host: RoomState → snapshot/patches · intents in           │◀────▶│ routes ciphertext · presence    │
-            │ Renderer: React UI (same code as the web app)                   │ E2E  │ encrypted last snapshot         │
-            └─────────────────────────────────────────────────────────────────┘      └───────▲───────────────▲─────────┘
-                                                                                       WSS E2E │       HTTPS   │ member GSI
-                                                              ┌────────────────────────────────┴──┐     (room cfg, token)
-                                                              │ Members: web app (GitHub Pages)   │  ◀── member's CS2
-                                                              │ or desktop app (+ own local GSI)  │
-                                                              └───────────────────────────────────┘
+            │  engine (shared TS) · sources (FACEIT/Steam/Leetify) · demo     │
+ claude CLI │  ai orchestrator ⇄ MCP server (127.0.0.1)                       │      ┌─ public Nostr relays ─┐
+   ⇅ MCP    │  room host: RoomState → snapshot/patches · intents in           │◀ ─ ─▶│ handshake only,       │
+            │ Renderer: React UI + room hub (WebRTC)                          │      │ encrypted offers      │
+            └──────────────────────────────▲──────────────────────────────────┘      └───────────▲───────────┘
+                                           │ WebRTC data channels (DTLS + AES-GCM), direct        │ handshake
+                              ┌────────────┴──────────────────────┐                               │
+                              │ Members: web app (GitHub Pages)   │◀ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘
+                              │ or desktop app (+ own local GSI)  │◀── member's CS2 (desktop members)
+                              └───────────────────────────────────┘
 ```
 
 **Event flow on the host:**
 1. A GSI payload (the host's own, or a member's via the room) passes the spectator guard and becomes a normalized `GameState`.
 2. The host diffs it against the previous state and emits domain events (`FreezeStarted`, `RoundLive`, `BombPlanted`, `RoundEnded{winner, reason}`, `MoneyChanged`, `MatchEnded`).
-3. The engines update, and the `RoomState` patch goes to the local UI and the relay.
+3. The engines update, and the `RoomState` patch goes to the local UI and to every member's data channel.
 4. The AI orchestrator subscribes to a few of those events, each with a latency budget. Its `publish_call` output becomes part of the `RoomState`.
 
 ---
@@ -261,12 +284,12 @@ Randoms show their planned spot and a "random" tag, unless a dead room member is
 | UI | Zustand, TanStack Query, Tailwind, Radix primitives | Mainstream and fast to iterate |
 | Shared engine | `packages/engine` (pure TS): economy, forecast, heat, playbook | Runs on the host and in every client, so the wire format stays tiny |
 | Host services (Node) | fastify (GSI), better-sqlite3, `@laihoe/demoparser2` (worker thread), `@modelcontextprotocol/sdk` (MCP server), `child_process` for `claude` | All local to the admin's PC |
-| Room relay | Cloudflare Workers + Durable Objects (WebSocket hibernation), deployed with wrangler | One object per room, cheap, low latency. Alternatives: Supabase Realtime, PartyKit, Ably. |
+| Room connection | WebRTC data channels, **Trystero** (MIT) for signaling over public Nostr relays, public STUN; optional TURN (coturn) for strict networks | No server and no accounts for anyone. Works in browsers and in Electron's renderer. |
 | Protocol | zod schemas in `packages/protocol`, Immer patches, WebCrypto AES-GCM | Validated, versioned, and encrypted on both ends |
 | Minimap / charts | Canvas 2D heat + SVG/HTML overlays; small hand-rolled SVG charts (d3-scale/d3-shape) | The prototype shows this is cheap |
 | Voice | Web Speech API for TTS; push-to-talk with whisper.cpp on desktop | Offline, no extra cost |
 | Hotkeys | Electron `globalShortcut` | OS-level. Nothing is sent to the game. |
-| Testing | GSI recorder/replayer, engine golden tests against demo truth, Playwright (Electron + web), relay tests with Miniflare, prompt eval set | Real matches can't be part of CI |
+| Testing | GSI recorder/replayer, engine golden tests against demo truth, Playwright (Electron + web), room tests over a local signaling stub, prompt eval set | Real matches can't be part of CI |
 
 **Footprint while gaming:** Electron uses about 250–400 MB of RAM. To keep that down, the host runs one window with no GPU-heavy rendering and keeps demo parsing in a worker that only runs between matches. The budget is checked in M0.
 
@@ -323,7 +346,7 @@ claude -p --input-format stream-json --output-format stream-json --verbose \
 
 ### 6.4 Latency budget per round
 
-Target: **the call is on every screen ≤ 8 s after the round ends (p95)**. The pipeline: engine (<50 ms) → delta prompt (~1–2k tokens) → model → `publish_call` → relay (~100 ms). Freeze time length is **to verify** (about 15–20 s); the tracker learns it from the first full freeze it sees.
+Target: **the call is on every screen ≤ 8 s after the round ends (p95)**. The pipeline: engine (<50 ms) → delta prompt (~1–2k tokens) → model → `publish_call` → direct WebRTC to every member (~20–80 ms). Freeze time length is **to verify** (about 15–20 s); the tracker learns it from the first full freeze it sees.
 
 **Measured (M0 spike 5, `tools/spikes/claude-latency`):** on a warm `claude -p` session, the call reached the screen in **3.1–5.4 s with Sonnet** and 2.6–3.3 s with Haiku. Haiku's calls had tactical mistakes, so Sonnet at low effort is the default. The spike also set four rules:
 - the tool schema has no length limits (trim server-side; a rejection costs a retry)
@@ -399,8 +422,8 @@ Target: **the call is on every screen ≤ 8 s after the round ends (p95)**. The 
 ### Platform and rooms
 - Electron desktop app (host or member) and the web app on GitHub Pages (member client, plus a public demo mode)
 - Create a room, invite link, approve joins, roles (admin/member), permissions, randoms, host handover, room expiry
-- Members share their own GSI: automatically from the desktop app, or with a downloadable room cfg on the web
-- End-to-end encryption, relay with presence, reconnects, and an encrypted last snapshot
+- Members share their own GSI automatically from the desktop app (the web app views, logs intel and asks)
+- Peer-to-peer rooms with no server and no accounts: end-to-end encryption, presence, reconnects, last snapshot kept on every device
 - Auto-update from GitHub Releases, signed installer
 
 ### Scout
@@ -435,7 +458,7 @@ Target: **the call is on every screen ≤ 8 s after the round ends (p95)**. The 
 - coach config (admin): models and effort, call budget, member quota, team mode, call length, prompts, team playbook
 
 ### Settings and fair play
-- **Admin:** host connections (GSI, Claude Code, keys, relay, demos), advanced (GSI cfg, last payload)
+- **Admin:** host connections (GSI, Claude Code, keys, room network, demos), advanced (GSI cfg, last payload)
 - **Member:** your device (room connection, GSI sharing)
 - **Everyone:** screen, voice, and hotkeys
 - Room-wide tournament mode, room-wide spectator guard
@@ -489,8 +512,8 @@ csbot/
 │  ├─ engine/           # economy, forecast, heat, playbook (pure TS, unit-tested)
 │  ├─ gsi/              # GSI types, diff → domain events, spectator guard
 │  ├─ protocol/         # room messages (zod), patches, WebCrypto helpers
+│  ├─ room/             # WebRTC rooms: signaling (Trystero/Nostr), host hub, member client
 │  └─ ui/               # shared components: minimap, charts, cards
-├─ services/relay/      # Cloudflare Worker + Durable Object per room
 ├─ data/maps/<map>/{zones.json,routes.json,playbook.yaml} · data/rules/economy.v1.json
 ├─ prompts/{analyst.md,live-coach.md,debrief.md}
 ├─ tools/{gsi-probe,gsi-recorder,gsi-replayer,map-builder}/
@@ -500,7 +523,6 @@ csbot/
 **CI (GitHub Actions):**
 - `web` builds to GitHub Pages
 - `desktop` builds a signed installer to GitHub Releases, which drives auto-update
-- `relay` deploys with wrangler
 - tests run on every PR
 
 ## 11. Data model
@@ -519,7 +541,7 @@ csbot/
 | `ai_calls` | `match`, `round`, `role`, `model`, `latency_ms`, `tokens_in`, `tokens_out`, `asked_by`, `payload_json`, `votes` |
 | `rooms` / `room_members` | `code`, `created_at`, `expires_at` / `room`, `player`, `role`, `device`, `shares_gsi` |
 
-**Relay (Durable Object storage):** encrypted last snapshot, presence, sequence number. Nothing readable.
+**Members (in memory / IndexedDB):** the last snapshot and sequence number, for reconnects and host handover. There is no server-side storage.
 
 ---
 
@@ -530,8 +552,7 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
 ### M0: technical spikes (each with a go/no-go)
 1. **GSI as a player** on FACEIT and Premier. Confirm the fields, the `map.mode` value, and latency. **Run `tools/gsi-probe` first.** It settles squad positions (section 3.7): is your own position sent while alive, and is the watched teammate's position sent while dead?
    - *Status:* the probe is installed on the owner's PC and waiting for one real match.
-2. **GSI to a remote HTTPS URL.** Can a member's CS2 post straight to the relay? This decides whether the web-only "room cfg" works. Fallback: members need the desktop app to share GSI.
-   - *Status:* needs CS2 running. It can share the probe's match.
+2. ~~**GSI to a remote HTTPS URL.**~~ Dropped: with no relay, there's nothing for a web member's CS2 to post to. Members share GSI through the desktop app.
 3. **Premier roster** from `status` / `-condebug`.
    - *Status:* needs one `status` in a real match. The only `console.log` on the PC is from a map-editor session.
 4. **FACEIT:** live match detection, plus applying for the Downloads API now (FACEIT quotes ~30 days).
@@ -540,8 +561,8 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
    - **Done: go.** 3.1–5.4 s to screen with Sonnet (section 6.4, `tools/spikes/claude-latency`). Plan usage per match is still to measure.
 6. **demoparser2** (Node binding) on FACEIT and Valve demos. Auto-build Mirage zones and routes.
    - *Status:* needs a demo file. There are none on the PC yet.
-7. **Relay:** a Durable Object room with 5 clients, measuring end-to-end latency, reconnects, and free-tier headroom.
-   - *Status:* moved into M2. It needs the relay provider decision and an account.
+7. **Peer-to-peer rooms:** a host plus 5 clients over WebRTC with Trystero signaling on public Nostr relays. Measure join time, latency, reconnects, and how often direct connection fails on the squad's real networks.
+   - *Status:* first in M2. Needs no account.
 8. **Electron footprint** on a gaming PC (RAM/CPU during a match).
    - **Done: go,** with a hidden window: 268 MB private memory and 0.2% CPU while hosting (`tools/spikes/electron-footprint`). To re-measure with a visible window during a real match.
 9. **Economy rules** checked against demo truth.
@@ -549,7 +570,7 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
 
 ### Milestones
 1. **M1 · Core host:** Electron shell, GSI server + recorder/replayer, engine (economy), Live (banner, tiles, scoreboard with host data).
-2. **M2 · Rooms:** relay, protocol, E2E, invite/join/approve, roles and permissions, web app on GitHub Pages, member GSI sharing, personal YOU.
+2. **M2 · Rooms:** peer-to-peer rooms (WebRTC + Nostr signaling), protocol, E2E, invite/join/approve, roles and permissions, web app on GitHub Pages, member GSI sharing from the desktop app, personal YOU.
 3. **M3 · Scouting:** FACEIT/Steam/Leetify clients + cache, Scout page, analyst session + MCP server.
 4. **M4 · Forecast:** demo ingest, zones and routes for the map pool, plan priors, heat, intel from all members, gather mode.
 5. **M5 · Live coach:** playbook, live session, per-player jobs, Coach page, voice, tournament mode, quotas.
@@ -570,21 +591,20 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
 | Risk | Mitigation |
 |---|---|
 | Valve changes GSI fields | Recorder corpus + contract tests. Fields and rules live in data files. |
-| GSI can't post to HTTPS (spike 2) | Web members only view and log intel. The desktop app shares GSI. |
 | No positions while alive *and* none while dead (probe 1 and 2 = NO) | Squad markers rely on planned spots, check-ins, and rotation timing. Exact positions come in the post-match replay. |
 | No Premier roster source | FACEIT-first. Premier uses the room members + post-match learning. |
 | Anthropic terms or plan usage change | Per-match budgets and member quotas. API-key mode on the same code path. |
-| Relay cost or limits | One Durable Object per room. Free tier first. Alternatives: Supabase or PartyKit. |
-| Host PC drops mid-match | Encrypted snapshot on the relay + handover |
+| Direct connection fails on strict networks | Same-LAN and most home networks connect directly. Fallbacks: the host forwards traffic when its router allows UPnP, or the squad runs open-source coturn. M2 measures the failure rate. |
+| Public Nostr relays go down or rate-limit | Several relays at once. Trystero can also signal over BitTorrent trackers or MQTT. Signaling is a handful of messages per join. |
+| Host PC drops mid-match | Every member keeps the last snapshot; another desktop member takes over |
 | League rules on live assistance | Room-wide tournament mode |
 | Model makes things up | Tool-only facts, playbook-bound calls, eval set from votes |
 | Map art licensing | Our own schematic maps from demo positions |
 
 **Decisions needed:**
 1. **Repo and hosting owner:** GitHub org or account for Pages and Releases (e.g. `csbot-app`), and whether the repo is public from day one.
-2. **Relay provider:** Cloudflare (recommended) or Supabase. Who owns the account?
-3. **Code signing:** buy a certificate (Azure Trusted Signing is the cheapest route), or ship unsigned during the beta.
-4. **Member question quota** default (5 per match?), and whether randoms can get a read-only invite.
+2. **Code signing:** buy a certificate (Azure Trusted Signing is the cheapest route), or ship unsigned during the beta.
+3. **Member question quota** default (5 per match?), and whether randoms can get a read-only invite.
 
 ---
 

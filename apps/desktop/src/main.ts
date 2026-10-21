@@ -3,11 +3,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { app, BrowserWindow, ipcMain, Menu, session, shell, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, screen, session, shell, type IpcMainInvokeEvent } from 'electron';
 import type { CfgInstallResult } from '@csbot/protocol';
 import { detectCs2, installCfg } from './cs2.ts';
-import { Host } from './host.ts';
+import { Host, sessionFileName } from './host.ts';
 import { loadSettings, readEnv, saveSettings, type Settings } from './settings.ts';
+import { loadWindowState, restorableBounds, saveWindowState } from './window-state.ts';
 
 const env = readEnv();
 if (env.userData) app.setPath('userData', path.resolve(env.userData));
@@ -117,13 +118,18 @@ function run(): void {
     });
 
     win = createWindow();
-    if (env.metricsFile) startMetrics(env.metricsFile);
+    // `--metrics` (used for real-match measurements) logs process metrics into userData/metrics.
+    const metricsFile = env.metricsFile ?? (process.argv.includes('--metrics') ? path.join(app.getPath('userData'), 'metrics', sessionFileName()) : undefined);
+    if (metricsFile) startMetrics(metricsFile);
   });
 
   function createWindow(): BrowserWindow {
+    const userData = app.getPath('userData');
+    const saved = env.hidden ? undefined : restorableBounds(loadWindowState(userData), screen.getAllDisplays().map(d => d.workArea));
     const w = new BrowserWindow({
-      width: 1280,
-      height: 820,
+      width: saved?.width ?? 1280,
+      height: saved?.height ?? 820,
+      ...(saved ? { x: saved.x, y: saved.y } : {}),
       minWidth: 900,
       minHeight: 600,
       backgroundColor: '#0b0f14',
@@ -140,7 +146,9 @@ function run(): void {
         backgroundThrottling: !env.hidden,
       },
     });
-    if (!env.hidden) w.once('ready-to-show', () => w.show());
+    if (!env.hidden) w.once('ready-to-show', () => { if (saved?.maximized) w.maximize(); w.show(); });
+    // Remember the position (typically the second screen) for next launch.
+    if (!env.hidden) w.on('close', () => saveWindowState(userData, { ...w.getNormalBounds(), maximized: w.isMaximized() }));
     w.webContents.setWindowOpenHandler(({ url }) => {
       if (/^https?:\/\//.test(url)) void shell.openExternal(url);
       return { action: 'deny' };
