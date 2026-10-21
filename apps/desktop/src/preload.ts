@@ -50,6 +50,8 @@ const bridge: CsbotBridge = {
   askCoach: (text, from) => ipcRenderer.invoke('csbot:askCoach', text, from) as Promise<{ ok: boolean; error?: string }>,
   setCoachConfig: patch => ipcRenderer.invoke('csbot:setCoachConfig', patch) as Promise<void>,
   setRoomSlots: (members, opts) => { ipcRenderer.send('csbot:setRoomSlots', members, opts); },
+  logIntel: (zone, count, from) => ipcRenderer.invoke('csbot:logIntel', zone, count, from) as Promise<{ ok: boolean; error?: string }>,
+  setIntelHotkeys: enabled => ipcRenderer.invoke('csbot:setIntelHotkeys', enabled) as Promise<{ ok: boolean; error?: string }>,
 };
 
 contextBridge.exposeInMainWorld('csbot', bridge);

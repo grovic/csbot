@@ -2,7 +2,7 @@ import { MIRAGE } from '@csbot/engine';
 import type { CoachView, LiveSnapshot, RoomView } from '@csbot/protocol';
 import { useEffect, useRef, useState } from 'react';
 import { claudeCallFor, secs } from '../data/coachInfo.ts';
-import { pct } from '../format.ts';
+import { clockStr, pct } from '../format.ts';
 
 const planName = (id: string) => MIRAGE.plans.find(p => p.id === id)?.name ?? id;
 
@@ -68,7 +68,8 @@ export function CallCard({ snap, room, coach }: { snap: LiveSnapshot; room?: Roo
       </div>
     );
   }
-  const kick = { pre: `Team call · round ${c.round}`, mid: `Update · round ${c.round}`, post: `Post-plant · round ${c.round}`, over: `Round ${c.round} result` }[c.kind];
+  const left = m?.clock.phase === 'live' ? m.clock.endsIn : undefined;
+  const kick = { pre: `Team call · round ${c.round}`, mid: `Update · ${left !== undefined ? clockStr(left) : `round ${c.round}`}`, post: `Post-plant · round ${c.round}`, over: `Round ${c.round} result` }[c.kind];
   const plans = snap.forecast && snap.forecast.map === MIRAGE.id
     ? Object.entries(snap.forecast.plans).sort((a, b) => b[1] - a[1]).slice(0, 3)
     : [];

@@ -8,7 +8,7 @@
 //
 // Stream mode (live coach): `--input-format stream-json`. One JSON user message per stdin line; for
 // each, a StructuredOutput tool_use then a `result` line with structured_output. A call for
-// "Freeze time…" / "The bomb…", an answer for "Question from…" and "ready" for the warm-up.
+// "Freeze time…" / "Intel in round…" / "The bomb…", an answer for "Question from…" and "ready" for the warm-up.
 //   FAKE_COACH_DELAY        ms per turn (default 200)
 //   FAKE_COACH_SLOW         ms per turn for freeze calls only (tests the timeout and late results)
 //   FAKE_COACH_CRASH_AFTER  exit(1) after this many results (tests restarts)
@@ -38,6 +38,7 @@ function stream() {
         jobs: [{ slot: 'a', job: 'Hold A alone, fall back to CT' }, { slot: 'b', job: 'Anchor B van' }, { slot: 'ghost', job: 'dropped' }],
         steps: ['Long angles', 'Trade in pairs'], why: ['Enemy likely on eco'] };
     }
+    if (text.startsWith('Intel in round')) return { type: 'call', head: 'Claude: rotate on the intel', sub: 'They committed, collapse', jobs: [{ slot: 'rotator', job: 'Rotate now, call when in' }, { slot: 'a', job: 'Hold A, watch for a fake' }], steps: ['Rotate', 'Trade'], why: ['Intel moved the forecast'] };
     if (text.startsWith('The bomb')) return { type: 'call', head: 'Claude: retake together', sub: 'Kit first, utility on site', jobs: [{ slot: 'a', job: 'Smoke the entrance' }], steps: ['Group up'], why: ['Bomb planted'] };
     if (text.startsWith('Question from')) {
       const q = /"([^"]*)"/.exec(text)?.[1] ?? '';

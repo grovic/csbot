@@ -4,11 +4,11 @@
 
 import { diffStates, type GameState, type GsiEvent } from '@csbot/gsi';
 import type {
-  BuyRead, CallView, ConnectionView, EnemyView, ForecastView, LiveSnapshot, MeView, Phase, PlayerRow,
+  BuyRead, CallView, ConnectionView, EnemyView, ForecastView, IntelView, LiveSnapshot, MeView, Phase, PlayerRow,
   RoundRecord, SetupSpot, Side, TickerItem, YouTile,
 } from '@csbot/protocol';
 import { applyRoundResult, argmax, buyProbs, FULL_BUY_CT, lossBonus, startOfHalf, type BuyProbs, type EnemyEconomy, type RoundReason } from './economy.ts';
-import { planPrior, siteForecast, topPlan, type MapModel } from './forecast.ts';
+import { planPosterior, planPrior, siteForecast, topPlan, type Intel, type MapModel, type Site } from './forecast.ts';
 import { MIRAGE } from './maps/mirage.ts';
 import { engineRoundCall, MIRAGE_PLAYBOOK, type Playbook } from './playbook.ts';
 
@@ -143,6 +143,10 @@ export class MatchTracker {
 
   private call?: CallView;
   private setupSpots?: SetupSpot[];
+  /** This round's intel (reset at freeze time). */
+  private intel: (Omit<Intel, 'by'> & { by: string[]; at: number })[] = [];
+  /** The call before intel changed the plan (mid calls are built from it). */
+  private baseCall?: CallView;
   private ticker: TickerItem[] = [];
 
   constructor(opts: TrackerOptions = {}) {
@@ -159,6 +163,34 @@ export class MatchTracker {
 
   /** Count spectator-only nodes the guard removed (shown in Settings as proof the guard works). */
   noteGuardDrops(n: number): void { this.guardDropped += n; }
+
+  /**
+   * Intel from anyone in the room: `count` enemies seen in `zone` (0 = clear) at `at` (epoch ms).
+   * Updates the forecast; when it now points clearly at one site, the call becomes a "plan changed"
+   * call. Two logs of the same zone within 3 s are merged (both authors kept).
+   */
+  addIntel(i: { zone: string; count: number; by?: string; at: number }): { ok: boolean; error?: string } {
+    const model = this.map ? this.o.maps[this.map] : undefined;
+    if (!model) return { ok: false, error: `No map model for ${this.map ?? 'this map'} yet: intel can't move the forecast.` };
+    const zone = model.zones.find(z => z.id === i.zone);
+    if (!zone) return { ok: false, error: `Unknown zone "${i.zone}".` };
+    if (this.phase !== 'live' && this.phase !== 'bomb') return { ok: false, error: 'Intel is logged during a live round.' };
+    if (this.liveStartedAt === undefined) return { ok: false, error: 'Wait for the round to go live.' };
+    const count = Math.max(0, Math.min(5, Math.round(i.count)));
+    const t = Math.max(0, (i.at - this.liveStartedAt) / 1000);
+    const by = i.by?.trim() || 'someone';
+    const dup = this.intel.find(x => x.zone === zone.id && Math.abs(x.t - t) <= 3);
+    if (dup) {
+      dup.count = Math.max(dup.count, count);
+      if (!dup.by.includes(by)) dup.by.push(by);
+    } else {
+      this.intel.push({ zone: zone.id, count, t, by: [by], at: i.at });
+    }
+    const name = zone.name || zone.id;
+    this.push(i.at, 'INTEL', `${by}: ${count ? `${count} at ${name}` : `${name} clear`}`);
+    if (this.phase === 'live') this.maybePlanChanged(i.at);
+    return { ok: true };
+  }
 
   ingest(s: GameState): GsiEvent[] {
     this.payloads++;
@@ -248,6 +280,9 @@ export class MatchTracker {
     if (this.call) snap.call = { ...this.call };
     if (this.setupSpots) snap.setupSpots = this.setupSpots.map(s => ({ ...s }));
     if (this.o.playbookHandle) snap.youHandle = this.o.playbookHandle;
+    if (this.intel.length) {
+      snap.intel = this.intel.map(x => ({ zone: x.zone, zoneName: this.zoneName(x.zone), count: x.count, t: Math.round(x.t), by: [...x.by] }) satisfies IntelView);
+    }
     const tile = youTile(this.me, this.phase, this.ourSide, this.ourLossStreak, this.freezeMoney, this.pistol);
     if (tile) snap.youTile = tile;
     return snap;
@@ -308,6 +343,8 @@ export class MatchTracker {
 
   private onFreeze(round: number, s: GameState): void {
     this.round = round;
+    this.intel = [];
+    this.baseCall = undefined;
     this.plantedThisRound = false;
     this.myRoundDamage = 0;
     this.liveStartedAt = undefined;
@@ -422,14 +459,58 @@ export class MatchTracker {
     // Plans model the enemy's attack, so only when they're T.
     if (!model || !this.enemyBuy || this.ourSide !== 'CT') return undefined;
     const buy = this.enemyRead === 'pistol' ? { eco: 1, force: 0, half: 0, full: 0 } : this.enemyBuy;
-    const plans = planPrior(model, buy);
+    const prior = planPrior(model, buy);
+    const plans = this.intel.length ? planPosterior(model, prior, this.intel.map(({ zone, count, t }) => ({ zone, count, t }))) : prior;
     const top = topPlan(plans);
     const liveT = this.liveStartedAt !== undefined && (this.phase === 'live' || this.phase === 'bomb') ? (now - this.liveStartedAt) / 1000 : undefined;
     return {
       map: model.id, plans, site: siteForecast(model, plans),
       topPlan: { id: top, name: model.plans.find(p => p.id === top)?.name ?? top, p: plans[top] ?? 0 },
-      ...(liveT !== undefined ? { liveT } : {}), basis: 'prior',
+      ...(liveT !== undefined ? { liveT } : {}), basis: this.intel.length ? 'intel' : 'prior',
     };
+  }
+
+  /**
+   * After new intel: if one site is now clearly likely (≥ 70%) and the call doesn't already say so,
+   * switch to a "plan changed" call: the rotator goes to that site, the rest of the setup holds.
+   */
+  private maybePlanChanged(now: number): void {
+    const fc = this.forecast(now);
+    if (!fc || !this.call || (this.call.kind !== 'pre' && this.call.kind !== 'mid')) return;
+    const site: Site = fc.site.B >= fc.site.A ? 'B' : 'A';
+    const p = fc.site[site];
+    if (p < 0.7) return;
+    if (this.call.kind === 'mid') {
+      if (this.call.head.startsWith(`${site} `)) return; // already calling this site
+    } else {
+      // Only when intel changed the read: the likely site flipped, or became clear (≥ 70%) from unclear.
+      const model = this.o.maps[this.map!]!;
+      const buy = this.enemyRead === 'pistol' ? { eco: 1, force: 0, half: 0, full: 0 } : this.enemyBuy!;
+      const before = siteForecast(model, planPrior(model, buy));
+      const beforeSite: Site = before.B >= before.A ? 'B' : 'A';
+      if (beforeSite === site && before[site] >= 0.7) return;
+    }
+    const base = this.baseCall ?? this.call;
+    this.baseCall = base;
+    const jobs = { ...base.jobs };
+    if (jobs.rotator !== undefined || Object.keys(jobs).length === 0) jobs.rotator = `Rotate to ${site} now. Call when you're in position.`;
+    const seen = this.intel.slice(-3).map(x => `${x.by.join(' + ')}: ${x.count ? `${x.count} at ${this.zoneName(x.zone)}` : `${this.zoneName(x.zone)} clear`}`);
+    const handle = this.o.playbookHandle;
+    this.call = {
+      kind: 'mid', round: this.round,
+      head: `${site} hit likely · ${pct(p)}`,
+      sub: `Rotate to ${site}, hold the other site`,
+      jobs, ...(handle && jobs[handle] ? { you: jobs[handle] } : {}),
+      steps: [`Rotate to ${site}`, 'Hold the other site', 'Trade, no solo peeks'],
+      why: [...seen, `Forecast ${site} ${pct(p)} (${fc.topPlan.name}) · estimate`].slice(0, 3),
+      ...(base.setup ? { setup: base.setup } : {}), source: 'engine',
+    };
+    this.push(now, 'PLAN', `Plan changed: ${site} likely (${pct(p)}). Rotate.`);
+  }
+
+  private zoneName(id: string): string {
+    const z = this.map ? this.o.maps[this.map]?.zones.find(x => x.id === id) : undefined;
+    return z?.name || id;
   }
 
   private scoreboard(): PlayerRow[] {

@@ -54,7 +54,7 @@ export interface CallLogEntry {
   id: string;
   at: number;
   round: number;
-  trigger: 'freeze' | 'plant' | 'question' | 'warmup';
+  trigger: 'freeze' | 'intel' | 'plant' | 'question' | 'warmup';
   status: 'ok' | 'late' | 'timeout' | 'error' | 'skipped';
   model?: string;
   ms?: number;

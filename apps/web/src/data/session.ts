@@ -20,7 +20,7 @@ import { demoRoom } from './demoRoom.ts';
 import { demoScout } from './demoScout.ts';
 import { demoSource, readDemoOptions } from './demo.ts';
 import { signalFromLink, signalFromPage, toSignaling } from './signal.ts';
-import { noneSource, type SourceKind } from './source.ts';
+import { noneSource, type SnapshotSource, type SourceKind } from './source.ts';
 
 export type Role = 'demo' | 'none' | 'solo' | 'host' | 'member';
 
@@ -107,6 +107,8 @@ export class Session {
   /** Signaling the page itself was opened with (?signal=…), inherited by rooms we create. */
   private readonly pageSignal?: string;
   private memberLink?: string;
+  /** The demo's own source (it takes intel locally). */
+  private demo?: SnapshotSource;
 
   constructor(win: Window = window) {
     this.win = win;
@@ -155,6 +157,7 @@ export class Session {
   private startSource(which: 'demo' | 'none'): void {
     const src = which === 'demo' ? demoSource(readDemoOptions(this.win.location.search)) : noneSource();
     this.reset({ role: which, kind: which, ...(which === 'demo' ? { scout: { ...EMPTY_SCOUT, status: 'loading' as const }, coach: demoCoach() } : {}) });
+    this.demo = which === 'demo' ? src : undefined;
     let alive = true;
     this.stops.push(() => { alive = false; });
     if (which === 'demo') {
@@ -276,6 +279,52 @@ export class Session {
     try { await this.bridge!.setCoachConfig!(patch); } catch { /* the next coach update shows the real state */ }
   }
 
+  // ---------------------------------------------------------------- intel
+
+  /**
+   * Why intel can't be logged from this screen right now, or undefined when it can. The host checks
+   * again (and may still refuse); this is what the map shows before anyone clicks.
+   */
+  intelBlock(): string | undefined {
+    const v = this.view, live = v.screen?.live, room = v.screen?.room;
+    if (v.role === 'none') return 'No match to log intel in.';
+    if (v.role === 'member' && v.link?.status !== 'approved') return 'Not connected to the host.';
+    if (room?.tournament) return 'Tournament mode is on: no live forecast.';
+    if (v.role === 'member' && room && !room.permissions.intel) return 'The admin turned off intel from members.';
+    const phase = live?.match?.clock.phase;
+    if (phase !== 'live' && phase !== 'bomb') return 'Intel is logged while the round is live.';
+    return undefined;
+  }
+
+  /** Log intel: `count` enemies seen in `zone` (0 = clear). Returns a refusal to show, if any. */
+  async logIntel(zone: string, count: number): Promise<string | undefined> {
+    const block = this.intelBlock();
+    if (block) return block;
+    try {
+      if (this.view.role === 'demo') {
+        const r = this.demo?.addIntel?.(zone, count, 'rdx');
+        return !r ? 'The demo is not running.' : r.ok ? undefined : r.error ?? 'Not logged.';
+      }
+      if (this.view.role === 'member') {
+        if (!this.client) return 'Not connected to the host.';
+        const r = await this.client.logIntel(zone, count);
+        return r.ok ? undefined : r.error ?? 'The host refused the intel.';
+      }
+      if ((this.view.role === 'solo' || this.view.role === 'host') && this.bridge?.logIntel) {
+        const r = await this.bridge.logIntel(zone, count);
+        return r.ok ? undefined : r.error ?? 'Not logged.';
+      }
+      return 'Intel needs the csbot desktop app or a room.';
+    } catch (e) {
+      return String((e as Error)?.message ?? e);
+    }
+  }
+
+  /** The desktop app runs the game connection (solo or hosting): host-only settings apply. */
+  get isHostSide(): boolean {
+    return !!this.bridge && (this.view.role === 'solo' || this.view.role === 'host');
+  }
+
   // ---------------------------------------------------------------- hosting (desktop)
 
   createRoom(): void {
@@ -296,6 +345,8 @@ export class Session {
       transport, room, hostName, onSave: r => write(localStorage, LS.hostRoom, r),
       // Members' questions go to this PC's coach with who asked (it applies their quota).
       onAsk: (from, text) => (b.askCoach ? b.askCoach(text, from) : Promise.resolve({ ok: false, error: "The host's coach isn't available." })),
+      // Members' intel goes into this PC's tracker with who saw it.
+      onIntel: (from, zone, count) => (b.logIntel ? b.logIntel(zone, count, from) : Promise.resolve({ ok: false, error: "The host can't take intel right now." })),
     });
     this.host = host;
     // Scouting and the coach go to every member on each update (and to joiners on approval).
@@ -442,6 +493,7 @@ export class Session {
     this.leaveNet = undefined;
     this.host = undefined;
     this.client = undefined;
+    this.demo = undefined;
     const base: SessionView = { role: 'none', kind: this.bridge ? 'desktop' : 'none', device: this.bridge ? 'desktop' : 'web', receivedAt: Date.now(), rate: 1, signaling: this.pageSignal ? 'ws' : 'nostr' };
     this.view = { ...base, ...patch };
     this.notify();

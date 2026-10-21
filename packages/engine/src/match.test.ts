@@ -206,3 +206,60 @@ describe('review fixes', () => {
     expect(fz.some(s => s.me!.money >= 1000)).toBe(true);
   });
 });
+
+describe('intel', () => {
+  /** Snapshots of a lean full match, and a tracker paused live in a given round. */
+  function liveIn(round: number) {
+    const t = new MatchTracker({ playbookHandle: 'a' });
+    const rec = syntheticMatch({ rounds: FULL_MATCH, lean: true });
+    let at = 0;
+    for (const { t: ts, p } of rec) {
+      t.ingest(toGameState(p, ts));
+      at = ts;
+      const s = t.snapshot(ts);
+      if (s.match?.round === round && s.match.clock.phase === 'live') break;
+    }
+    return { t, at };
+  }
+
+  it('refuses intel outside a live round or for unknown zones', () => {
+    const t = new MatchTracker();
+    expect(t.addIntel({ zone: 'bapps', count: 3, at: 0 }).ok).toBe(false);
+    const { t: live, at } = liveIn(2);
+    expect(live.addIntel({ zone: 'nowhere', count: 1, at }).error).toMatch(/Unknown zone/);
+  });
+
+  it('moves the forecast, merges duplicates, and lists who saw what', () => {
+    const { t, at } = liveIn(5);
+    const before = t.snapshot(at).forecast!;
+    expect(before.basis).toBe('prior');
+    t.addIntel({ zone: 'bapps', count: 3, by: 'kairo', at: at + 15_000 });
+    t.addIntel({ zone: 'bapps', count: 2, by: 'nyx', at: at + 16_000 }); // same sighting
+    const s = t.snapshot(at + 16_000);
+    expect(s.forecast!.basis).toBe('intel');
+    expect(s.forecast!.site.B).toBeGreaterThan(before.site.B);
+    expect(s.intel).toEqual([{ zone: 'bapps', zoneName: 'B Apps', count: 3, t: 15, by: ['kairo', 'nyx'] }]);
+    expect(s.ticker[0]!.text).toBe('nyx: 2 at B Apps');
+  });
+
+  it('turns the call into "plan changed" only when intel changes the read', () => {
+    // Round 2: they're on an eco and the prior already says B.
+    const eco = liveIn(2);
+    eco.t.addIntel({ zone: 'bapps', count: 3, by: 'kairo', at: eco.at + 15_000 });
+    expect(eco.t.snapshot(eco.at + 15_000).call!.kind).toBe('pre');
+    // Round 5: a bigger buy, the prior isn't clear; 3 at B apps makes B clear.
+    const full = liveIn(5);
+    const prior = full.t.snapshot(full.at).forecast!.site;
+    expect(Math.max(prior.A, prior.B)).toBeLessThan(0.7);
+    full.t.addIntel({ zone: 'bapps', count: 3, by: 'kairo', at: full.at + 15_000 });
+    const s = full.t.snapshot(full.at + 15_000);
+    expect(s.call!.kind).toBe('mid');
+    expect(s.call!.head).toMatch(/^B hit likely · \d+%$/);
+    expect(s.call!.jobs.rotator).toMatch(/^Rotate to B now/);
+    expect(s.call!.why[0]).toBe('kairo: 3 at B Apps');
+    expect(s.ticker.some(x => x.tag === 'PLAN')).toBe(true);
+    // A new round starts clean.
+    const next = liveIn(6);
+    expect(next.t.snapshot(next.at).intel).toBeUndefined();
+  });
+});

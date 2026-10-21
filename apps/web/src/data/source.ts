@@ -16,6 +16,8 @@ export interface SnapshotSource {
    */
   rate(): number;
   subscribe(cb: (s: LiveSnapshot) => void): () => void;
+  /** The demo only: intel goes into its own tracker (the public demo is interactive). */
+  addIntel?(zone: string, count: number, by: string): { ok: boolean; error?: string };
 }
 
 /** A source with no data: the browser without a host (room joining arrives in M2). */

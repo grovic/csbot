@@ -5,7 +5,7 @@ import { PhaseBanner } from '../components/PhaseBanner.tsx';
 import { Scoreboard } from '../components/Scoreboard.tsx';
 import { Ticker } from '../components/Ticker.tsx';
 import { Tiles } from '../components/Tiles.tsx';
-import type { Role } from '../data/session.ts';
+import type { Role, Session } from '../data/session.ts';
 import type { SourceKind } from '../data/source.ts';
 import { DesktopLink } from '../components/DesktopLink.tsx';
 
@@ -39,7 +39,7 @@ function Waiting({ kind, role, room }: { kind: SourceKind; role: Role; room?: Ro
   );
 }
 
-export function Live({ snap, receivedAt, rate, kind, role, room, scout, coach }: { snap: LiveSnapshot; receivedAt: number; rate: number; kind: SourceKind; role: Role; room?: RoomView; scout?: ScoutView; coach?: CoachView }) {
+export function Live({ snap, receivedAt, rate, kind, role, room, scout, coach, session }: { snap: LiveSnapshot; receivedAt: number; rate: number; kind: SourceKind; role: Role; room?: RoomView; scout?: ScoutView; coach?: CoachView; session?: Session }) {
   if (snap.connection.gsi === 'waiting' || !snap.match) return <Waiting kind={kind} role={role} room={room} />;
   return (
     <section data-testid="live">
@@ -53,7 +53,7 @@ export function Live({ snap, receivedAt, rate, kind, role, room, scout, coach }:
           <Tiles snap={snap} webMember={role === 'member' && kind === 'member'} />
           <Ticker snap={snap} />
         </div>
-        <MapPanel snap={snap} room={room} />
+        <MapPanel snap={snap} room={room} {...(session ? { onIntel: (z: string, n: number) => session.logIntel(z, n), ...(session.intelBlock() ? { intelBlock: session.intelBlock() } : {}) } : {})} />
       </div>
       <Scoreboard snap={snap} inRoom={!!room && role !== 'demo'} scout={scout} />
     </section>

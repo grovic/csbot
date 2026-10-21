@@ -85,6 +85,8 @@ export const MemberMessage = z.discriminatedUnion('t', [
   /** The member picks their own slot (when permitted). */
   z.object({ t: z.literal('slot'), slot: z.string().max(24).nullable() }),
   z.object({ t: z.literal('rename'), name }),
+  /** Intel: a zone and how many enemies were seen there (0 = clear). The host checks the intel permission. */
+  z.object({ t: z.literal('intel'), zone: z.string().min(1).max(32).regex(/^[a-z0-9_]+$/), count: z.number().int().min(0).max(5) }),
   /** A question for the coach (the host checks the ask permission and the member's quota). */
   z.object({ t: z.literal('ask'), text: z.string().trim().min(2).max(300) }),
   z.object({ t: z.literal('bye') }),
@@ -101,10 +103,12 @@ export type HostMessage =
   | { t: 'coach'; coach: CoachView }
   /** The answer to this member's own ask: refused (quota, permission) or accepted. */
   | { t: 'askResult'; ok: boolean; error?: string }
+  /** Refused intel (permission, tournament, not a live round). Accepted intel shows up in the next state. */
+  | { t: 'intelResult'; ok: boolean; error?: string }
   | { t: 'removed'; reason: string }
   | { t: 'ended' };
 
-const HOST_TYPES = new Set(['welcome', 'state', 'scout', 'coach', 'askResult', 'removed', 'ended']);
+const HOST_TYPES = new Set(['welcome', 'state', 'scout', 'coach', 'askResult', 'intelResult', 'removed', 'ended']);
 export function isHostMessage(m: unknown): m is HostMessage {
   return !!m && typeof m === 'object' && HOST_TYPES.has((m as { t?: unknown }).t as string);
 }

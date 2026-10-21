@@ -29,6 +29,8 @@ describe('what the coach is told', () => {
     expect(eventMessage('freeze', freeze2(), ROSTER)).toMatch(/^Freeze time, round 2\. /);
     expect(questionMessage('Where do they "rush"?', { id: 'k', name: 'kairo', role: 'member' }, freeze2(), ROSTER)).toMatch(/^Question from kairo \(a member\): "Where do they 'rush'\?"/);
     expect(COACH_SCHEMA.required).toEqual(['type']);
+    const withIntel = { ...freeze2(), intel: [{ zone: 'bapps', zoneName: 'B Apps', count: 3, t: 15, by: ['kairo'] }] };
+    expect(eventMessage('intel', withIntel, ROSTER)).toMatch(/^Intel in round 2: kairo: 3 at B Apps \(15s into the round\)\. /);
   });
 });
 

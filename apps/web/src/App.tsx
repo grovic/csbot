@@ -28,7 +28,7 @@ export function App() {
   else if (route === 'scout') page = <Scout view={v} session={session} />;
   else if (route === 'debrief') page = <Placeholder milestone="Coming in M6" title="Debrief" text="Result, buy-read accuracy, enemy money per round and what to work on next, built from the match demo." />;
   else if (route === 'coach') page = <CoachPage view={v} session={session} />;
-  else if (live) page = <Live snap={live} receivedAt={v.receivedAt} rate={v.rate} kind={v.kind} role={v.role} room={v.screen?.room} scout={scoutOf(v)} coach={coachOf(v)} />;
+  else if (live) page = <Live snap={live} receivedAt={v.receivedAt} rate={v.rate} kind={v.kind} role={v.role} room={v.screen?.room} scout={scoutOf(v)} coach={coachOf(v)} session={session} />;
 
   return (
     <div className="app" data-source={v.kind} data-role={v.role}>

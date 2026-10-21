@@ -3,13 +3,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { app, BrowserWindow, ipcMain, Menu, safeStorage, screen, session, shell, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain, Menu, safeStorage, screen, session, shell, type IpcMainInvokeEvent } from 'electron';
 import type { CfgInstallResult, CoachAsker, CoachConfig, CoachView, ScoutView } from '@csbot/protocol';
 import { COACH_SCHEMA, COACH_SYSTEM } from '@csbot/coach';
 import { CoachService } from './coach/service.ts';
 import { ClaudeCoachSession } from './coach/session.ts';
 import { detectCs2, installCfg } from './cs2.ts';
 import { Host, sessionFileName } from './host.ts';
+import { fakeShortcuts, IntelHotkeys } from './hotkeys.ts';
 import { loadSettings, readEnv, saveSettings, type Settings } from './settings.ts';
 import { rendererUrlFor, samePage, webIndexFor } from './urls.ts';
 import { Updater } from './updater.ts';
@@ -35,6 +36,7 @@ function run(): void {
   let host: Host | null = null;
   let scout: ScoutService | null = null;
   let coach: CoachService | null = null;
+  let hotkeys: IntelHotkeys | null = null;
   /** Names of the members in this host's room (set by the renderer that runs the room). */
   let roomRoster: string[] = [];
   let scoutCache: FileStore | null = null;
@@ -79,6 +81,7 @@ function run(): void {
   app.on('will-quit', e => {
     scoutCache?.flush();
     coach?.stop();
+    hotkeys?.dispose();
     if (!host) return;
     e.preventDefault();
     const h = host;
@@ -149,6 +152,7 @@ function run(): void {
       makeSession: c => new ClaudeCoachSession({ model: c.model, effort: c.effort, system: COACH_SYSTEM, schema: COACH_SCHEMA, cmd: claude }),
       detect: async () => (await detectClaude(claude)).found,
       applyCall: call => host?.setCoachCall(call),
+      engineCall: () => host?.engineCall(),
       scout: () => scout?.current,
       hostName: () => host?.latest().me?.name ?? 'Host',
       hostSlot: () => settings.playbookHandle,
@@ -159,6 +163,42 @@ function run(): void {
     coach.onChange(sendCoach);
     void coach.init();
     host.onSnapshot(s => coach?.observe(s));
+
+    // Intel (M4a): from this PC (map clicks, numpad hotkeys) and from room members (the web host
+    // passes their name). It moves the forecast; a changed read changes the call.
+    const ownName = () => host?.latest().me?.name || 'host';
+    hotkeys = new IntelHotkeys({
+      // Hidden runs and tests never take real global keys (the owner may be playing).
+      shortcuts: env.fakeHotkeys ? fakeShortcuts() : globalShortcut,
+      log: (zone, count) => {
+        // Tournament mode hides the forecast for the whole room: intel isn't taken either.
+        if (coach?.inTournament) { log('hotkey intel ignored: tournament mode'); return; }
+        const r = host?.addIntel(zone, count, ownName());
+        if (r && !r.ok) log(`hotkey intel not logged: ${r.error}`);
+      },
+    });
+    host.onSnapshot(s => hotkeys?.setMap(s.match?.map));
+    hotkeys.setEnabled(!!settings.intelHotkeys);
+    ipcMain.handle('csbot:logIntel', (e, zone: unknown, count: unknown, from: unknown) => {
+      guard(e);
+      if (typeof zone !== 'string' || !/^[a-z0-9_]{1,32}$/.test(zone) || typeof count !== 'number' || !Number.isInteger(count) || count < 0 || count > 5) {
+        return { ok: false, error: 'Invalid intel.' };
+      }
+      if (!host) return { ok: false, error: 'csbot is shutting down' };
+      if (coach?.inTournament) return { ok: false, error: 'Tournament mode is on: no live forecast.' };
+      const name = from && typeof from === 'object' && typeof (from as { name?: unknown }).name === 'string' ? (from as { name: string }).name.trim().slice(0, 32) : '';
+      return host.addIntel(zone, count, name || ownName());
+    });
+    ipcMain.handle('csbot:setIntelHotkeys', (e, enabled: unknown) => {
+      guard(e);
+      if (typeof enabled !== 'boolean') return { ok: false, error: 'Invalid request.' };
+      const { intelHotkeys: _old, ...rest } = settings;
+      settings = enabled ? { ...rest, intelHotkeys: true } : rest;
+      saveSettings(userData, settings);
+      hotkeys?.setEnabled(enabled);
+      const st = hotkeys?.status();
+      return { ok: true, ...(st?.error ? { error: st.error } : {}) };
+    });
     ipcMain.handle('csbot:coachLatest', e => { guard(e); return coach?.view; });
     ipcMain.handle('csbot:askCoach', (e, text: unknown, from: unknown) => {
       guard(e);
@@ -227,7 +267,10 @@ function run(): void {
     });
 
     ipcMain.handle('csbot:latest', e => { guard(e); return host?.latest(); });
-    ipcMain.handle('csbot:getInfo', e => { guard(e); return host ? { ...host.info(), update: updater.status } : undefined; });
+    ipcMain.handle('csbot:getInfo', e => {
+      guard(e);
+      return host ? { ...host.info(), update: updater.status, ...(hotkeys ? { intelHotkeys: hotkeys.status() } : {}) } : undefined;
+    });
     ipcMain.handle('csbot:installCfg', (e): CfgInstallResult => {
       guard(e);
       if (!host) return { ok: false, error: 'csbot is shutting down' };

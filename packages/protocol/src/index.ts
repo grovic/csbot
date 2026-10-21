@@ -91,6 +91,18 @@ export interface ForecastView {
 
 export interface SetupSpot { player: string; at: readonly [number, number]; label: string }
 
+/** What someone in the room saw this round ("3 at B Apps", "A Ramp clear"). Always a player's claim. */
+export interface IntelView {
+  zone: string;
+  zoneName: string;
+  /** Enemies seen; 0 = the zone was clear. */
+  count: number;
+  /** Seconds since the round went live. */
+  t: number;
+  /** Who logged it (merged when two players log the same zone within 3 s). */
+  by: string[];
+}
+
 export interface CallView {
   kind: 'pre' | 'mid' | 'post' | 'over';
   round: number;
@@ -155,6 +167,8 @@ export interface LiveSnapshot {
   youTile?: YouTile;
   /** Our team. Enemy rows come from scouting (M3). */
   scoreboard: PlayerRow[];
+  /** Intel logged this round, oldest first. */
+  intel?: IntelView[];
   /** Newest first. */
   ticker: TickerItem[];
 }
@@ -174,6 +188,13 @@ export interface HostInfo {
   portFallback?: { wanted: number; actual: number };
   cs2Path?: string;
   recordingsDir: string;
+  /**
+   * Numpad intel hotkeys (desktop, off by default: a global hotkey takes the key away from the game).
+   * Pressing a sighting key n times within 1.5 s logs n enemies; a clear key logs the zone clear.
+   */
+  intelHotkeys?: { enabled: boolean; keys: { key: string; zone: string; zoneName: string; kind: 'sighting' | 'clear' }[]; error?: string };
+  /** Auto-update (installed copies only). */
+  update?: { version: string; state: 'off' | 'checking' | 'up-to-date' | 'downloading' | 'ready' | 'error'; available?: string; error?: string };
 }
 
 export interface CfgInstallResult { ok: boolean; path?: string; error?: string }
@@ -214,6 +235,13 @@ export interface CsbotBridge {
   /** A question for the coach. The room host passes members' questions on with their identity. */
   askCoach?(text: string, from?: CoachAsker): Promise<{ ok: boolean; error?: string }>;
   setCoachConfig?(patch: Partial<CoachConfig>): Promise<void>;
+  /**
+   * Log intel for this round: a zone and how many enemies (0 = clear). The room host passes members'
+   * intel on with their name. Refused outside a live round or without a map model.
+   */
+  logIntel?(zone: string, count: number, from?: { id: string; name: string }): Promise<{ ok: boolean; error?: string }>;
+  /** Turn the numpad intel hotkeys on or off (see HostInfo.intelHotkeys). */
+  setIntelHotkeys?(enabled: boolean): Promise<{ ok: boolean; error?: string }>;
   /**
    * Room roster with slots, so the coach can name players in calls ("rdx rotates to B") and knows
    * who's a random. Superset of setRoomRoster's names.
