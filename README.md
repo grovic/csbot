@@ -16,7 +16,7 @@ Teammates who only want to watch and log intel don't need it: they open the room
 
 ## Status
 
-**M1 (core host), M2 (rooms), M3 (Scout), M4a (live intel) and M5 (live coach) are built.**
+**M1 (core host), M2 (rooms), M3 (Scout), M4a (live intel), M4b (real maps) and M5 (live coach) are built.**
 - **M1:** the Electron host reads GSI, runs the economy engine, and shows the Live page.
 - **M2:** the admin creates a room in the desktop app and shares an invite link. Teammates open it in a browser, or paste it into their own csbot, and see the same calls with their own job. Rooms are peer-to-peer: no account, no server.
 
@@ -24,9 +24,11 @@ Teammates who only want to watch and log intel don't need it: they open the room
 
 - **M4a:** anyone in the room clicks a map zone to log what they see ("3 at B apps", "A clear"). The forecast and heat map update for everyone, and when the likely site flips the banner shows PLAN CHANGED with a mid-round call. Optional numpad hotkeys on the desktop app (off by default) log intel without leaving the game. Tournament mode refuses intel.
 
+- **M4b:** the seven competitive maps (Ancient, Anubis, Cache, Dust II, Inferno, Mirage, Nuke) are real. Each map's floor, callouts and walking times come from the CS2 map files through `tools/map-build`. Every map has enemy plans with timed routes, a forecast on CT halves, and a CT playbook. Click anywhere in a zone to log intel. The demo plays on any map with `?map=de_dust2`.
+
 - **M5:** the host's own Claude Code writes the team call at every freeze time and after a plant, about 3 s after the engine's instant call. The squad asks it questions from the Coach page (per-member quota, per-match budget). Voice callouts read your job. Tournament mode turns it all off.
 
-The forecast trained from demos (rest of M4) and the debrief (M6) come next ([roadmap](docs/PROPOSAL.md#12-roadmap-v1-in-milestones)).
+Calibrating the forecast with demos (rest of M4) and the debrief (M6) come next ([roadmap](docs/PROPOSAL.md#12-roadmap-v1-in-milestones)).
 
 | Piece | Where | Run it |
 |---|---|---|
@@ -36,6 +38,7 @@ The forecast trained from demos (rest of M4) and the debrief (M6) come next ([ro
 | Replay a recording or the synthetic match into a host | `tools/gsi-replayer` | see its README |
 | Record GSI without the app | `tools/gsi-recorder` | see its README |
 | Rooms: host, client, invite links, peer-to-peer transport | `packages/room` | `pnpm test` |
+| Map geometry from the CS2 map files (zones, outlines, walking graph); per-map plays live in `packages/engine/src/maps/plays` | `tools/map-build` | see its README |
 | Scouting: FACEIT/Steam clients, sample match, scouting math, AI report contract | `packages/scout` | `pnpm test` |
 | Live coach: prompts, output schema, parsing, budget and quotas | `packages/coach` | `pnpm test` |
 | Optional self-hosted signaling (tests, or squads that want their own) | `tools/room-relay` | see the file header |

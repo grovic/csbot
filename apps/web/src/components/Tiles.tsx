@@ -1,11 +1,12 @@
+import { MAPS } from '@csbot/engine';
 import type { LiveSnapshot } from '@csbot/protocol';
 import { fmtK, mapName, pct, READ_BIG } from '../format.ts';
 
 function noForecastReason(s: LiveSnapshot): string {
   const m = s.match;
   if (!m) return 'Arrives with the first round';
-  if (m.map !== 'de_mirage') return `No forecast for ${mapName(m.map)} yet (map models arrive in M4)`;
-  if (m.ourSide === 'T') return 'Forecast covers Mirage CT side for now';
+  if (!m.map || !MAPS[m.map]) return `No forecast for ${mapName(m.map)} yet`;
+  if (m.ourSide === 'T') return 'Forecast covers your CT halves';
   if (!s.enemy) return 'Arrives at freeze time';
   return 'No forecast this round';
 }

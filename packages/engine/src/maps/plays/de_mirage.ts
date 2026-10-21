@@ -1,0 +1,63 @@
+// Mirage: enemy (T) plans and our CT playbook. Routes are zones walked in order from T spawn
+// (ids from maps/geo/de_mirage.ts). Plan odds by enemy buy are first estimates until demo data.
+
+import type { MapPlans } from '../../forecast.ts';
+import type { PlaybookDef } from '../../playbook.ts';
+
+export const PLANS_MIRAGE: MapPlans = {
+  map: 'de_mirage',
+  routes: {
+    B: ['house', 'backalley', 'bapps*', 'bsite'],
+    A: ['palalley', 'aramp*', 'asite'],
+    P: ['palace*', 'asite'],
+    M: ['topmid', 'mid*', 'conn*', 'asite'],
+    S: ['topmid', 'mid*', 'short*', 'bsite'],
+    U: ['topmid', 'mid*', 'under*', 'bsite'],
+  },
+  plans: [
+    { id: 'bRush', name: 'B apps rush', site: 'B', speed: 0.9, lineup: ['B', 'B', 'B', 'B', 'S'], delay: [0, 1, 2, 3, 0] },
+    { id: 'bExec', name: 'B exec (apps + short)', site: 'B', speed: 0.6, lineup: ['B', 'B', 'B', 'S', 'S'], delay: [6, 8, 10, 4, 7] },
+    { id: 'aExec', name: 'A exec (ramp + palace)', site: 'A', speed: 0.55, lineup: ['A', 'A', 'P', 'P', 'M'], delay: [9, 11, 9, 11, 6] },
+    { id: 'split', name: 'Mid-to-A split', site: 'A', speed: 0.5, lineup: ['M', 'M', 'P', 'A', 'U'], delay: [4, 7, 10, 10, 8] },
+    { id: 'slowB', name: 'Default → late B', site: 'B', speed: 0.35, lineup: ['S', 'M', 'B', 'P', 'U'], delay: [0, 2, 4, 6, 3] },
+  ],
+  planPriorByBuy: {
+    eco: { bRush: 0.52, bExec: 0.12, aExec: 0.12, split: 0.08, slowB: 0.16 },
+    force: { bRush: 0.3, bExec: 0.2, aExec: 0.22, split: 0.13, slowB: 0.15 },
+    half: { bRush: 0.22, bExec: 0.22, aExec: 0.26, split: 0.15, slowB: 0.15 },
+    full: { bRush: 0.06, bExec: 0.26, aExec: 0.36, split: 0.18, slowB: 0.14 },
+  },
+};
+
+export const PLAYBOOK_MIRAGE: PlaybookDef = {
+  map: 'de_mirage',
+  slots: [
+    { id: 'a', label: 'A anchor' }, { id: 'short', label: 'Short / B support' }, { id: 'b', label: 'B anchor' },
+    { id: 'rotator', label: 'Rotator' }, { id: 'awp', label: 'AWP' },
+  ],
+  setups: [
+    {
+      id: 'antieco', name: 'Anti-eco · stack B 3–2', side: 'CT', answers: ['eco'],
+      calls: { default: { head: 'Anti-eco · stack B', sub: '3 on B · 1 on A · AWP in window', steps: ['Long angles only', 'Trade in pairs'] } },
+      spots: [
+        { player: 'b', zone: 'bsite', label: 'B van' }, { player: 'short', zone: 'bsite', label: 'B bench' },
+        { player: 'rotator', zone: 'market', label: 'market' }, { player: 'awp', zone: 'window', label: 'window AWP' }, { player: 'a', zone: 'asite', label: 'A' },
+      ],
+    },
+    {
+      id: 'std', name: 'Standard 2-1-2', side: 'CT',
+      calls: {
+        default: { head: 'Standard 2-1-2', sub: 'AWP in window · early info from short', steps: ['No dry-peek on top mid', 'Rotate via CT: 9 s'] },
+        force: { head: 'Anti-force · play safe', sub: '2-1-2 · fall back on contact', steps: ['No early peeks', 'Rotate on 3+ seen'] },
+      },
+      spots: [
+        { player: 'b', zone: 'bsite', label: 'B van' }, { player: 'short', zone: 'short', label: 'short' },
+        { player: 'awp', zone: 'window', label: 'window AWP' }, { player: 'rotator', zone: 'asite', label: 'ticket' }, { player: 'a', zone: 'asite', label: 'A site' },
+      ],
+    },
+  ],
+  jobs: {
+    antieco: { a: 'A site alone. Play deep and fall back to CT on contact.', short: 'B bench. Hold the apps exit, long angles only.', b: 'B van. Anchor, never peek apps.', rotator: 'Market. Rotate to whichever site gets hit.', awp: 'Window AWP. Hold mid from the window.' },
+    std: { a: 'A site, crossfire with ticket. Molly palace on contact.', short: 'Short. Take early info, then fall back to market.', b: 'B van. Anchor alone and call contact fast.', rotator: 'Ticket. Crossfire A, rotate to B via CT if called.', awp: 'Window AWP. Hold mid, don\'t duel Holo.' },
+  },
+};

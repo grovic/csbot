@@ -44,8 +44,8 @@ test('intel moves the forecast, the call turns "plan changed", and Claude writes
   for (const r of rec.slice(0, live5 + 1)) expect((await postGsi(host.runtime, r.p)).status).toBe(200);
   const before = await waitFor(async () => { const s = await lastSnap(host); return s?.match?.round === 5 && s.match.clock.phase === 'live' ? s : undefined; });
   expect(before.forecast!.basis).toBe('prior');
-  // Intel is timed from the round going live: wait until a B rush could reach B apps (~13 s in).
-  await host.page.waitForTimeout(13_000);
+  // Intel is timed from the round going live: wait until a B rush reaches B apps (~15 s in on the real Mirage).
+  await host.page.waitForTimeout(16_000);
   const r = await host.page.evaluate(() => window.csbot!.logIntel!('bapps', 3));
   expect(r).toEqual({ ok: true });
   const s = await waitFor(async () => { const x = await lastSnap(host); return x?.call?.kind === 'mid' && x.call.source === 'claude' ? x : undefined; }, 20_000)

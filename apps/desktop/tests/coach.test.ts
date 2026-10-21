@@ -354,10 +354,10 @@ describe('intel: the mid-round call', () => {
     await r.intel('bapps', 2, 20_000);
     expect(asked()).toBe(1);
     // The read flips to A: the stale Claude call goes away and Claude is asked again.
-    await r.intel('bapps', 0, 30_000);
-    await r.intel('aramp', 4, 31_000);
-    await r.intel('palace', 2, 32_000);
-    s = await r.intel('aramp', 5, 36_000);
+    await r.intel('bapps', 0, 22_000);
+    await r.intel('aramp', 4, 23_000);
+    await r.intel('palace', 2, 24_000);
+    s = await r.intel('aramp', 5, 26_000);
     expect(r.engine()!.head).toMatch(/^A hit likely/);
     expect(asked()).toBe(2);
     expect(r.appliedLog.includes(undefined)).toBe(true); // cleared before the new one

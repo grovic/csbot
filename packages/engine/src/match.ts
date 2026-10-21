@@ -9,8 +9,8 @@ import type {
 } from '@csbot/protocol';
 import { applyRoundResult, argmax, buyProbs, FULL_BUY_CT, lossBonus, PISTOL_SPEND, startOfHalf, type BuyProbs, type EnemyEconomy, type RoundReason } from './economy.ts';
 import { planPosterior, planPrior, siteForecast, topPlan, type Intel, type MapModel, type Site } from './forecast.ts';
-import { MIRAGE } from './maps/mirage.ts';
-import { engineRoundCall, MIRAGE_PLAYBOOK, type Playbook } from './playbook.ts';
+import { MAPS, PLAYBOOKS } from './maps/index.ts';
+import { engineRoundCall, type Playbook } from './playbook.ts';
 
 export interface PhaseLengths { freezetime: number; live: number; bomb: number; over: number }
 /** Valve matchmaking defaults. Freeze time is re-learned from the first full freeze seen. */
@@ -156,8 +156,8 @@ export class MatchTracker {
   constructor(opts: TrackerOptions = {}) {
     this.o = {
       source: opts.source ?? 'game',
-      maps: opts.maps ?? { de_mirage: MIRAGE },
-      playbooks: opts.playbooks ?? { de_mirage: MIRAGE_PLAYBOOK },
+      maps: opts.maps ?? MAPS,
+      playbooks: opts.playbooks ?? PLAYBOOKS,
       playbookHandle: opts.playbookHandle,
       phases: { ...DEFAULT_PHASES, ...opts.phases },
       staleAfterMs: opts.staleAfterMs ?? 15_000,

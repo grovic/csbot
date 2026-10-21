@@ -2,7 +2,7 @@
 // draw from on the left (round reasoning, economy, call log, coach settings). Shared with the room:
 // everyone sees the same chat; members ask within their quota, the admin changes the settings.
 
-import { lossBonus, MIRAGE, PLAYBOOKS, slotsFor } from '@csbot/engine';
+import { lossBonus, MAPS, PLAYBOOKS, slotsFor } from '@csbot/engine';
 import type { CallLogEntry, CoachConfig, CoachMessage, CoachModel, CoachView, LiveSnapshot, RoomView } from '@csbot/protocol';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { claudeCallFor, secs } from '../data/coachInfo.ts';
@@ -70,7 +70,7 @@ function Reasoning({ live, room, coach }: { live?: LiveSnapshot; room?: RoomView
   const entry = c ? claudeCallFor(coach, c.round) : undefined;
   const fc = live?.forecast;
   const plans = fc ? Object.entries(fc.plans).sort((a, b) => b[1] - a[1]).slice(0, 5) : [];
-  const planName = (id: string) => (fc?.map === MIRAGE.id ? MIRAGE.plans.find(p => p.id === id)?.name : undefined) ?? id;
+  const planName = (id: string) => (fc ? MAPS[fc.map]?.plans.find(p => p.id === id)?.name : undefined) ?? id;
   const buy = live?.enemy?.buy;
   const top = buy ? (Object.keys(buy) as (keyof typeof buy)[]).reduce((a, b) => (buy[a] >= buy[b] ? a : b)) : undefined;
   return (

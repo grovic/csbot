@@ -88,7 +88,7 @@ test('second half on T: generic call, forecast placeholder', async ({ page }) =>
   await expect(page.getByTestId('scorebox')).toContainText('Round 14');
   await expect(page.getByTestId('call-head')).toHaveText(/^Enemy /);
   await expect(page.getByTestId('youline')).toHaveCount(0);
-  await expect(page.getByTestId('tile-hit')).toContainText('Forecast covers Mirage CT side for now');
+  await expect(page.getByTestId('tile-hit')).toContainText('Forecast covers your CT halves');
   await expect(page.getByTestId('map-note')).toBeVisible();
   await expect(page.locator('.rhalf-h').nth(1)).toContainText('you T');
   await shot(page, 'live-second-half-t');

@@ -1,0 +1,14 @@
+{
+  "name": "@csbot/map-build",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Builds csbot's map data (zones, outlines, walking graph) from the CS2 map files on this PC.",
+  "scripts": {
+    "build-maps": "node src/build.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@csbot/engine": "workspace:*"
+  }
+}

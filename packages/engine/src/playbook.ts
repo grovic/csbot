@@ -1,12 +1,25 @@
 // Team playbook and engine-made calls. Claude picks among playbook entries (M5); until then, and whenever
 // Claude is slow or unavailable, the engine produces these template calls itself.
 
-import { argmax, type BuyProbs, type EnemyEconomy } from './economy.ts';
-import type { Point } from './forecast.ts';
+import { argmax, type BuyProbs, type BuyType, type EnemyEconomy } from './economy.ts';
+import { walkableAt, type MapGeo, type Point } from './geometry.ts';
 
 /** `player` is a playbook slot id (see Playbook.slots). Rooms assign members to slots. */
 export interface SetupSpot { player: string; at: Point; label: string }
-export interface Setup { id: string; name: string; side: 'CT' | 'T'; spots: readonly SetupSpot[] }
+
+/** The engine's words for a setup: headline, one line, up to 3 chips. */
+export interface CallText { head: string; sub: string; steps: readonly string[] }
+
+export interface Setup {
+  id: string;
+  name: string;
+  side: 'CT' | 'T';
+  spots: readonly SetupSpot[];
+  /** Enemy buys this setup answers (the engine picks it for them). Omitted = the default setup. */
+  answers?: readonly BuyType[];
+  /** Call text per enemy buy, else `default`. */
+  calls?: Partial<Readonly<Record<BuyType | 'default', CallText>>>;
+}
 
 export type CallKind = 'pre' | 'mid' | 'post' | 'over';
 
@@ -27,7 +40,8 @@ export interface SlotDef { id: string; label: string }
 /**
  * A team's plays for one map. Jobs and spots are keyed by slot (a position in the team, like
  * "A anchor"), not by player: the room maps its members to slots, so the same playbook works
- * for any squad and gather-mode randoms just fill a slot.
+ * for any squad and gather-mode randoms just fill a slot. Every map uses the same five slot ids
+ * (a, short, b, rotator, awp) with its own labels, so room assignments survive a map change.
  */
 export interface Playbook {
   map: string;
@@ -36,45 +50,12 @@ export interface Playbook {
   jobs: Readonly<Record<string, Readonly<Record<string, string>>>>;
 }
 
-const fmt$ = (n: number) => '$' + Math.round(n).toLocaleString('en-US');
+/** Authored form: spots name a zone; positions come from the map. */
+export interface SpotDef { player: string; zone: string; label: string; at?: Point }
+export interface SetupDef extends Omit<Setup, 'spots'> { spots: readonly SpotDef[] }
+export interface PlaybookDef extends Omit<Playbook, 'setups'> { setups: readonly SetupDef[] }
 
-/** Engine template for the pre-round call (no Claude). Picks the setup by the enemy buy read. */
-export function engineRoundCall(pb: Playbook, enemy: EnemyEconomy, buy: BuyProbs): Call {
-  const b = argmax(buy);
-  const band = `${fmt$(enemy.lo)}–${fmt$(enemy.hi)}`;
-  const pick = (id: string) => pb.setups.find(s => s.id === id) ?? pb.setups[0]!;
-  if (b === 'eco') {
-    const s = pick('antieco');
-    return { kind: 'pre', head: 'Anti-eco · stack B', sub: '3 on B · 1 on A · AWP in window', jobs: pb.jobs[s.id] ?? {}, setup: s.id, source: 'engine',
-      steps: ['Long angles only', 'Trade in pairs'], why: [`Enemy est. ${band} each → eco ${Math.round(buy.eco * 100)}%`] };
-  }
-  const s = pick('std');
-  const head = b === 'force' ? 'Anti-force · play safe' : 'Standard 2-1-2';
-  return { kind: 'pre', head, sub: b === 'force' ? '2-1-2 · fall back on contact' : 'AWP in window · early info from short', jobs: pb.jobs[s.id] ?? {}, setup: s.id, source: 'engine',
-    steps: b === 'force' ? ['No early peeks', 'Rotate on 3+ seen'] : ['No dry-peek on top mid', 'Rotate via CT: 9 s'], why: [`Enemy est. ${band} each → ${b} ${Math.round(buy[b] * 100)}%`] };
-}
-
-export const MIRAGE_PLAYBOOK: Playbook = {
-  map: 'de_mirage',
-  slots: [
-    { id: 'a', label: 'A anchor' }, { id: 'short', label: 'Short / B support' }, { id: 'b', label: 'B anchor' },
-    { id: 'rotator', label: 'Rotator' }, { id: 'awp', label: 'AWP' },
-  ],
-  setups: [
-    { id: 'antieco', name: 'Anti-eco · stack B 3–2', side: 'CT', spots: [
-      { player: 'b', at: [150, 150], label: 'B van' }, { player: 'short', at: [330, 262], label: 'B bench' },
-      { player: 'rotator', at: [165, 390], label: 'market' }, { player: 'awp', at: [320, 430], label: 'window AWP' }, { player: 'a', at: [430, 715], label: 'A' }] },
-    { id: 'std', name: 'Standard 2-1-2', side: 'CT', spots: [
-      { player: 'b', at: [150, 150], label: 'B van' }, { player: 'short', at: [345, 305], label: 'short' },
-      { player: 'awp', at: [320, 430], label: 'window AWP' }, { player: 'rotator', at: [300, 668], label: 'ticket' }, { player: 'a', at: [470, 730], label: 'A site' }] },
-  ],
-  jobs: {
-    antieco: { a: 'A site alone. Play deep and fall back to CT on contact.', short: 'B bench. Hold the apps exit, long angles only.', b: 'B van. Anchor, never peek apps.', rotator: 'Market. Rotate to whichever site gets hit.', awp: 'Window AWP. Hold mid from the window.' },
-    std: { a: 'A site, crossfire with ticket. Molly palace on contact.', short: 'Short. Take early info, then fall back to market.', b: 'B van. Anchor alone and call contact fast.', rotator: 'Ticket. Crossfire A, rotate to B via CT if called.', awp: 'Window AWP. Hold mid, don\'t duel Holo.' },
-  },
-};
-
-export const PLAYBOOKS: Readonly<Record<string, Playbook>> = { de_mirage: MIRAGE_PLAYBOOK };
+export const SLOT_IDS = ['a', 'short', 'b', 'rotator', 'awp'] as const;
 
 /** Positions used when a map has no playbook yet. */
 export const DEFAULT_SLOTS: readonly SlotDef[] = [
@@ -82,6 +63,54 @@ export const DEFAULT_SLOTS: readonly SlotDef[] = [
   { id: 'rotator', label: 'Rotator' }, { id: 'awp', label: 'AWP' },
 ];
 
-export function slotsFor(map?: string): readonly SlotDef[] {
-  return (map ? PLAYBOOKS[map]?.slots : undefined) ?? DEFAULT_SLOTS;
+const NUDGE: readonly Point[] = [[0, 40], [32, 24], [-32, 24], [0, -40], [32, -24], [-32, -24], [0, 60], [0, 24], [0, 0]];
+
+/** Resolve zone-based spots to map points (players sharing a zone are spread a little). */
+export function buildPlaybook(geo: MapGeo, def: PlaybookDef): Playbook {
+  if (def.map !== geo.id) throw new Error(`playbook for ${def.map} given to ${geo.id}`);
+  const slots = new Set(def.slots.map(s => s.id));
+  const setups = def.setups.map(s => {
+    const used = new Map<string, number>();
+    const spots = s.spots.map(sp => {
+      if (!slots.has(sp.player)) throw new Error(`${geo.id}/${s.id}: unknown slot ${sp.player}`);
+      if (sp.at) return { player: sp.player, at: sp.at, label: sp.label };
+      const z = geo.zones.find(x => x.id === sp.zone);
+      if (!z) throw new Error(`${geo.id}/${s.id}: unknown zone ${sp.zone}`);
+      const n = used.get(z.id) ?? 0;
+      used.set(z.id, n + 1);
+      // The n-th free nudge that stays on the floor.
+      let k = 0, at: Point = z.at;
+      for (const d of NUDGE) {
+        const p: Point = [z.at[0] + d[0], z.at[1] + d[1]];
+        if (!walkableAt(geo, p[0], p[1])) continue;
+        if (k++ === n) { at = p; break; }
+      }
+      return { player: sp.player, at, label: sp.label };
+    });
+    return { ...s, spots };
+  });
+  for (const s of setups) for (const id of Object.keys(def.jobs[s.id] ?? {})) if (!slots.has(id)) throw new Error(`${geo.id}/${s.id}: job for unknown slot ${id}`);
+  return { map: def.map, slots: def.slots, setups, jobs: def.jobs };
+}
+
+const fmt$ = (n: number) => '$' + Math.round(n).toLocaleString('en-US');
+
+const GENERIC: Readonly<Record<BuyType, CallText>> = {
+  eco: { head: 'Anti-eco', sub: 'Hold long angles · trade in pairs', steps: ['Long angles only', 'Trade in pairs'] },
+  force: { head: 'Anti-force · play safe', sub: 'Default setup · fall back on contact', steps: ['No early peeks', 'Rotate on 3+ seen'] },
+  half: { head: 'Default setup', sub: 'Hold your spots · call contact fast', steps: ['No dry peeks', 'Call numbers'] },
+  full: { head: 'Default setup', sub: 'Hold your spots · call contact fast', steps: ['No dry peeks', 'Call numbers'] },
+};
+
+/** Engine template for the pre-round call on CT (no Claude). Picks the setup by the enemy buy read. */
+export function engineRoundCall(pb: Playbook, enemy: EnemyEconomy, buy: BuyProbs): Call {
+  const b = argmax(buy);
+  const band = `${fmt$(enemy.lo)}–${fmt$(enemy.hi)}`;
+  const ct = pb.setups.filter(s => s.side === 'CT');
+  const s = ct.find(x => x.answers?.includes(b)) ?? ct.find(x => !x.answers) ?? ct[0] ?? pb.setups[0]!;
+  const text = s.calls?.[b] ?? s.calls?.default ?? GENERIC[b];
+  return {
+    kind: 'pre', head: text.head, sub: text.sub, jobs: pb.jobs[s.id] ?? {}, setup: s.id, source: 'engine',
+    steps: [...text.steps], why: [`Enemy est. ${band} each → ${b} ${Math.round(buy[b] * 100)}%`],
+  };
 }
