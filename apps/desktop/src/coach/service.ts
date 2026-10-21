@@ -1,5 +1,6 @@
 // The live coach on the host (M5): watches the host's snapshots for game events, asks the warm Claude
-// session for a call at freeze time (and after a plant), answers questions from the room, and keeps
+// session for a call at freeze time, when intel changes the plan (M4a) and after a plant, answers
+// questions from the room, and keeps
 // the chat, the call log and the per-match budget. Pure Node (no Electron import): unit-tested with a
 // fake session.
 //
@@ -25,6 +26,11 @@ export interface CoachServiceOptions {
   detect: () => Promise<boolean>;
   /** Put a Claude call on the host's screens (undefined = back to the engine call). */
   applyCall: (call: CallView | undefined) => void;
+  /**
+   * The engine's own call (the snapshots this service observes may already carry a Claude call).
+   * Used to spot a new "plan changed" call from intel. Defaults to the observed snapshot's call.
+   */
+  engineCall?: () => CallView | undefined;
   scout?: () => ScoutView | undefined;
   hostName?: () => string;
   /** The host's own playbook slot when not in a room. */
@@ -68,6 +74,8 @@ export class CoachService {
   private inMatch = false;
   private frozeRound = 0;
   private plantedRounds = new Set<number>();
+  /** The engine "plan changed" call we last asked Claude about (round + site). */
+  private midKey?: string;
   /** The Claude call on screen, if any (round + kind it belongs to). */
   private current?: CallView;
   /** applyCall makes the host emit a snapshot, which comes straight back here: don't re-run triggers. */
@@ -115,6 +123,9 @@ export class CoachService {
     this.emit();
   }
 
+  /** The room's tournament mode (no live coaching, no forecast): intel from hotkeys is refused too. */
+  get inTournament(): boolean { return this.tournament; }
+
   /** Room roster with slots (or none when solo) and the room-wide tournament switch. */
   setRoom(members: RosterEntry[], opts: { tournament?: boolean } = {}): void {
     this.roster = members.slice(0, 12).map(m => ({ name: m.name.slice(0, 32), ...(m.slot ? { slot: m.slot } : {}), ...(m.random ? { random: true } : {}) }));
@@ -144,6 +155,7 @@ export class CoachService {
       this.map = m.map;
       this.frozeRound = 0;
       this.plantedRounds.clear();
+      this.midKey = undefined;
       this.ledger.newMatch(`${m.map}:${this.o.now()}`);
       this.messages = [];
       this.calls = [];
@@ -154,6 +166,17 @@ export class CoachService {
     if (phase === 'freezetime' && m.round !== this.frozeRound) {
       this.frozeRound = m.round;
       void this.event('freeze', live);
+    }
+    // Intel changed the plan: the engine switched to a "plan changed" call (or flipped it to the other
+    // site). Ask Claude for the mid-round call once per change; a stale Claude mid call goes away.
+    const engine = this.engineNow();
+    if (phase === 'live' && engine?.kind === 'mid' && engine.round === m.round) {
+      const key = midKeyOf(engine);
+      if (key !== this.midKey) {
+        this.midKey = key;
+        if (this.current?.kind === 'mid') this.clearCall();
+        void this.event('intel', live);
+      }
     }
     if (phase === 'bomb' && !this.plantedRounds.has(m.round)) {
       this.plantedRounds.add(m.round);
@@ -220,9 +243,17 @@ export class CoachService {
       return;
     }
     this.ledger.useCall();
-    const kind: CallView['kind'] = trigger === 'plant' ? 'post' : 'pre';
+    const kind: CallView['kind'] = trigger === 'plant' ? 'post' : trigger === 'intel' ? 'mid' : 'pre';
     const text = eventMessage(trigger, live, this.rosterNow(), this.scoutNow());
-    const relevant = () => this.live.match?.round === round && (trigger === 'plant' ? this.live.match?.clock.phase === 'bomb' : this.live.call?.kind === 'pre');
+    const midKey = this.midKey;
+    const relevant = () => {
+      if (this.live.match?.round !== round) return false;
+      if (trigger === 'plant') return this.live.match?.clock.phase === 'bomb';
+      const engine = this.engineNow();
+      // A mid call only fits while the engine still calls the same site, in the live phase.
+      if (trigger === 'intel') return this.live.match?.clock.phase === 'live' && engine?.kind === 'mid' && midKeyOf(engine) === midKey;
+      return engine?.kind === 'pre';
+    };
     const apply = (reply: CoachReply, late: boolean) => {
       if (trigger === 'warmup') { this.log({ trigger, round, status: late ? 'late' : 'ok', ms: reply.ms, ...meta(reply) }); return; }
       let call: CallView;
@@ -269,6 +300,10 @@ export class CoachService {
     } finally {
       this.busy--;
     }
+  }
+
+  private engineNow(): CallView | undefined {
+    return this.o.engineCall ? this.o.engineCall() : this.live.call;
   }
 
   private stopSession(): void {
@@ -322,5 +357,7 @@ export class CoachService {
   }
 }
 
+/** One "plan changed" call per round and site (the engine's mid headline starts with the site). */
+const midKeyOf = (c: CallView) => `${c.round}:${/^([AB]) /.exec(c.head)?.[1] ?? c.head}`;
 const meta = (r: CoachReply) => ({ ...(r.model ? { model: r.model } : {}), ...(r.costUsd !== undefined ? { costUsd: r.costUsd } : {}) });
 const prettyMap = (id: string) => (id === 'de_dust2' ? 'Dust II' : id.replace(/^de_/, '').replace(/^\w/, c => c.toUpperCase()));

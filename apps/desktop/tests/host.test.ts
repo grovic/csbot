@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { FIRST_HALF, readRecording, syntheticMatch, type GsiPayload } from '@csbot/gsi';
+import { FIRST_HALF, FULL_MATCH, readRecording, syntheticMatch, type GsiPayload } from '@csbot/gsi';
 import type { LiveSnapshot } from '@csbot/protocol';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Host } from '../src/host.ts';
@@ -163,5 +163,33 @@ describe('settings', () => {
     expect(readEnv({ CSBOT_GSI_PORT: 'abc' }).gsiPort).toBeUndefined();
     expect(readEnv({}).hidden).toBe(false);
     expect(new Set(Array.from({ length: 20 }, () => randomToken())).size).toBe(20);
+  });
+});
+
+describe('intel on the host', () => {
+  it('refuses intel before a live round, then moves the forecast and the call', async () => {
+    // A host whose clock the test moves: intel lands 15 s into the round, like a real B rush sighting.
+    await host.stop();
+    let offset = 0;
+    host = new Host({ userData: tmp, port: 0, token: TOKEN, version: '0.0.0-test', throttleMs: 0, tickMs: 60_000, detectCs2: () => undefined, record: false, now: () => Date.now() + offset });
+    await host.start();
+    expect(host.addIntel('bapps', 3, 'kairo').ok).toBe(false);
+    const rec = syntheticMatch({ rounds: FULL_MATCH, lean: true });
+    const until = rec.findIndex(r => r.p.map?.round === 4 && r.p.round?.phase === 'live');
+    await feed(rec.slice(0, until + 1).map(r => r.p));
+    const before = host.latest();
+    expect(before.match!.round).toBe(5);
+    expect(before.forecast!.basis).toBe('prior');
+    const seen: LiveSnapshot[] = [];
+    host.onSnapshot(s => seen.push(s));
+    offset = 15_000;
+    expect(host.addIntel('bapps', 3, 'kairo')).toEqual({ ok: true });
+    expect(seen).toHaveLength(1); // emitted right away
+    const s = host.latest();
+    expect(s.forecast!.basis).toBe('intel');
+    expect(s.intel).toEqual([expect.objectContaining({ zone: 'bapps', zoneName: 'B Apps', count: 3, by: ['kairo'] })]);
+    expect(s.call!.kind).toBe('mid');
+    expect(host.engineCall()!.kind).toBe('mid');
+    expect(host.addIntel('nowhere', 1, 'kairo').error).toMatch(/Unknown zone/);
   });
 });

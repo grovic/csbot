@@ -29,6 +29,8 @@ export interface HostOptions {
   record?: boolean;
   /** The port settings asked for, when this session had to fall back to another one. */
   wantedPort?: number;
+  /** Clock for snapshots and intel (tests move it forward). */
+  now?: () => number;
 }
 
 export interface RuntimeInfo { gsiUrl: string; token: string; pid: number }
@@ -87,6 +89,8 @@ export class Host {
   private cs2?: Cs2Install | null;
   private rejected = { token: 0, json: 0, size: 0 };
   private coachCall?: CallView;
+  /** The tracker's own call in the last snapshot (before a coach call replaced it). */
+  private lastEngineCall?: CallView;
 
   constructor(o: HostOptions) {
     this.o = o;
@@ -98,6 +102,8 @@ export class Host {
     if (!this.server) throw new Error('host not started');
     return `http://127.0.0.1:${this.server.port}`;
   }
+
+  private now(): number { return this.o.now ? this.o.now() : Date.now(); }
 
   get rejectedCounts() { return { ...this.rejected }; }
   get recordingFile(): string | undefined { return this.recFile; }
@@ -149,13 +155,28 @@ export class Host {
   /** Build and broadcast a snapshot now. */
   emit(): LiveSnapshot {
     if (this.trailing) { clearTimeout(this.trailing); this.trailing = undefined; }
-    const s = withCoachCall(this.tracker.snapshot(Date.now()), this.coachCall, this.o.playbookHandle);
+    const raw = this.tracker.snapshot(this.now());
+    this.lastEngineCall = raw.call;
+    const s = withCoachCall(raw, this.coachCall, this.o.playbookHandle);
     this.last = s;
     this.lastEmit = Date.now();
     for (const l of this.listeners) {
       try { l(s); } catch { /* a bad listener must not break the pipeline */ }
     }
     return s;
+  }
+
+  /** The engine's call in the latest snapshot, whatever the coach put on screen instead. */
+  engineCall(): CallView | undefined { return this.lastEngineCall; }
+
+  /**
+   * Intel from this PC (map click, hotkey) or from a room member: `count` enemies in `zone`
+   * (0 = clear). Moves the forecast and, when the read changes, the call. Emits right away.
+   */
+  addIntel(zone: string, count: number, by: string): { ok: boolean; error?: string } {
+    const r = this.tracker.addIntel({ zone, count, by, at: this.now() });
+    if (r.ok) this.emit();
+    return r;
   }
 
   /** The live coach's call (undefined = engine calls only). Shown right away. */

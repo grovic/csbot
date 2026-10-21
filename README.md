@@ -16,15 +16,17 @@ Teammates who only want to watch and log intel don't need it: they open the room
 
 ## Status
 
-**M1 (core host), M2 (rooms), M3 (Scout) and M5 (live coach) are built.**
+**M1 (core host), M2 (rooms), M3 (Scout), M4a (live intel) and M5 (live coach) are built.**
 - **M1:** the Electron host reads GSI, runs the economy engine, and shows the Live page.
 - **M2:** the admin creates a room in the desktop app and shares an invite link. Teammates open it in a browser, or paste it into their own csbot, and see the same calls with their own job. Rooms are peer-to-peer: no account, no server.
 
 - **M3:** paste a FACEIT match link and the Scout page shows both rosters: threat, form, map win rates, premades, Steam flags and a veto plan. Your own Claude Code writes a short briefing. Without API keys it runs on a fictional sample match.
 
+- **M4a:** anyone in the room clicks a map zone to log what they see ("3 at B apps", "A clear"). The forecast and heat map update for everyone, and when the likely site flips the banner shows PLAN CHANGED with a mid-round call. Optional numpad hotkeys on the desktop app (off by default) log intel without leaving the game. Tournament mode refuses intel.
+
 - **M5:** the host's own Claude Code writes the team call at every freeze time and after a plant, about 3 s after the engine's instant call. The squad asks it questions from the Coach page (per-member quota, per-match budget). Voice callouts read your job. Tournament mode turns it all off.
 
-The forecast from demos (M4) and the debrief (M6) come next ([roadmap](docs/PROPOSAL.md#12-roadmap-v1-in-milestones)).
+The forecast trained from demos (rest of M4) and the debrief (M6) come next ([roadmap](docs/PROPOSAL.md#12-roadmap-v1-in-milestones)).
 
 | Piece | Where | Run it |
 |---|---|---|

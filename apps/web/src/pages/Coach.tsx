@@ -115,10 +115,20 @@ function Reasoning({ live, room, coach }: { live?: LiveSnapshot; room?: RoomView
               <BarRow label="A site" v={fc.site.A} max={fc.site.A > fc.site.B} />
               <BarRow label="B site" v={fc.site.B} max={fc.site.B >= fc.site.A} />
             </div>
-            <div className="note">From their buy read{fc.basis === 'intel' ? ' and the room\'s intel' : ''}. Plans from their demos arrive in M4.</div>
+            <div className="note" data-testid="forecast-note">Forecast: {fc.basis === 'intel' ? `updated by ${live?.intel?.length ?? 0} intel this round` : 'from the buy read'}. Plans from their demos arrive in M4.</div>
           </>
         ) : (
           <div className="muted">The plan forecast covers Mirage on the CT side for now.</div>
+        )}
+        <div className="h4">Intel this round</div>
+        {live?.intel?.length ? (
+          <ul className="ul" data-testid="coach-intel">
+            {live.intel.map(i => (
+              <li key={i.zone + i.t}><b>{i.by.join(' + ')}</b> · {i.count ? `${i.count} at ${i.zoneName}` : `${i.zoneName} clear`} <span className="muted">· {i.t}s into the round</span></li>
+            ))}
+          </ul>
+        ) : (
+          <div className="muted small" data-testid="coach-intel-empty">None yet. Anyone in the room can click a map zone during the round.</div>
         )}
         {buy && (
           <>
@@ -186,7 +196,7 @@ function Economy({ live }: { live?: LiveSnapshot }) {
   );
 }
 
-const TRIGGER: Record<CallLogEntry['trigger'], string> = { freeze: 'Freeze-time call', plant: 'Post-plant call', question: 'Question', warmup: 'Warm-up' };
+const TRIGGER: Record<CallLogEntry['trigger'], string> = { freeze: 'Freeze-time call', intel: 'Intel update', plant: 'Post-plant call', question: 'Question', warmup: 'Warm-up' };
 const STATUS_CHIP: Record<CallLogEntry['status'], string> = { ok: 'ok', late: 'late', timeout: 'timed out', error: 'error', skipped: 'skipped' };
 
 function Calls({ coach }: { coach: CoachView }) {

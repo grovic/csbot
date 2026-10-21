@@ -18,6 +18,8 @@ export interface Settings {
   faceitNickname?: string;
   /** Live coach (M5): model, budget, quotas. Defaults from DEFAULT_COACH_CONFIG. */
   coach?: CoachConfig;
+  /** Numpad intel hotkeys (M4a). Off unless the user turns them on: they take the keys from the game. */
+  intelHotkeys?: boolean;
 }
 
 /** A stored coach config, field by field (anything invalid falls back to the default). */
@@ -56,6 +58,7 @@ export function loadSettings(dir: string): Settings {
     ...(typeof raw.playbookHandle === 'string' && raw.playbookHandle ? { playbookHandle: raw.playbookHandle } : {}),
     ...(typeof raw.faceitNickname === 'string' && raw.faceitNickname.trim() ? { faceitNickname: raw.faceitNickname.trim().slice(0, 32) } : {}),
     ...(raw.coach !== undefined ? { coach: coachConfigFrom(raw.coach) } : {}),
+    ...(raw.intelHotkeys === true ? { intelHotkeys: true } : {}),
   };
   if (JSON.stringify(s) !== JSON.stringify(raw)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -89,6 +92,11 @@ export interface EnvConfig {
   signal?: string;
   /** CSBOT_COACH=off: start with the live coach turned off for this run (tests), without saving it. */
   coachOff: boolean;
+  /**
+   * CSBOT_FAKE_HOTKEYS=1 (and every hidden run): intel hotkeys use a recording stand-in instead of
+   * Electron's globalShortcut, so tests never take the numpad from the owner's game.
+   */
+  fakeHotkeys: boolean;
 }
 
 /** Only wss:// anywhere, or ws:// on this machine (tests, a relay on the LAN host itself). */
@@ -113,5 +121,6 @@ export function readEnv(env: NodeJS.ProcessEnv = process.env): EnvConfig {
     steamPath: env.CSBOT_STEAM_PATH || undefined,
     signal: validSignal(env.CSBOT_SIGNAL),
     coachOff: env.CSBOT_COACH === 'off',
+    fakeHotkeys: env.CSBOT_FAKE_HOTKEYS === '1' || env.CSBOT_HIDDEN === '1',
   };
 }

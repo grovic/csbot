@@ -597,7 +597,7 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
    - *Built:* FACEIT and Steam clients, cache, Scout page, the AI briefing (structured output, no MCP needed), and encrypted key storage.
    - *Waiting:* real responses, once the owner adds keys.
    - *Deferred:* Leetify (optional), and automatic FACEIT match detection (spike 4).
-4. **M4 · Forecast:** demo ingest, zones and routes for the map pool, plan priors, heat, intel from all members, gather mode.
+4. **M4 · Forecast:** demo ingest, zones and routes for the map pool, plan priors, heat, intel from all members, gather mode. *M4a (intel from all members: map clicks, optional numpad hotkeys, PLAN CHANGED with a mid-round call) is built; demo ingest needs demo files.*
 5. **M5 · Live coach:** playbook, live session, per-player jobs, Coach page, voice, tournament mode, quotas.
    - *Built.* One warm session per match. Claude's call replaces the engine's on every screen.
    - *Measured through the app's own runner:* warm-up 2.2 s, round call 3.0 s (Sonnet, low effort), about $0.011 at API-equivalent prices for both.

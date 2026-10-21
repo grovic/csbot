@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { MatchTracker } from '@csbot/engine';
-import { FIRST_HALF, syntheticMatch, toGameState } from '@csbot/gsi';
+import { FIRST_HALF, FULL_MATCH, syntheticMatch, toGameState } from '@csbot/gsi';
 import type { CallView, CoachConfig, LiveSnapshot } from '@csbot/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 import { CoachService, sanitizeConfig } from '../src/coach/service.ts';
@@ -33,6 +33,7 @@ class FakeSession implements CoachSession {
 
 function answerFor(text: string): unknown {
   if (text.startsWith('Freeze time')) return { type: 'call', head: `Claude R${/round (\d+)/.exec(text)?.[1]}`, sub: 'Stack B', setup: 'antieco', jobs: [{ slot: 'a', job: 'Hold A alone' }], steps: ['Long angles'], why: ['Likely eco'] };
+  if (text.startsWith('Intel in round')) return { type: 'call', head: `Claude mid ${/(A|B) /.exec(text.slice(text.indexOf('engineCall')))?.[1] ?? ''}`.trim(), sub: 'Rotate', jobs: [{ slot: 'rotator', job: 'Go now' }] };
   if (text.startsWith('The bomb')) return { type: 'call', head: 'Claude: retake', sub: 'Kit first', jobs: [{ slot: 'a', job: 'Smoke' }] };
   if (text.startsWith('Question from')) return { type: 'answer', answer: 'Likely B apps.' };
   return { type: 'answer', answer: 'ready' };
@@ -169,12 +170,14 @@ describe('budget, quotas and gates', () => {
     coach.setRoom([{ name: 'rdx', slot: 'a' }, { name: 'kairo', slot: 'short' }], { tournament: true });
     expect(session().stops).toBe(1);
     expect(coach.view.status).toBe('tournament');
+    expect(coach.inTournament).toBe(true); // main.ts refuses hotkey and map intel on this
     expect(applied()).toBeUndefined();
     expect(coach.ask('hello?').error).toMatch(/Tournament/);
     await replay(coach, applied, FIRST_HALF.slice(0, 2), s => s.match?.round === 2 && s.match.clock.phase === 'live');
     expect(coach.view.calls.some(c => c.status === 'skipped' && /Tournament/.test(c.error ?? ''))).toBe(true);
     coach.setRoom([{ name: 'rdx', slot: 'a' }], { tournament: false });
     expect(coach.view.status).not.toBe('tournament');
+    expect(coach.inTournament).toBe(false);
     void before;
   });
 
@@ -295,5 +298,92 @@ describe('coach config in settings', () => {
     expect(s.coach).toEqual({ enabled: false, model: 'sonnet', effort: 'low', callBudget: 10, memberQuota: 5, postPlant: true });
     expect(coachConfigFrom(undefined).callBudget).toBe(40);
     expect(sanitizeConfig({ callBudget: 0, memberQuota: 3 }, coachConfigFrom({ callBudget: 12 }))).toMatchObject({ callBudget: 12, memberQuota: 3 });
+  });
+});
+
+// ------------------------------------------------------------------ intel (M4a)
+
+describe('intel: the mid-round call', () => {
+  /** A coach fed like the host feeds it: the engine call separately from what's on screen. */
+  async function liveRound5(o: { config?: Partial<CoachConfig> } = {}) {
+    const sessions: FakeSession[] = [];
+    let applied: CallView | undefined;
+    const appliedLog: (CallView | undefined)[] = [];
+    let engine: CallView | undefined;
+    const coach = new CoachService({
+      config: o.config ?? {}, makeSession: () => { const s = new FakeSession(); sessions.push(s); return s; },
+      detect: async () => true, applyCall: c => { applied = c; appliedLog.push(c); }, engineCall: () => engine,
+      hostName: () => 'rdx', hostSlot: () => 'a',
+    });
+    await coach.init();
+    const t = new MatchTracker({ playbookHandle: 'a' });
+    let at = 0;
+    const observe = (ts: number) => {
+      const raw = t.snapshot(ts);
+      engine = raw.call;
+      const s = withCoachCall(raw, applied, 'a');
+      coach.observe(s);
+      return s;
+    };
+    for (const { t: ts, p } of syntheticMatch({ rounds: FULL_MATCH })) {
+      t.ingest(toGameState(p, ts));
+      at = ts;
+      const s = observe(ts);
+      await flush();
+      if (s.match?.round === 5 && s.match.clock.phase === 'live') break;
+    }
+    const intel = async (zone: string, count: number, dt: number) => {
+      t.addIntel({ zone, count, by: 'kairo', at: at + dt });
+      observe(at + dt);
+      await flush();
+      return observe(at + dt);
+    };
+    return { coach, intel, applied: () => applied, appliedLog, session: () => sessions[sessions.length - 1]!, engine: () => engine };
+  }
+
+  it('asks Claude once per plan change, again when the plan flips to the other site', async () => {
+    const r = await liveRound5();
+    const asked = () => r.session().count('Intel in round');
+    let s = await r.intel('bapps', 3, 15_000);
+    expect(r.engine()!.head).toMatch(/^B hit likely/);
+    expect(asked()).toBe(1);
+    expect(r.applied()).toMatchObject({ kind: 'mid', round: 5, source: 'claude' });
+    expect(s.call!.source).toBe('claude'); // on screen
+    expect(s.call!.kind).toBe('mid');
+    // More intel on the same site: no new request.
+    await r.intel('bapps', 2, 20_000);
+    expect(asked()).toBe(1);
+    // The read flips to A: the stale Claude call goes away and Claude is asked again.
+    await r.intel('bapps', 0, 30_000);
+    await r.intel('aramp', 4, 31_000);
+    await r.intel('palace', 2, 32_000);
+    s = await r.intel('aramp', 5, 36_000);
+    expect(r.engine()!.head).toMatch(/^A hit likely/);
+    expect(asked()).toBe(2);
+    expect(r.appliedLog.includes(undefined)).toBe(true); // cleared before the new one
+    expect(s.call!.source).toBe('claude');
+    const log = r.coach.view.calls.filter(c => c.trigger === 'intel');
+    expect(log.map(c => c.status)).toEqual(['ok', 'ok']);
+    expect(r.coach.view.messages.filter(m => m.kind === 'call').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('logs a skipped intel call when the budget is used', async () => {
+    const r = await liveRound5({ config: { callBudget: 1 } });
+    await r.intel('bapps', 3, 15_000);
+    expect(r.session().count('Intel in round')).toBe(0);
+    expect(r.coach.view.calls[0]).toMatchObject({ trigger: 'intel', status: 'skipped' });
+    expect(r.applied()?.kind).not.toBe('mid');
+  });
+
+  it('shows a Claude mid call only while the engine still calls a plan change in that round', () => {
+    const t = new MatchTracker({ playbookHandle: 'a' });
+    let s: LiveSnapshot | undefined;
+    for (const { t: ts, p } of syntheticMatch({ rounds: FIRST_HALF })) { t.ingest(toGameState(p, ts)); s = t.snapshot(ts); if (s.match?.round === 2 && s.match.clock.phase === 'live') break; }
+    const claudeMid: CallView = { kind: 'mid', round: 2, head: 'Claude mid', sub: '', jobs: { a: 'Hold' }, steps: [], why: [], source: 'claude' };
+    expect(withCoachCall(s!, claudeMid, 'a').call!.source).toBe('engine'); // engine call is still 'pre'
+    const engineMid = { ...s!, call: { ...s!.call!, kind: 'mid' as const } };
+    expect(withCoachCall(engineMid, claudeMid, 'a').call).toMatchObject({ head: 'Claude mid', you: 'Hold' });
+    expect(withCoachCall({ ...engineMid, call: { ...engineMid.call, kind: 'post' } }, claudeMid, 'a').call!.source).toBe('engine');
+    expect(withCoachCall({ ...engineMid, match: { ...engineMid.match!, round: 3 } }, claudeMid, 'a').call!.source).toBe('engine');
   });
 });

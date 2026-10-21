@@ -106,6 +106,43 @@ function HostCard({ bridge }: { bridge: CsbotBridge }) {
   );
 }
 
+/** Numpad intel hotkeys (desktop host): off by default, because a global hotkey takes the key from CS2. */
+function HotkeysCard({ bridge }: { bridge: CsbotBridge }) {
+  const [hk, setHk] = useState<HostInfo['intelHotkeys']>();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string>();
+  const refresh = useCallback(() => bridge.getInfo().then(i => setHk(i?.intelHotkeys), () => undefined), [bridge]);
+  useEffect(() => { void refresh(); }, [refresh]);
+  const toggle = async (on: boolean) => {
+    setBusy(true); setErr(undefined);
+    try {
+      const r = await bridge.setIntelHotkeys!(on);
+      if (!r.ok) setErr(r.error ?? "Couldn't change the hotkeys.");
+    } catch (e) { setErr(String((e as Error)?.message ?? e)); }
+    await refresh();
+    setBusy(false);
+  };
+  const on = !!hk?.enabled;
+  return (
+    <div className="card" data-testid="hotkeys-card">
+      <div className="card-h"><h3>Intel hotkeys</h3><span className="muted small">numpad · this PC</span></div>
+      <label className="toggle-row">
+        <input type="checkbox" checked={on} disabled={busy} onChange={e => void toggle(e.target.checked)} data-testid="hotkeys-toggle" />
+        <span><b>{on ? 'On' : 'Off'}</b> · Numpad keys log intel without leaving the game. Off by default: a global hotkey takes that key away from CS2 while csbot runs.</span>
+      </label>
+      {(err || hk?.error) && <div className="result err">{err ?? hk?.error}</div>}
+      {hk && hk.keys.length > 0 && (
+        <ul className="hotkeys" data-testid="hotkeys-list" data-enabled={on ? '1' : '0'}>
+          {hk.keys.map(k => (
+            <li key={k.key}><kbd>{k.key}</kbd><span>{k.zoneName} {k.kind === 'clear' ? 'clear' : 'seen'}</span>{k.kind === 'sighting' && <span className="muted small">press 1-5× for the count</span>}</li>
+          ))}
+        </ul>
+      )}
+      <p className="note">Hotkeys only listen for the key on this PC. csbot never sends keys or input to the game.</p>
+    </div>
+  );
+}
+
 function BrowserCard({ member }: { member: boolean }) {
   return (
     <div className="card" data-testid="browser-card">
@@ -245,6 +282,7 @@ export function Settings({ snap, kind, scout, session }: { snap?: LiveSnapshot; 
     <div className="grid2" data-testid="settings">
       {bridge ? <HostCard bridge={bridge} /> : <BrowserCard member={kind === 'member'} />}
       <GsiStatus snap={snap} />
+      {bridge?.setIntelHotkeys && session.isHostSide && <div style={{ gridColumn: '1/-1' }}><HotkeysCard bridge={bridge} /></div>}
       <div style={{ gridColumn: '1/-1' }}><DataSources scout={scout} session={session} host={session.canScout} /></div>
       <div className="card" style={{ gridColumn: '1/-1' }}>
         <div className="card-h"><h3>Fair play</h3></div>

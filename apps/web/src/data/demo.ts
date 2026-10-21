@@ -107,6 +107,12 @@ export function demoSource(opts: DemoOptions = {}): SnapshotSource {
   return {
     kind: 'demo',
     rate: () => (paused ? 0 : speed),
+    addIntel(zone, count, by) {
+      // At the demo's own clock, so it lands in the round being shown (paused or not).
+      const r = tracker.addIntel({ zone, count, by, at: virtualNow });
+      if (r.ok) emit();
+      return r;
+    },
     subscribe(cb) {
       subs.add(cb);
       if (!last) last = tracker.snapshot(virtualNow);
