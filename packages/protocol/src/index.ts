@@ -187,3 +187,4 @@ export interface CsbotBridge {
   installCfg(): Promise<CfgInstallResult>;
   openRecordings(): Promise<void>;
 }
+export * from './room.ts';

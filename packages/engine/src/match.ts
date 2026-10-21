@@ -24,7 +24,7 @@ export interface TrackerOptions {
   source?: ConnectionView['source'];
   maps?: Readonly<Record<string, MapModel>>;
   playbooks?: Readonly<Record<string, Playbook>>;
-  /** Our handle in the playbook (e.g. 'rdx') so the call can carry our own job as the YOU line. */
+  /** Our playbook slot (e.g. 'a') so the call can carry our own job as the YOU line. */
   playbookHandle?: string;
   phases?: Partial<PhaseLengths>;
   /** GSI heartbeat is 10 s; silent longer than this = stale. */
@@ -33,6 +33,8 @@ export interface TrackerOptions {
 }
 
 const other = (s: Side): Side => (s === 'CT' ? 'T' : 'CT');
+/** The YOU line once you're dead and watching a teammate. */
+export const deadYouLine = (watching: string) => `You're dead. Watch ${watching} and call what you see.`;
 const fmt$ = (n: number) => '$' + Math.round(n).toLocaleString('en-US');
 const pct = (p: number) => Math.round(p * 100) + '%';
 const READ_WORD: Record<BuyRead, string> = { eco: 'eco', force: 'force-buy', half: 'half-buy', full: 'full buy', pistol: 'pistol round' };
@@ -295,7 +297,7 @@ export class MatchTracker {
       // In competitive a dead player can only watch their own team: this is a teammate.
       if (this.me) this.me = { ...this.me, alive: false, health: 0, primary: undefined, observing: { steamid: p.steamid, name: p.name } };
       if (this.call && (this.call.kind === 'pre' || this.call.kind === 'post') && s.roundPhase !== 'freezetime') {
-        this.call = { ...this.call, you: `You're dead. Watch ${p.name} and call what you see.` };
+        this.call = { ...this.call, you: deadYouLine(p.name) };
       }
       this.spectated.set(p.steamid, {
         steamid: p.steamid, name: p.name, money: p.money, kills: p.kills, assists: p.assists, deaths: p.deaths, mvps: p.mvps,
@@ -350,7 +352,7 @@ export class MatchTracker {
       kind: 'post', round: this.round,
       head: ct ? 'Bomb planted · retake' : 'Bomb planted · hold the plant',
       sub: ct ? '40 s on the bomb · regroup, kit first' : 'Crossfires on the bomb · no solo peeks',
-      jobs: prev?.jobs ?? {}, ...(this.me?.observing ? { you: `You're dead. Watch ${this.me.observing.name} and call what you see.` } : prev?.you ? { you: prev.you } : {}),
+      jobs: prev?.jobs ?? {}, ...(this.me?.observing ? { you: deadYouLine(this.me.observing.name) } : prev?.you ? { you: prev.you } : {}),
       steps: ct ? ['Group up', 'Utility on the site'] : ['Hold crossfires', 'Play the timer'],
       why: ['The game reported the bomb as planted. Its site isn\'t sent to players.'], setup: prev?.setup, source: 'engine',
     };

@@ -60,7 +60,7 @@ export function demoSource(opts: DemoOptions = {}): SnapshotSource {
   const rec = demoRecording();
   const speed = opts.speed ?? 1;
   const first = rec[0]!.t, end = rec[rec.length - 1]!.t + 6000;
-  let tracker = new MatchTracker({ source: 'demo', playbookHandle: 'rdx' });
+  let tracker = new MatchTracker({ source: 'demo', playbookHandle: 'a' });
   let next = 0;
   let virtualNow = first;
   let paused = !!opts.pause;
@@ -96,7 +96,7 @@ export function demoSource(opts: DemoOptions = {}): SnapshotSource {
     virtualNow += dt * speed;
     if (virtualNow > end) {
       // Loop: a fresh tracker, like a new match.
-      tracker = new MatchTracker({ source: 'demo', playbookHandle: 'rdx' });
+      tracker = new MatchTracker({ source: 'demo', playbookHandle: 'a' });
       next = 0;
       virtualNow = first;
     }

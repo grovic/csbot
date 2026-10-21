@@ -11,7 +11,7 @@ export interface Settings {
   gsiPort: number;
   /** Shared secret CS2 sends with every payload (written into csbot's GSI cfg). */
   gsiToken: string;
-  /** Our handle in the playbook (e.g. 'rdx'), for the YOU line. Set from M2/M5 UI. */
+  /** Our playbook slot (e.g. 'a'), for the YOU line when not in a room. */
   playbookHandle?: string;
 }
 
