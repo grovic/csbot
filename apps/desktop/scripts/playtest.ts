@@ -45,6 +45,14 @@ function listBuilds(): string[] {
   try { return fs.readdirSync(path.join(root, 'builds')).map(d => path.join(root, 'builds', d)); } catch { return []; }
 }
 
+/** App folders of running csbot playtest processes (from their command lines). */
+function runningBuildDirs(): string[] {
+  try {
+    const out = ps(`Get-CimInstance Win32_Process -Filter "Name='electron.exe'" | Where-Object { $_.CommandLine -like '*csbot-playtest*' } | ForEach-Object { $_.CommandLine }`);
+    return [...out.matchAll(/"([^"]*csbot-playtest[^"]*)"/gi)].map(m => m[1]!);
+  } catch { return []; }
+}
+
 /** The port is busy because csbot itself is running (its runtime.json names that port). */
 function csbotHoldsPort(port: number): boolean {
   try {
@@ -86,8 +94,11 @@ async function install(): Promise<void> {
     `$s.Save()`,
   ].join('; '));
 
-  // Older builds: removed unless a running csbot still uses them (then next time).
+  // Older builds: removed unless a running csbot was started from them (Windows doesn't lock these
+  // files, so check the running processes instead of relying on a failed delete).
+  const inUse = runningBuildDirs();
   for (const old of [path.join(root, 'desktop'), path.join(root, 'web'), ...listBuilds().filter(d => d !== target)]) {
+    if (inUse.some(u => u.toLowerCase().startsWith(old.toLowerCase()))) { console.log(`kept      ${old} (csbot is running from it)`); continue; }
     try { fs.rmSync(old, { recursive: true, force: true }); } catch { /* in use */ }
   }
   console.log(`build copy  ${target}`);
