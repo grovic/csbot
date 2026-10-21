@@ -4,7 +4,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, ipcMain, Menu, safeStorage, screen, session, shell, type IpcMainInvokeEvent } from 'electron';
-import type { CfgInstallResult, ScoutView } from '@csbot/protocol';
+import type { CfgInstallResult, CoachAsker, CoachConfig, CoachView, ScoutView } from '@csbot/protocol';
+import { COACH_SCHEMA, COACH_SYSTEM } from '@csbot/coach';
+import { CoachService } from './coach/service.ts';
+import { ClaudeCoachSession } from './coach/session.ts';
 import { detectCs2, installCfg } from './cs2.ts';
 import { Host, sessionFileName } from './host.ts';
 import { loadSettings, readEnv, saveSettings, type Settings } from './settings.ts';
@@ -30,6 +33,7 @@ function run(): void {
   let win: BrowserWindow | null = null;
   let host: Host | null = null;
   let scout: ScoutService | null = null;
+  let coach: CoachService | null = null;
   /** Names of the members in this host's room (set by the renderer that runs the room). */
   let roomRoster: string[] = [];
   let scoutCache: FileStore | null = null;
@@ -71,6 +75,7 @@ function run(): void {
   // while a quit is in progress, so finish with app.exit(), with a timeout in case cleanup stalls.
   app.on('will-quit', e => {
     scoutCache?.flush();
+    coach?.stop();
     if (!host) return;
     e.preventDefault();
     const h = host;
@@ -132,6 +137,47 @@ function run(): void {
       }
       if (settings.faceitNickname) void scout?.setNickname(settings.faceitNickname);
     });
+    // Live coach (M5): one warm session on the user's own Claude Code per match.
+    coach = new CoachService({
+      ...(settings.coach || env.coachOff ? { config: { ...settings.coach, ...(env.coachOff ? { enabled: false } : {}) } } : {}),
+      onConfig: c => { settings = { ...settings, coach: c }; saveSettings(userData, settings); },
+      makeSession: c => new ClaudeCoachSession({ model: c.model, effort: c.effort, system: COACH_SYSTEM, schema: COACH_SCHEMA, cmd: claude }),
+      detect: async () => (await detectClaude(claude)).found,
+      applyCall: call => host?.setCoachCall(call),
+      scout: () => scout?.current,
+      hostName: () => host?.latest().me?.name ?? 'Host',
+      hostSlot: () => settings.playbookHandle,
+    });
+    const sendCoach = (v: CoachView) => {
+      for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('csbot:coach', v);
+    };
+    coach.onChange(sendCoach);
+    void coach.init();
+    host.onSnapshot(s => coach?.observe(s));
+    ipcMain.handle('csbot:coachLatest', e => { guard(e); return coach?.view; });
+    ipcMain.handle('csbot:askCoach', (e, text: unknown, from: unknown) => {
+      guard(e);
+      if (typeof text !== 'string' || text.length > 1000) return { ok: false, error: 'Invalid question.' };
+      return coach ? coach.ask(text, asker(from)) : { ok: false, error: 'csbot is shutting down' };
+    });
+    ipcMain.handle('csbot:setCoachConfig', (e, patch: unknown) => {
+      guard(e);
+      if (patch && typeof patch === 'object') coach?.setConfig(patch as Partial<CoachConfig>);
+    });
+    ipcMain.on('csbot:setRoomSlots', (e, members: unknown, opts: unknown) => {
+      if (!isOurs(e.senderFrame?.url ?? '')) return;
+      const list = Array.isArray(members) ? members.flatMap(m => {
+        if (!m || typeof m !== 'object' || typeof (m as { name?: unknown }).name !== 'string') return [];
+        const x = m as { name: string; slot?: unknown; random?: unknown };
+        return [{ name: x.name.slice(0, 32), ...(typeof x.slot === 'string' && x.slot.length <= 24 ? { slot: x.slot } : {}), ...(x.random === true ? { random: true } : {}) }];
+      }).slice(0, 12) : [];
+      const tournament = !!(opts && typeof opts === 'object' && (opts as { tournament?: unknown }).tournament === true);
+      coach?.setRoom(list, { tournament });
+      // Scouting labels room members (not randoms) by name too.
+      roomRoster = list.filter(m => !m.random).map(m => m.name);
+      scout?.relabelRoom();
+    });
+
     // Recent FACEIT matches every minute: a match that turns live gets scouted on its own.
     setInterval(() => { void scout?.refreshRecent(); }, 60_000).unref();
     ipcMain.handle('csbot:setFaceitNickname', async (e, nickname: unknown) => {
@@ -242,6 +288,7 @@ function run(): void {
     w.webContents.on('did-finish-load', () => {
       if (host) w.webContents.send('csbot:snapshot', host.latest());
       if (scout) w.webContents.send('csbot:scout', scout.current);
+      if (coach) w.webContents.send('csbot:coach', coach.view);
     });
     if (!app.isPackaged) {
       w.webContents.on('before-input-event', (_e, input) => {
@@ -294,4 +341,12 @@ async function checkApiKey(service: KeyService, key: string): Promise<{ ok: bool
     if (kind === 'auth') return { ok: false, error: `${service === 'faceit' ? 'FACEIT' : 'Steam'} rejected this key. Copy it again from ${service === 'faceit' ? 'your FACEIT app (server side key)' : 'steamcommunity.com/dev/apikey'}.` };
     return { ok: true };
   }
+}
+
+/** A question's sender, as the renderer passes it (room members come from RoomHost). Default: the admin. */
+function asker(from: unknown): CoachAsker | undefined {
+  if (!from || typeof from !== 'object') return undefined;
+  const f = from as Partial<CoachAsker>;
+  if (typeof f.id !== 'string' || typeof f.name !== 'string' || (f.role !== 'admin' && f.role !== 'member')) return undefined;
+  return { id: f.id.slice(0, 64), name: f.name.slice(0, 32), role: f.role };
 }

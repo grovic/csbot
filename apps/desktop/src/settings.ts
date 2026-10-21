@@ -3,6 +3,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { DEFAULT_COACH_CONFIG, type CoachConfig } from '@csbot/protocol';
 
 export const DEFAULT_GSI_PORT = 47400;
 const TOKEN_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-';
@@ -15,6 +16,23 @@ export interface Settings {
   playbookHandle?: string;
   /** The host's FACEIT nickname (public), for recent matches and live-match detection. */
   faceitNickname?: string;
+  /** Live coach (M5): model, budget, quotas. Defaults from DEFAULT_COACH_CONFIG. */
+  coach?: CoachConfig;
+}
+
+/** A stored coach config, field by field (anything invalid falls back to the default). */
+export function coachConfigFrom(raw: unknown): CoachConfig {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<CoachConfig>;
+  const d = DEFAULT_COACH_CONFIG;
+  const int = (v: unknown, lo: number, hi: number, def: number) => (typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi ? v : def);
+  return {
+    enabled: typeof r.enabled === 'boolean' ? r.enabled : d.enabled,
+    model: r.model === 'sonnet' || r.model === 'haiku' || r.model === 'opus' ? r.model : d.model,
+    effort: r.effort === 'low' || r.effort === 'medium' || r.effort === 'high' ? r.effort : d.effort,
+    callBudget: int(r.callBudget, 1, 200, d.callBudget),
+    memberQuota: int(r.memberQuota, 0, 50, d.memberQuota),
+    postPlant: typeof r.postPlant === 'boolean' ? r.postPlant : d.postPlant,
+  };
 }
 
 export function randomToken(n = 24): string {
@@ -37,6 +55,7 @@ export function loadSettings(dir: string): Settings {
     gsiToken: validToken(raw.gsiToken) ? raw.gsiToken : randomToken(),
     ...(typeof raw.playbookHandle === 'string' && raw.playbookHandle ? { playbookHandle: raw.playbookHandle } : {}),
     ...(typeof raw.faceitNickname === 'string' && raw.faceitNickname.trim() ? { faceitNickname: raw.faceitNickname.trim().slice(0, 32) } : {}),
+    ...(raw.coach !== undefined ? { coach: coachConfigFrom(raw.coach) } : {}),
   };
   if (JSON.stringify(s) !== JSON.stringify(raw)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -68,6 +87,8 @@ export interface EnvConfig {
    * ws://127.0.0.1:PORT). Passed to the renderer as ?signal=. Default: public Nostr relays.
    */
   signal?: string;
+  /** CSBOT_COACH=off: start with the live coach turned off for this run (tests), without saving it. */
+  coachOff: boolean;
 }
 
 /** Only wss:// anywhere, or ws:// on this machine (tests, a relay on the LAN host itself). */
@@ -91,5 +112,6 @@ export function readEnv(env: NodeJS.ProcessEnv = process.env): EnvConfig {
     metricsFile: env.CSBOT_METRICS_FILE || undefined,
     steamPath: env.CSBOT_STEAM_PATH || undefined,
     signal: validSignal(env.CSBOT_SIGNAL),
+    coachOff: env.CSBOT_COACH === 'off',
   };
 }

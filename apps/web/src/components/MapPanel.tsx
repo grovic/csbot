@@ -1,4 +1,4 @@
-import { heatGrid, MIRAGE } from '@csbot/engine';
+import { heatGrid, MIRAGE, slotsFor } from '@csbot/engine';
 import type { LiveSnapshot, RoomView } from '@csbot/protocol';
 import { useEffect, useMemo, useRef } from 'react';
 import { mapName } from '../format.ts';
@@ -89,9 +89,10 @@ function HeatCanvas({ img }: { img: ImageData }) {
 }
 
 /** Who plays each slot: the room member assigned to it, else the slot's label. */
-function slotNamer(room?: RoomView) {
+function slotNamer(room?: RoomView, map?: string) {
   const byslot = new Map((room?.members ?? []).filter(m => m.slot).map(m => [m.slot!, m.name]));
-  const label = new Map((room?.slots ?? []).map(s => [s.id, s.label]));
+  // Without a room (solo), the playbook's own position names.
+  const label = new Map((room?.slots ?? slotsFor(map)).map(s => [s.id, s.label]));
   return (slot: string) => byslot.get(slot) ?? label.get(slot) ?? slot;
 }
 
@@ -115,7 +116,7 @@ export function MapPanel({ snap, room }: { snap: LiveSnapshot; room?: RoomView }
   }
 
   const spots = snap.setupSpots ?? [];
-  const who = slotNamer(room);
+  const who = slotNamer(room, snap.match?.map);
   return (
     <div className="mapcol" data-testid="map">
       <div className="map">

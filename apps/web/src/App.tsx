@@ -1,14 +1,16 @@
 import { useMemo } from 'react';
 import { Header } from './components/Header.tsx';
 import { LinkStatusView, isBlocking } from './components/LinkStatus.tsx';
-import { scoutOf, Session } from './data/session.ts';
+import { coachOf, scoutOf, Session } from './data/session.ts';
 import { useHashRoute, useSession } from './hooks.ts';
+import { CoachPage } from './pages/Coach.tsx';
 import { Join } from './pages/Join.tsx';
 import { Live } from './pages/Live.tsx';
 import { Placeholder } from './pages/Placeholder.tsx';
 import { RoomPage } from './pages/Room.tsx';
 import { Scout } from './pages/Scout.tsx';
 import { Settings } from './pages/Settings.tsx';
+import { useVoiceCallouts } from './voice.ts';
 
 export function App() {
   const session = useMemo(() => new Session(), []);
@@ -16,6 +18,7 @@ export function App() {
   const route = useHashRoute();
   const live = v.screen?.live;
   const blocking = isBlocking(v);
+  useVoiceCallouts(v);
 
   let page: React.ReactNode = null;
   if (v.join) page = <Join view={v} session={session} />;
@@ -24,8 +27,8 @@ export function App() {
   else if (route === 'settings') page = <Settings snap={live} kind={v.kind} scout={scoutOf(v)} session={session} />;
   else if (route === 'scout') page = <Scout view={v} session={session} />;
   else if (route === 'debrief') page = <Placeholder milestone="Coming in M6" title="Debrief" text="Result, buy-read accuracy, enemy money per round and what to work on next, built from the match demo." />;
-  else if (route === 'coach') page = <Placeholder milestone="Coming in M5" title="Coach" text="Chat with the coach, plus every detailed panel: round reasoning, economy, scouting data and the call log." />;
-  else if (live) page = <Live snap={live} receivedAt={v.receivedAt} rate={v.rate} kind={v.kind} role={v.role} room={v.screen?.room} scout={scoutOf(v)} />;
+  else if (route === 'coach') page = <CoachPage view={v} session={session} />;
+  else if (live) page = <Live snap={live} receivedAt={v.receivedAt} rate={v.rate} kind={v.kind} role={v.role} room={v.screen?.room} scout={scoutOf(v)} coach={coachOf(v)} />;
 
   return (
     <div className="app" data-source={v.kind} data-role={v.role}>

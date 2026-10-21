@@ -2,6 +2,7 @@ import { formatCode } from '@csbot/room';
 import type { SessionView } from '../data/session.ts';
 import type { Route } from '../hooks.ts';
 import { mapName, modeName } from '../format.ts';
+import { voice, voiceSupported, useVoiceOn } from '../voice.ts';
 import { IconBot, IconGear, IconVoice, Logo } from './Icons.tsx';
 
 const CONN = {
@@ -30,6 +31,18 @@ function RoomChip({ view, route }: { view: SessionView; route: Route }) {
       {room && <span className="rc-n">{online} online</span>}
       <span className={'rb ' + role}>{role.toUpperCase()}</span>
     </a>
+  );
+}
+
+function VoiceButton() {
+  const on = useVoiceOn();
+  const supported = voiceSupported();
+  const title = !supported ? 'Voice callouts need speech support in this browser'
+    : on ? 'Voice callouts on: reads your job aloud when the call changes. Click to turn off.'
+      : 'Voice callouts off. Click to read your job aloud when the call changes.';
+  return (
+    <button className={'icon-btn' + (on ? ' voice-on' : '')} type="button" disabled={!supported} aria-pressed={on} title={title} aria-label={title}
+      onClick={() => voice.set(!on)} data-testid="voice-toggle" data-state={on ? 'on' : 'off'}><IconVoice /></button>
   );
 }
 
@@ -72,7 +85,7 @@ export function Header({ view, route }: { view: SessionView; route: Route }) {
           {src === 'demo' && <span className="badge">DEMO</span>}
           {src === 'replay' && <span className="badge warn">REPLAY</span>}
         </a>}
-        <button className="icon-btn" type="button" disabled title="Voice callouts arrive in M5" aria-label="Voice callouts (arrives in M5)"><IconVoice /></button>
+        <VoiceButton />
         <a className={'icon-btn' + (route === 'coach' ? ' on' : '')} href="#/coach" title="Coach" aria-label="Coach"><IconBot /></a>
         <a className={'icon-btn' + (route === 'settings' ? ' on' : '')} href="#/settings" title="Settings" aria-label="Settings"><IconGear /></a>
       </div>

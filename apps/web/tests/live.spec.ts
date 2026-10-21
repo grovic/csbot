@@ -128,8 +128,10 @@ test('settings in the browser explains hosting', async ({ page }) => {
 test('placeholder pages', async ({ page }) => {
   const errors = await open(page, 'at=live-2&pause=1', '#/debrief');
   await expect(page.getByTestId('placeholder')).toContainText('Coming in M6');
+  // The Coach page is real since M5.
   await page.goto('./?at=live-2&pause=1#/coach');
-  await expect(page.getByTestId('placeholder')).toContainText('Coming in M5');
+  await expect(page.getByTestId('coach-page')).toBeVisible();
+  await expect(page.getByTestId('placeholder')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 

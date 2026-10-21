@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import type { LiveSnapshot } from './index.ts';
 import type { ScoutView } from './scout.ts';
+import type { CoachView } from './coach.ts';
 
 export const ROOM_PROTOCOL = 1;
 /** Hard cap on one message (a snapshot is a few KB; a GSI payload under 20 KB). */
@@ -66,6 +67,8 @@ export interface ScreenState {
   room?: RoomView;
   /** Pre-match scouting (from the host in a room, or this PC when solo). */
   scout?: ScoutView;
+  /** The live coach: chat, call log, budget (from the host). */
+  coach?: CoachView;
   link?: { status: LinkStatus; since: number; detail?: string };
 }
 
@@ -82,6 +85,8 @@ export const MemberMessage = z.discriminatedUnion('t', [
   /** The member picks their own slot (when permitted). */
   z.object({ t: z.literal('slot'), slot: z.string().max(24).nullable() }),
   z.object({ t: z.literal('rename'), name }),
+  /** A question for the coach (the host checks the ask permission and the member's quota). */
+  z.object({ t: z.literal('ask'), text: z.string().trim().min(2).max(300) }),
   z.object({ t: z.literal('bye') }),
 ]);
 export type MemberMessage = z.infer<typeof MemberMessage>;
@@ -92,10 +97,14 @@ export type HostMessage =
   | { t: 'state'; room: RoomView; live: LiveSnapshot }
   /** Sent on join and whenever scouting changes (too big to ride along with every state). */
   | { t: 'scout'; scout: ScoutView }
+  /** Sent on join and whenever the coach changes (chat, call log, budget). */
+  | { t: 'coach'; coach: CoachView }
+  /** The answer to this member's own ask: refused (quota, permission) or accepted. */
+  | { t: 'askResult'; ok: boolean; error?: string }
   | { t: 'removed'; reason: string }
   | { t: 'ended' };
 
-const HOST_TYPES = new Set(['welcome', 'state', 'scout', 'removed', 'ended']);
+const HOST_TYPES = new Set(['welcome', 'state', 'scout', 'coach', 'askResult', 'removed', 'ended']);
 export function isHostMessage(m: unknown): m is HostMessage {
   return !!m && typeof m === 'object' && HOST_TYPES.has((m as { t?: unknown }).t as string);
 }

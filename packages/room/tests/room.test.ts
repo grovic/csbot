@@ -1,6 +1,6 @@
 import { MatchTracker } from '@csbot/engine';
 import { FIRST_HALF, syntheticMatch, toGameState, type GsiPayload } from '@csbot/gsi';
-import { EMPTY_SCOUT, type LiveSnapshot } from '@csbot/protocol';
+import { EMPTY_COACH, EMPTY_SCOUT, type LiveSnapshot } from '@csbot/protocol';
 import { describe, expect, it } from 'vitest';
 import {
   formatCode, HOST_ID, inviteUrl, isRoomCode, isRoomKey, MemoryNetwork, newRoomCode, newRoomKey, newSavedRoom, parseInvite,
@@ -263,6 +263,29 @@ describe('scouting in a room', () => {
     await flush();
     expect(k.last().screen!.scout!.facts).toHaveLength(2); // survives later state messages
     expect(host.screen().scout!.facts).toHaveLength(2);
+  });
+});
+
+describe('asking the coach from a room', () => {
+  it('passes questions on with the asker, and respects the ask permission', async () => {
+    const net = new MemoryNetwork();
+    const asked: string[] = [];
+    const host = new RoomHost({
+      transport: net.transport({ code: CODE, key: KEY, role: 'host' }), room: newSavedRoom(CODE, KEY), hostName: 'rdx', throttleMs: 0,
+      onAsk: async (from, text) => { asked.push(`${from.name}:${from.role}:${text}`); return text.includes('quota') ? { ok: false, error: 'No questions left.' } : { ok: true }; },
+    });
+    const client = new RoomClient({ transport: net.transport({ code: CODE, key: KEY, role: 'member' }), clientId: 'client-kairo', name: 'kairo', device: 'web' });
+    const flush = async () => { for (let i = 0; i < 6; i++) { await net.settle(); await new Promise(r => setTimeout(r, 1)); } };
+    await flush(); host.approve('client-kairo'); await flush();
+    host.setCoach({ ...EMPTY_COACH, messages: [{ id: 'm1', at: 1, kind: 'system', text: 'Coach ready' }] });
+    await flush();
+    expect(client.current.screen!.coach!.messages[0]!.text).toBe('Coach ready');
+    expect(await client.ask('Where do they hit on ecos?')).toEqual({ ok: true });
+    expect(await client.ask('over quota?')).toEqual({ ok: false, error: 'No questions left.' });
+    host.setPermissions({ ask: false });
+    await flush();
+    expect((await client.ask('still there?')).error).toMatch(/turned off questions/);
+    expect(asked).toEqual(['kairo:member:Where do they hit on ecos?', 'kairo:member:over quota?']);
   });
 });
 

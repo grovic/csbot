@@ -3,10 +3,10 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { MatchTracker } from '@csbot/engine';
+import { MatchTracker, PLAYBOOKS } from '@csbot/engine';
 import { gsiConfig, spectatorGuard, toGameState, toLine, type GsiPayload, type Side } from '@csbot/gsi';
 import { startGsiServer, type GsiServer } from '@csbot/gsi/server';
-import type { ConnectionView, HostInfo, LiveSnapshot } from '@csbot/protocol';
+import type { CallView, ConnectionView, HostInfo, LiveSnapshot } from '@csbot/protocol';
 import { cfgFilePath, cfgStatus, type Cs2Install } from './cs2.ts';
 
 export interface HostOptions {
@@ -48,6 +48,26 @@ function ownSide(p: GsiPayload): Side | undefined {
   return pl.team === 'CT' || pl.team === 'T' ? pl.team : undefined;
 }
 
+/**
+ * Put the coach's (Claude's) call on a snapshot. It only applies to the round and call kind it was
+ * written for (pre-round from freeze time until a plant, post-plant after); otherwise the engine call
+ * stays. Keeps the tracker's YOU line when it's the "you're dead" line, else uses our slot's job, and
+ * moves the map's planned spots when Claude chose another playbook setup.
+ */
+export function withCoachCall(s: LiveSnapshot, coach: CallView | undefined, ourSlot?: string): LiveSnapshot {
+  const engine = s.call;
+  if (!coach || !engine || !s.match || coach.round !== s.match.round || coach.kind !== engine.kind) return s;
+  const dead = engine.you?.startsWith("You're dead") ? engine.you : undefined;
+  const you = dead ?? (ourSlot ? coach.jobs[ourSlot] : undefined);
+  const { you: _y, ...rest } = coach;
+  const out: LiveSnapshot = { ...s, call: { ...rest, ...(you ? { you } : {}) } };
+  if (coach.setup && coach.setup !== engine.setup) {
+    const setup = PLAYBOOKS[s.match.map]?.setups.find(x => x.id === coach.setup);
+    if (setup) out.setupSpots = setup.spots.map(sp => ({ player: sp.player, at: [sp.at[0], sp.at[1]] as const, label: sp.label }));
+  }
+  return out;
+}
+
 export class Host {
   readonly recordingsDir: string;
   private readonly o: HostOptions;
@@ -66,6 +86,7 @@ export class Host {
   private recStopped = false;
   private cs2?: Cs2Install | null;
   private rejected = { token: 0, json: 0, size: 0 };
+  private coachCall?: CallView;
 
   constructor(o: HostOptions) {
     this.o = o;
@@ -128,13 +149,19 @@ export class Host {
   /** Build and broadcast a snapshot now. */
   emit(): LiveSnapshot {
     if (this.trailing) { clearTimeout(this.trailing); this.trailing = undefined; }
-    const s = this.tracker.snapshot(Date.now());
+    const s = withCoachCall(this.tracker.snapshot(Date.now()), this.coachCall, this.o.playbookHandle);
     this.last = s;
     this.lastEmit = Date.now();
     for (const l of this.listeners) {
       try { l(s); } catch { /* a bad listener must not break the pipeline */ }
     }
     return s;
+  }
+
+  /** The live coach's call (undefined = engine calls only). Shown right away. */
+  setCoachCall(call: CallView | undefined): void {
+    this.coachCall = call;
+    this.emit();
   }
 
   /** The cfg text CS2 needs to reach this host. */
