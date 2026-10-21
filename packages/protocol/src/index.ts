@@ -188,6 +188,11 @@ export interface HostInfo {
   portFallback?: { wanted: number; actual: number };
   cs2Path?: string;
   recordingsDir: string;
+  /**
+   * Numpad intel hotkeys (desktop, off by default: a global hotkey takes the key away from the game).
+   * Pressing a sighting key n times within 1.5 s logs n enemies; a clear key logs the zone clear.
+   */
+  intelHotkeys?: { enabled: boolean; keys: { key: string; zone: string; zoneName: string; kind: 'sighting' | 'clear' }[]; error?: string };
   /** Auto-update (installed copies only). */
   update?: { version: string; state: 'off' | 'checking' | 'up-to-date' | 'downloading' | 'ready' | 'error'; available?: string; error?: string };
 }
@@ -235,6 +240,8 @@ export interface CsbotBridge {
    * intel on with their name. Refused outside a live round or without a map model.
    */
   logIntel?(zone: string, count: number, from?: { id: string; name: string }): Promise<{ ok: boolean; error?: string }>;
+  /** Turn the numpad intel hotkeys on or off (see HostInfo.intelHotkeys). */
+  setIntelHotkeys?(enabled: boolean): Promise<{ ok: boolean; error?: string }>;
   /**
    * Room roster with slots, so the coach can name players in calls ("rdx rotates to B") and knows
    * who's a random. Superset of setRoomRoster's names.
