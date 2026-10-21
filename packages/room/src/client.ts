@@ -1,7 +1,7 @@
 // A member's side of the room (web app or desktop app in member mode): join, wait for approval,
 // render the host's personalized screen, survive the host going away, share own GSI (desktop).
 
-import { isHostMessage, ROOM_PROTOCOL, type LinkStatus, type MemberMessage, type ScoutView, type ScreenState } from '@csbot/protocol';
+import { isHostMessage, ROOM_PROTOCOL, type CoachView, type LinkStatus, type MemberMessage, type ScoutView, type ScreenState } from '@csbot/protocol';
 import type { Transport } from './transport.ts';
 
 export interface RoomClientOptions {
@@ -35,6 +35,8 @@ export class RoomClient {
   private lastGsi = 0;
   private closed = false;
   private pendingScout?: ScoutView;
+  private pendingCoach?: CoachView;
+  private askWaiter?: (r: { ok: boolean; error?: string }) => void;
 
   constructor(o: RoomClientOptions) {
     this.o = { now: Date.now, gsiMinGapMs: 100, ...o };
@@ -78,6 +80,18 @@ export class RoomClient {
   }
 
   setSlot(slot: string | null): void { this.sendMsg({ t: 'slot', slot }); }
+
+  /** Ask the coach. Resolves with the host's verdict (quota, permission), not the answer: that arrives in the chat. */
+  ask(text: string, timeoutMs = 20_000): Promise<{ ok: boolean; error?: string }> {
+    if (this.state.status !== 'approved') return Promise.resolve({ ok: false, error: 'Not connected to the host.' });
+    if (this.askWaiter) return Promise.resolve({ ok: false, error: 'Your last question is still being sent.' });
+    return new Promise(resolve => {
+      const timer = setTimeout(() => { if (this.askWaiter === done) { this.askWaiter = undefined; resolve({ ok: false, error: "The host didn't answer. Try again." }); } }, timeoutMs);
+      const done = (r: { ok: boolean; error?: string }) => { clearTimeout(timer); resolve(r); };
+      this.askWaiter = done;
+      this.sendMsg({ t: 'ask', text });
+    });
+  }
   rename(name: string): void { this.sendMsg({ t: 'rename', name }); }
 
   leave(): void {
@@ -98,9 +112,20 @@ export class RoomClient {
         break;
       case 'state': {
         const scout = this.state.screen?.scout ?? this.pendingScout;
-        this.state = { ...this.state, status: 'approved', screen: { live: m.live, room: m.room, ...(scout ? { scout } : {}) } };
+        const coach = this.state.screen?.coach ?? this.pendingCoach;
+        this.state = { ...this.state, status: 'approved', screen: { live: m.live, room: m.room, ...(scout ? { scout } : {}), ...(coach ? { coach } : {}) } };
         if (this.state.detail) delete this.state.detail;
         this.emit();
+        break;
+      }
+      case 'coach':
+        if (this.state.screen) { this.state = { ...this.state, screen: { ...this.state.screen, coach: m.coach } }; this.emit(); }
+        else this.pendingCoach = m.coach;
+        break;
+      case 'askResult': {
+        const w = this.askWaiter;
+        this.askWaiter = undefined;
+        w?.({ ok: m.ok, ...(m.error ? { error: m.error } : {}) });
         break;
       }
       case 'scout':

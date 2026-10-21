@@ -6,7 +6,7 @@ import { spectatorGuard, toGameState, type GsiPayload } from '@csbot/gsi';
 import {
   DEFAULT_PERMISSIONS, parseMemberMessage, ROOM_PROTOCOL,
   type DeviceKind, type HostMessage, type JoinRequest, type LiveSnapshot, type MemberMessage, type PlayerRow,
-  type RoomMember, type RoomPermissions, type RoomView, type ScoutView, type ScreenState,
+  type CoachAsker, type CoachView, type RoomMember, type RoomPermissions, type RoomView, type ScoutView, type ScreenState,
 } from '@csbot/protocol';
 import { mergeRows, personalize } from './compose.ts';
 import type { Transport } from './transport.ts';
@@ -43,6 +43,8 @@ export interface RoomHostOptions {
   throttleMs?: number;
   /** Per-peer message budget per second before messages are dropped (default 30). */
   rateLimit?: number;
+  /** A member's question for the coach (already checked against the room's ask permission). */
+  onAsk?: (from: CoachAsker, text: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
 interface Peer { id: string; memberId?: string; device?: DeviceKind; times: number[] }
@@ -54,13 +56,14 @@ const EMPTY_LIVE: LiveSnapshot = {
 };
 
 export class RoomHost {
-  private readonly o: Required<Omit<RoomHostOptions, 'onSave'>> & Pick<RoomHostOptions, 'onSave'>;
+  private readonly o: Required<Omit<RoomHostOptions, 'onSave' | 'onAsk'>> & Pick<RoomHostOptions, 'onSave' | 'onAsk'>;
   private saved: SavedRoom;
   private peers = new Map<string, Peer>();
   private members = new Map<string, Member>();
   private pending = new Map<string, JoinRequest & { peer: string }>();
   private live: LiveSnapshot = EMPTY_LIVE;
   private scout?: ScoutView;
+  private coach?: CoachView;
   private listeners = new Set<(s: ScreenState) => void>();
   private timer?: ReturnType<typeof setTimeout>;
   private lastBroadcast = 0;
@@ -82,6 +85,13 @@ export class RoomHost {
 
   setLive(s: LiveSnapshot): void { this.live = s; this.schedule(); }
 
+  /** New coach state (chat, call log, budget): every member gets it now; joiners on approval. */
+  setCoach(c: CoachView): void {
+    this.coach = c;
+    for (const m of this.members.values()) if (m.peer) this.send(m.peer, { t: 'coach', coach: c });
+    this.schedule(true);
+  }
+
   /** New scouting: every member gets it now; joiners get it on approval. */
   setScout(s: ScoutView): void {
     this.scout = s;
@@ -100,6 +110,7 @@ export class RoomHost {
     this.save();
     this.send(req.peer, { t: 'welcome', v: ROOM_PROTOCOL, status: 'approved' });
     if (this.scout) this.send(req.peer, { t: 'scout', scout: this.scout });
+    if (this.coach) this.send(req.peer, { t: 'coach', coach: this.coach });
     this.schedule(true);
   }
 
@@ -151,7 +162,7 @@ export class RoomHost {
 
   /** The admin's own screen. */
   screen(): ScreenState {
-    return { live: this.personalLive(HOST_ID), room: this.view(HOST_ID), ...(this.scout ? { scout: this.scout } : {}) };
+    return { live: this.personalLive(HOST_ID), room: this.view(HOST_ID), ...(this.scout ? { scout: this.scout } : {}), ...(this.coach ? { coach: this.coach } : {}) };
   }
 
   subscribe(cb: (s: ScreenState) => void): () => void {
@@ -203,6 +214,7 @@ export class RoomHost {
       case 'slot': if (this.saved.permissions.editSlot) this.setSlot(member.id, m.slot); break;
       case 'rename': member.name = m.name; this.save(); this.schedule(true); break;
       case 'bye': this.dropPeer(peerId); break;
+      case 'ask': void this.ask(member, m.text, peerId); break;
     }
   }
 
@@ -226,6 +238,7 @@ export class RoomHost {
       peer.memberId = known.id;
       this.send(peer.id, { t: 'welcome', v: ROOM_PROTOCOL, status: 'approved' });
       if (this.scout) this.send(peer.id, { t: 'scout', scout: this.scout });
+      if (this.coach) this.send(peer.id, { t: 'coach', coach: this.coach });
       this.schedule(true);
       return;
     }
@@ -236,6 +249,14 @@ export class RoomHost {
     this.pending.set(m.clientId, { id: m.clientId, name: m.name, device: m.device, at: this.o.now(), peer: peer.id });
     this.send(peer.id, { t: 'welcome', v: ROOM_PROTOCOL, status: 'pending' });
     this.schedule(true);
+  }
+
+  private async ask(member: Member, text: string, peer: string): Promise<void> {
+    if (!this.saved.permissions.ask) { this.send(peer, { t: 'askResult', ok: false, error: 'The admin turned off questions for members.' }); return; }
+    if (this.saved.tournament) { this.send(peer, { t: 'askResult', ok: false, error: 'Tournament mode is on: no live coaching.' }); return; }
+    if (!this.o.onAsk) { this.send(peer, { t: 'askResult', ok: false, error: "The host's coach isn't available." }); return; }
+    const r = await this.o.onAsk({ id: member.id, name: member.name, role: 'member' }, text).catch((e: Error) => ({ ok: false, error: e.message }));
+    this.send(peer, { t: 'askResult', ok: r.ok, ...(r.error ? { error: r.error } : {}) });
   }
 
   private memberGsi(member: Member, payload: GsiPayload, now: number): void {
@@ -311,7 +332,7 @@ export class RoomHost {
       this.send(m.peer, { t: 'state', room: this.view(m.id), live: this.personalLive(m.id, rows) });
     }
     if (this.listeners.size) {
-      const s: ScreenState = { live: this.personalLive(HOST_ID, rows), room: this.view(HOST_ID), ...(this.scout ? { scout: this.scout } : {}) };
+      const s: ScreenState = { live: this.personalLive(HOST_ID, rows), room: this.view(HOST_ID), ...(this.scout ? { scout: this.scout } : {}), ...(this.coach ? { coach: this.coach } : {}) };
       for (const cb of this.listeners) cb(s);
     }
   }

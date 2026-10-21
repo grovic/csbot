@@ -16,7 +16,8 @@
     "@csbot/engine": "workspace:*",
     "@csbot/gsi": "workspace:*",
     "@csbot/protocol": "workspace:*",
-    "@csbot/scout": "workspace:*"
+    "@csbot/scout": "workspace:*",
+    "@csbot/coach": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",

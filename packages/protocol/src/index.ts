@@ -1,4 +1,5 @@
 import type { ScoutView } from './scout.ts';
+import type { CoachAsker, CoachConfig, CoachView } from './coach.ts';
 
 // Wire types shared by the host, the desktop renderer and (from M2) room members.
 // The host builds a LiveSnapshot from its GSI feed; every screen renders only from snapshots.
@@ -208,8 +209,19 @@ export interface CsbotBridge {
   setRoomRoster?(members: { name: string }[]): void;
   /** The host's FACEIT nickname: lists their recent matches and spots a live one. null clears it. */
   setFaceitNickname?(nickname: string | null): Promise<{ ok: boolean; error?: string }>;
+  /** The live coach (M5). Called with the latest view right away. */
+  onCoach?(cb: (c: CoachView) => void): () => void;
+  /** A question for the coach. The room host passes members' questions on with their identity. */
+  askCoach?(text: string, from?: CoachAsker): Promise<{ ok: boolean; error?: string }>;
+  setCoachConfig?(patch: Partial<CoachConfig>): Promise<void>;
+  /**
+   * Room roster with slots, so the coach can name players in calls ("rdx rotates to B") and knows
+   * who's a random. Superset of setRoomRoster's names.
+   */
+  setRoomSlots?(members: { name: string; slot?: string; random?: boolean }[], opts?: { tournament?: boolean }): void;
   /** Save or clear an API key (stored encrypted on this PC; never sent to the room). */
   setApiKey?(service: 'faceit' | 'steam', key: string | null): Promise<{ ok: boolean; error?: string }>;
 }
 export * from './room.ts';
 export * from './scout.ts';
+export * from './coach.ts';
