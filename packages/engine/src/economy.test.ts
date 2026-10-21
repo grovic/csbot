@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyRoundResult, argmax, buyProbs, lossBonus, nextRoundIfLost, RULES_V1, startOfHalf } from './economy.ts';
+import { applyRoundResult, argmax, buyProbs, lossBonus, nextRoundIfLost, PISTOL_SPEND, RULES_V1, startOfHalf } from './economy.ts';
 
 describe('loss bonus', () => {
   it('follows the ladder and caps at the last step', () => {
@@ -66,11 +66,19 @@ describe('round results', () => {
   });
 
   it('starts each half at the start money', () => {
-    expect(startOfHalf()).toEqual({ lo: 800, hi: 800, streak: 0, saved: false });
+    // CS2 starts each half at loss-bonus level 1 (GSI's consecutive_round_losses reads 1 at a pistol round).
+    expect(startOfHalf()).toEqual({ lo: 800, hi: 800, streak: 1, saved: false });
   });
 
   it('projects our own money for a lost round', () => {
     expect(nextRoundIfLost(4900, 0)).toBe(6300);
     expect(nextRoundIfLost(15500, 3)).toBe(16000);
+  });
+  it('pays $1,900 for a lost pistol round, as in a real CS2 match', () => {
+    const e = applyRoundResult(startOfHalf(), { enemyWon: false, reason: 'elimination', enemyPlanted: false, enemyBuy: 'eco', spend: PISTOL_SPEND });
+    expect(e.streak).toBe(2);
+    expect(e.lo).toBe(1900); // spent all $800
+    expect(e.hi).toBe(2500); // kept $300, plus kill-free slack
+    expect(argmax(buyProbs(e))).toBe('eco');
   });
 });

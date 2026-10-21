@@ -56,6 +56,38 @@ describe('MatchTracker on a full synthetic match', () => {
   }
 });
 
+describe('round ends as CS2 sends them (real match, 2026-10-21)', () => {
+  // The half's last round ends in a payload that's already intermission, the match's last round in a
+  // gameover payload, and an exploded bomb is never reported.
+  const { snaps, last } = run(syntheticMatch({ rounds: FULL_MATCH, lean: true, cs2Ends: true }));
+
+  it('records every round, including the last of each half', () => {
+    const h = last.match!.history;
+    expect(h.map(r => r.round)).toEqual(FULL_MATCH.map((_, i) => i + 1));
+    h.forEach((r, i) => {
+      expect(r.winner).toBe(FULL_MATCH[i]!.winner);
+      expect(r.ourSide).toBe(i < 12 ? 'CT' : 'T');
+    });
+    expect(last.match!.score).toEqual({ us: 13, them: 8 });
+    expect(last.match!.clock.phase).toBe('gameover');
+    expect(last.call?.head).toBe('Match won 13–8');
+  });
+
+  it('infers a bomb win from the timer when the game only clears round.bomb', () => {
+    const h = last.match!.history;
+    FULL_MATCH.forEach((rd, i) => { if (rd.reason === 'bomb' || rd.reason === 'defuse') expect(h[i]!.reason).toBe(rd.reason); });
+    expect(FULL_MATCH.some(rd => rd.reason === 'bomb')).toBe(true);
+  });
+
+  it('credits a lost pistol round with $1,900', () => {
+    // We won round 1, so round 2's enemy band starts from their pistol loss.
+    expect(FULL_MATCH[0]!.winner).toBe('us');
+    const r2 = at(snaps, 2, 'freezetime').enemy!;
+    expect(r2.lo).toBe(1900);
+    expect(r2.read).toBe('eco');
+  });
+});
+
 describe('calls and the YOU line', () => {
   const { snaps } = run(syntheticMatch({ rounds: FIRST_HALF }));
 

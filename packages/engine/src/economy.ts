@@ -98,11 +98,16 @@ export interface RoundResult {
   enemyLossStreak?: number;
   /** Buy type the enemy most likely used this round. */
   enemyBuy: BuyType;
+  /** Spend range per player, when it isn't the buy type's (the pistol round: PISTOL_SPEND). */
+  spend?: readonly [number, number];
 }
+
+/** A pistol round spends most of the $800 (kevlar, or a pistol and utility). */
+export const PISTOL_SPEND: readonly [number, number] = [500, 800];
 
 /** Update the enemy money band after a round. */
 export function applyRoundResult(e: EnemyEconomy, r: RoundResult, rules: EconomyRules = RULES_V1): EnemyEconomy {
-  const spend = SPEND[r.enemyBuy];
+  const spend = r.spend ?? SPEND[r.enemyBuy];
   let lo = Math.max(0, e.lo - spend[1]);
   let hi = Math.max(0, e.hi - spend[0]);
   let streak: number;
@@ -126,8 +131,12 @@ export function applyRoundResult(e: EnemyEconomy, r: RoundResult, rules: Economy
   };
 }
 
+/**
+ * `streak` is CS2's loss-bonus level, as GSI reports it in `consecutive_round_losses`. Each half starts at
+ * level 1, so a lost pistol round pays level 2 ($1,900). Seen in a real match (2026-10-21).
+ */
 export function startOfHalf(rules: EconomyRules = RULES_V1): EnemyEconomy {
-  return { lo: rules.startMoney, hi: rules.startMoney, streak: 0, saved: false };
+  return { lo: rules.startMoney, hi: rules.startMoney, streak: 1, saved: false };
 }
 
 /** Money for one of our players next round if this round is lost. */

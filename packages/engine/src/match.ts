@@ -7,7 +7,7 @@ import type {
   BuyRead, CallView, ConnectionView, EnemyView, ForecastView, IntelView, LiveSnapshot, MeView, Phase, PlayerRow,
   RoundRecord, SetupSpot, Side, TickerItem, YouTile,
 } from '@csbot/protocol';
-import { applyRoundResult, argmax, buyProbs, FULL_BUY_CT, lossBonus, startOfHalf, type BuyProbs, type EnemyEconomy, type RoundReason } from './economy.ts';
+import { applyRoundResult, argmax, buyProbs, FULL_BUY_CT, lossBonus, PISTOL_SPEND, startOfHalf, type BuyProbs, type EnemyEconomy, type RoundReason } from './economy.ts';
 import { planPosterior, planPrior, siteForecast, topPlan, type Intel, type MapModel, type Site } from './forecast.ts';
 import { MIRAGE } from './maps/mirage.ts';
 import { engineRoundCall, MIRAGE_PLAYBOOK, type Playbook } from './playbook.ts';
@@ -19,6 +19,8 @@ export const DEFAULT_PHASES: PhaseLengths = { freezetime: 20, live: 115, bomb: 4
 export const OT_START_MONEY = 12_500;
 export const FULL_BUY_T = 4100;
 const OT_HALF = 3;
+/** Seconds from plant to explosion in CS2. */
+const BOMB_TIMER = 40;
 
 export interface TrackerOptions {
   source?: ConnectionView['source'];
@@ -91,7 +93,7 @@ export function youTile(me: MeView | undefined, phase: Phase, side: Side | undef
 
 function genericCall(round: number, read: BuyRead, buy: BuyProbs, enemy: EnemyEconomy, side: Side | undefined): CallView {
   const why = [`Enemy est. ${fmt$(enemy.lo)}–${fmt$(enemy.hi)} each → ${READ_WORD[read]}${read === 'pistol' ? '' : ' ' + pct(buy[read])}`];
-  if (enemy.streak) why.push(`Enemy loss streak ${enemy.streak}${enemy.saved ? ' · they saved last round' : ''}`);
+  if (enemy.streak) why.push(`Enemy loss bonus level ${enemy.streak} (a loss pays ${fmt$(lossBonus(enemy.streak + 1))})${enemy.saved ? ' · they saved last round' : ''}`);
   const base = { kind: 'pre' as const, round, jobs: {}, why, source: 'engine' as const };
   switch (read) {
     case 'pistol': return { ...base, head: 'Pistol round', sub: 'Armor first · play in pairs and trade', steps: ['Buy armor', 'Trade in pairs'] };
@@ -131,6 +133,8 @@ export class MatchTracker {
   private enemyBuy?: BuyProbs;
   private enemyRead?: BuyRead;
   private plantedThisRound = false;
+  /** When the plant was first seen (round.bomb isn't reported as "exploded": it's just cleared). */
+  private plantedAt?: number;
   private pistol = false;
 
   private me?: MeView;
@@ -216,6 +220,9 @@ export class MatchTracker {
     if (next === 'live' && this.phase === 'freezetime') this.onLive(s);
     if (next === 'bomb' && this.phase !== 'bomb') this.onPlant(s);
     if (next === 'over' && this.phase !== 'over') this.onRoundOver(s);
+    // CS2 can end the half's last round with a payload that's already in intermission, and the match's
+    // last round with one that's already gameover (round.phase "freezetime"). Settle the round there too.
+    else if ((next === 'halftime' || next === 'gameover') && this.phase !== next && s.winTeam) this.onRoundOver(s);
     if (next !== this.phase) {
       if (this.phase === 'freezetime' && this.phaseStartSeen && this.phaseStartedAt !== undefined) {
         const len = (s.at - this.phaseStartedAt) / 1000;
@@ -346,6 +353,7 @@ export class MatchTracker {
     this.intel = [];
     this.baseCall = undefined;
     this.plantedThisRound = false;
+    this.plantedAt = undefined;
     this.myRoundDamage = 0;
     this.liveStartedAt = undefined;
     this.freezeMoney = this.me && !this.me.observing ? this.me.money : undefined;
@@ -383,6 +391,7 @@ export class MatchTracker {
 
   private onPlant(s: GameState): void {
     this.plantedThisRound = true;
+    this.plantedAt = s.at;
     const ct = this.ourSide === 'CT';
     const prev = this.call;
     this.call = {
@@ -410,7 +419,11 @@ export class MatchTracker {
     else {
       inferred = true;
       const liveFor = this.liveStartedAt !== undefined ? (s.at - this.liveStartedAt) / 1000 : 0;
-      reason = s.bomb === 'exploded' ? 'bomb' : s.bomb === 'defused' ? 'defuse'
+      // A T win that ends a full bomb timer after the plant is the bomb (the first "planted" payload can lag
+      // the plant by a second or two; post-plant eliminations in the real match ended 7-31 s after it).
+      const sincePlant = this.plantedAt !== undefined ? (s.at - this.plantedAt) / 1000 : 0;
+      reason = s.bomb === 'exploded' || (winSide === 'T' && this.plantedThisRound && sincePlant >= BOMB_TIMER - 4) ? 'bomb'
+        : s.bomb === 'defused' ? 'defuse'
         : winSide === 'CT' && !this.plantedThisRound && liveFor >= this.o.phases.live - 3 ? 'time' : 'elimination';
     }
     const won = winSide === ourSide;
@@ -418,9 +431,13 @@ export class MatchTracker {
 
     const enemySide = other(ourSide);
     const read = this.enemyRead ?? 'eco';
+    // The round-end payload already carries the enemy's new loss-bonus level.
+    const theirs = enemySide === 'CT' ? s.ct : s.t;
     this.enemy = applyRoundResult(this.enemy, {
       enemyWon: !won, reason, enemyPlanted: enemySide === 'T' && (this.plantedThisRound || reason === 'defuse'),
       enemyBuy: read === 'pistol' ? 'eco' : read,
+      ...(read === 'pistol' ? { spend: PISTOL_SPEND } : {}),
+      ...(theirs ? { enemyLossStreak: theirs.lossStreak } : {}),
     });
     // Losing a pistol round isn't a save: everyone spends their $800.
     if (read === 'pistol') this.enemy = { ...this.enemy, saved: false };
