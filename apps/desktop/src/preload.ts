@@ -36,6 +36,7 @@ const bridge: CsbotBridge = {
   },
   scoutMatch: linkOrId => ipcRenderer.invoke('csbot:scoutMatch', linkOrId) as Promise<{ ok: boolean; error?: string }>,
   scoutSample: () => ipcRenderer.invoke('csbot:scoutSample') as Promise<void>,
+  scoutSwap: () => ipcRenderer.invoke('csbot:scoutSwap') as Promise<{ ok: boolean; error?: string }>,
   runScoutReport: () => ipcRenderer.invoke('csbot:runScoutReport') as Promise<{ ok: boolean; error?: string }>,
   setRoomRoster: members => { ipcRenderer.send('csbot:setRoomRoster', members); },
   setFaceitNickname: nickname => ipcRenderer.invoke('csbot:setFaceitNickname', nickname) as Promise<{ ok: boolean; error?: string }>,

@@ -9,6 +9,36 @@ const scoutSample = () => scoutFaceitMatch(
   { matchId: SAMPLE_MATCH_ID, platform: 'sample', ourSteamId: sampleSteamId('rdx'), room: { [sampleSteamId('rdx')!]: 'admin', [sampleSteamId('kairo')!]: 'member', [sampleSteamId('nyx')!]: 'member', [sampleSteamId('mbt')!]: 'member' } },
 );
 
+describe('which team is ours', () => {
+  const deps = { faceit: sampleFaceit(), steam: sampleSteam(), sources: { faceit: 'sample' as const, steam: 'sample' as const, claude: 'off' as const } };
+  const run = (x: Omit<Parameters<typeof scoutFaceitMatch>[1], 'matchId' | 'platform'>) => scoutFaceitMatch(deps, { matchId: SAMPLE_MATCH_ID, platform: 'sample', ...x });
+  const nicks = (t: { players: { nickname: string }[] }) => t.players.map(p => p.nickname);
+
+  it('uses the FACEIT account from Settings when CS2 is not running', async () => {
+    // The host plays on the second faction: without a Steam ID this used to fall back to the first one.
+    const v = await run({ ourNickname: 'HOLO', room: { holo: 'admin' } });
+    expect(v.sideBy).toBe('account');
+    expect(nicks(v.us)).toContain('Holo');
+    expect(nicks(v.them)).toContain('rdx');
+    expect(v.us.players.find(p => p.nickname === 'Holo')!.room).toBe('admin');
+  });
+
+  it('prefers the Steam ID from CS2, then room members, and flags a guess', async () => {
+    expect((await run({ ourSteamId: sampleSteamId('rdx'), ourNickname: 'Holo' })).sideBy).toBe('steam');
+    const byRoom = await run({ room: { kairo: 'member', nyx: 'member' } });
+    expect(byRoom.sideBy).toBe('room');
+    expect(nicks(byRoom.us)).toContain('rdx');
+    const guess = await run({});
+    expect(guess.sideBy).toBe('guess');
+  });
+
+  it('swaps the sides when the host says so', async () => {
+    const v = await run({ ourSteamId: sampleSteamId('rdx'), swap: true });
+    expect(v.sideBy).toBe('manual');
+    expect(nicks(v.us)).toContain('Holo');
+  });
+});
+
 describe('scouting the sample match', () => {
   it('builds both teams with stats, threat and room status', async () => {
     const v = await scoutSample();

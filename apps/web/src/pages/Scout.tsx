@@ -44,6 +44,23 @@ function ScoutForm({ session, compact = false }: { session: Session; compact?: b
 }
 
 /** The host's recent FACEIT matches: one click scouts any of them; a live one is marked. */
+/** Shown when csbot couldn't tell which team is the host's (or the host swapped it): a way to fix it. */
+function SideNote({ scout, session }: { scout: ScoutView; session: Session }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string>();
+  const swap = async () => { setBusy(true); setErr(undefined); const e = await session.swapScoutSides(); setBusy(false); if (e) setErr(e); };
+  const text = scout.sideBy === 'manual'
+    ? <>You swapped the teams for this match.</>
+    : <><b>Is {scout.us.name} your team?</b> csbot couldn't tell: CS2 isn't running and your FACEIT nickname isn't on either roster. Set it in Settings → Data sources so this is automatic.</>;
+  return (
+    <div className="result warn side-note" data-testid="side-note">
+      <span>{text}</span>
+      <button className="btn" type="button" disabled={busy} onClick={() => void swap()} data-testid="swap-sides">{busy ? 'Swapping…' : 'Swap teams'}</button>
+      {err && <span className="err-text">{err}</span>}
+    </div>
+  );
+}
+
 function RecentList({ scout, session, compact = false }: { scout: ScoutView; session: Session; compact?: boolean }) {
   const [busy, setBusy] = useState<string>();
   const [err, setErr] = useState<string>();
@@ -351,6 +368,7 @@ export function Scout({ view, session }: { view: SessionView; session: Session }
           )}
         </div>
         {scout.status === 'error' && scout.error && <div className="result err" data-testid="scout-error">{scout.error}</div>}
+        {host && scout.platform === 'faceit' && (scout.sideBy === 'guess' || scout.sideBy === 'manual') && <SideNote scout={scout} session={session} />}
         <Versus scout={scout} />
         <Things scout={scout} />
         <Briefing scout={scout} session={session} host={host} />

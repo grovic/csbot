@@ -221,6 +221,8 @@ export interface CsbotBridge {
   scoutMatch?(linkOrId: string): Promise<{ ok: boolean; error?: string }>;
   /** Load the fictional sample match (no keys needed). */
   scoutSample?(): Promise<void>;
+  /** Scout the current FACEIT match again from the other side (csbot guessed the host's team wrong). */
+  scoutSwap?(): Promise<{ ok: boolean; error?: string }>;
   /** Run (or re-run) the AI scouting report on the host's Claude Code. Refusals (budget, no Claude) come back as errors. */
   runScoutReport?(): Promise<{ ok: boolean; error?: string }>;
   /**

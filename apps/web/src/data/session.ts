@@ -225,6 +225,12 @@ export class Session {
   }
 
   async scoutSample(): Promise<void> { if (this.canScout) await this.bridge!.scoutSample!(); }
+  /** csbot picked the wrong team: scout the match again from the other side. */
+  async swapScoutSides(): Promise<string | undefined> {
+    if (!this.canScout || !this.bridge?.scoutSwap) return undefined;
+    const r = await this.bridge.scoutSwap();
+    return r.ok ? undefined : r.error ?? 'Could not swap the teams.';
+  }
   /** Returns a refusal (budget used, no Claude Code) as an error message to show next to the button. */
   async runScoutReport(): Promise<string | undefined> {
     if (!this.canScout) return undefined;
