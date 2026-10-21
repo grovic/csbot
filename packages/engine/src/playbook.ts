@@ -2,7 +2,7 @@
 // Claude is slow or unavailable, the engine produces these template calls itself.
 
 import { argmax, type BuyProbs, type BuyType, type EnemyEconomy } from './economy.ts';
-import { walkableAt, type MapGeo, type Point } from './geometry.ts';
+import { walkableAt, type MapGeo, type Point, type Site } from './geometry.ts';
 
 /** `player` is a playbook slot id (see Playbook.slots). Rooms assign members to slots. */
 export interface SetupSpot { player: string; at: Point; label: string }
@@ -15,8 +15,13 @@ export interface Setup {
   name: string;
   side: 'CT' | 'T';
   spots: readonly SetupSpot[];
-  /** Enemy buys this setup answers (the engine picks it for them). Omitted = the default setup. */
+  /**
+   * Buys this setup answers (the engine picks it for them). CT setups: the enemy's buy. T setups: our
+   * own buy. Omitted = the default setup.
+   */
   answers?: readonly BuyType[];
+  /** T executes: the site this setup hits (picked when their CT setup leaves it light). */
+  site?: Site;
   /** Call text per enemy buy, else `default`. */
   calls?: Partial<Readonly<Record<BuyType | 'default', CallText>>>;
 }
@@ -46,6 +51,8 @@ export interface SlotDef { id: string; label: string }
 export interface Playbook {
   map: string;
   slots: readonly SlotDef[];
+  /** The same slot ids as T-side roles (entry, lurk…). Falls back to `slots`. */
+  tSlots?: readonly SlotDef[];
   setups: readonly Setup[];
   jobs: Readonly<Record<string, Readonly<Record<string, string>>>>;
 }
@@ -69,6 +76,7 @@ const NUDGE: readonly Point[] = [[0, 40], [32, 24], [-32, 24], [0, -40], [32, -2
 export function buildPlaybook(geo: MapGeo, def: PlaybookDef): Playbook {
   if (def.map !== geo.id) throw new Error(`playbook for ${def.map} given to ${geo.id}`);
   const slots = new Set(def.slots.map(s => s.id));
+  if (def.tSlots && def.tSlots.map(s => s.id).sort().join() !== [...slots].sort().join()) throw new Error(`${geo.id}: tSlots must use the same slot ids`);
   const setups = def.setups.map(s => {
     const used = new Map<string, number>();
     const spots = s.spots.map(sp => {
@@ -90,7 +98,7 @@ export function buildPlaybook(geo: MapGeo, def: PlaybookDef): Playbook {
     return { ...s, spots };
   });
   for (const s of setups) for (const id of Object.keys(def.jobs[s.id] ?? {})) if (!slots.has(id)) throw new Error(`${geo.id}/${s.id}: job for unknown slot ${id}`);
-  return { map: def.map, slots: def.slots, setups, jobs: def.jobs };
+  return { map: def.map, slots: def.slots, ...(def.tSlots ? { tSlots: def.tSlots } : {}), setups, jobs: def.jobs };
 }
 
 const fmt$ = (n: number) => '$' + Math.round(n).toLocaleString('en-US');
@@ -113,4 +121,33 @@ export function engineRoundCall(pb: Playbook, enemy: EnemyEconomy, buy: BuyProbs
     kind: 'pre', head: text.head, sub: text.sub, jobs: pb.jobs[s.id] ?? {}, setup: s.id, source: 'engine',
     steps: [...text.steps], why: [`Enemy est. ${band} each → ${b} ${Math.round(buy[b] * 100)}%`],
   };
+}
+
+const T_GENERIC: Readonly<Record<BuyType, CallText>> = {
+  eco: { head: 'Eco · stay together', sub: 'Stack one site and trade · no lone peeks', steps: ['Group up', 'Trade every duel'] },
+  force: { head: 'Force · hit fast', sub: 'Pick a site early and commit together', steps: ['Hit fast', 'Trade every duel'] },
+  half: { head: 'Default · take map control', sub: 'Spread for info, then hit the light site', steps: ['Take control', 'Call what you see'] },
+  full: { head: 'Default · take map control', sub: 'Spread for info, then hit the light site', steps: ['Take control', 'Call what you see'] },
+};
+
+/** Our own buy for the T call, from the host's money at freeze time. */
+export function ourBuyType(money: number | undefined): BuyType {
+  if (money === undefined) return 'full';
+  return money < 2000 ? 'eco' : money < 3400 ? 'force' : 'full';
+}
+
+/**
+ * Engine template for the pre-round call on T. Our buy picks eco/force setups; with a full buy, the
+ * exec toward the site their CT setup likely leaves light (when the read is clear), else the default.
+ */
+export function engineTCall(pb: Playbook, ours: BuyType, lighter?: { site: Site; p: number }, money?: number): Call {
+  const t = pb.setups.filter(s => s.side === 'T');
+  let s = t.find(x => x.answers?.includes(ours));
+  if (!s && ours === 'force') s = t.find(x => x.answers?.includes('eco'));
+  if (!s && lighter && lighter.p >= 0.6) s = t.find(x => x.site === lighter.site && !x.answers);
+  s ??= t.find(x => !x.answers && !x.site) ?? t[0]!;
+  const text = s.calls?.[ours] ?? s.calls?.default ?? T_GENERIC[ours];
+  const why = [money !== undefined ? `Your money ${fmt$(money)} → ${ours === 'full' ? 'full buy' : ours}` : 'Your buy is unknown (no game data from you yet)'];
+  if (lighter) why.push(`Their likely setup leaves ${lighter.site} lighter · ${Math.round(lighter.p * 100)}% (estimate)`);
+  return { kind: 'pre', head: text.head, sub: text.sub, jobs: pb.jobs[s.id] ?? {}, setup: s.id, source: 'engine', steps: [...text.steps], why };
 }

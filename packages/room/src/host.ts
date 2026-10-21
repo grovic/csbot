@@ -187,7 +187,7 @@ export class RoomHost {
       code: this.saved.code, hostName: this.hostName, members: [host, ...members],
       pending: forId === HOST_ID ? [...this.pending.values()].map(({ peer: _p, ...r }) => r) : [],
       permissions: { ...this.saved.permissions }, tournament: this.saved.tournament,
-      slots: slotsFor(this.live.match?.map).map(s => ({ ...s })), you: forId, createdAt: this.saved.createdAt,
+      slots: slotsFor(this.live.match?.map, this.live.match?.ourSide).map(s => ({ ...s })), you: forId, createdAt: this.saved.createdAt,
     };
   }
 

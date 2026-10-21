@@ -52,6 +52,11 @@ export const PLAYBOOK_ANUBIS: PlaybookDef = {
     { id: 'a', label: 'A anchor' }, { id: 'short', label: 'Mid / walkway' }, { id: 'b', label: 'B anchor' },
     { id: 'rotator', label: 'Palace / rotator' }, { id: 'awp', label: 'AWP' },
   ],
+  // The same five players on T: roles instead of positions.
+  tSlots: [
+    { id: 'a', label: 'Entry' }, { id: 'short', label: 'Support / flashes' }, { id: 'b', label: 'Lurk' },
+    { id: 'rotator', label: 'IGL / flex' }, { id: 'awp', label: 'AWP' },
+  ],
   setups: [
     {
       id: 'antieco', name: 'Anti-eco · stack B 3–2', side: 'CT', answers: ['eco'],
@@ -72,6 +77,47 @@ export const PLAYBOOK_ANUBIS: PlaybookDef = {
         { player: 'awp', zone: 'middle', label: 'top mid AWP' }, { player: 'rotator', zone: 'palaceinterior', label: 'palace' }, { player: 'b', zone: 'bsite', label: 'B site' },
       ],
     },
+    // Our T halves.
+    {
+      id: 'tDefault', name: 'Default · A main, canals, B main', side: 'T',
+      calls: { default: { head: 'Default · A main, canals, B main', sub: 'Take control, then hit the light site', steps: ['Take A main', 'Canals + bridge', 'Call contact'] } },
+      spots: [
+        { player: 'a', zone: 'tsideupper', label: 'A main' }, { player: 'short', zone: 'canal', label: 'canals' },
+        { player: 'b', zone: 'outsidelong', label: 'B main' }, { player: 'rotator', zone: 'bridge', label: 'bridge' }, { player: 'awp', zone: 'bridge', label: 'mid AWP' },
+      ],
+    },
+    {
+      id: 'tExecA', name: 'A exec · main + water', side: 'T', site: 'A',
+      calls: { default: { head: 'Hit A · main + water', sub: 'Smoke Heaven, walkway and CT, flash over main', steps: ['Smoke Heaven + walkway', 'Flash main', 'Plant default'] } },
+      spots: [
+        { player: 'a', zone: 'main', label: 'A main' }, { player: 'short', zone: 'tsideupper', label: 'A main flash' },
+        { player: 'b', zone: 'middle', label: 'mid' }, { player: 'rotator', zone: 'canal', label: 'water' }, { player: 'awp', zone: 'tsideupper', label: 'A main AWP' },
+      ],
+    },
+    {
+      id: 'tExecB', name: 'B exec · main + connector', side: 'T', site: 'B',
+      calls: { default: { head: 'Hit B · main + connector', sub: 'Smoke alley and palace, flash over main, pinch from connector', steps: ['Smoke alley + palace', 'Flash main', 'Plant safe'] } },
+      spots: [
+        { player: 'a', zone: 'outsidelong', label: 'B main entry' }, { player: 'short', zone: 'outsidelong', label: 'B main flash' },
+        { player: 'b', zone: 'connector', label: 'connector' }, { player: 'rotator', zone: 'outsidelong', label: 'B main' }, { player: 'awp', zone: 'canal', label: 'canals' },
+      ],
+    },
+    {
+      id: 'tEco', name: 'Eco · B main rush together', side: 'T', answers: ['eco'],
+      calls: { default: { head: 'Eco · B main rush together', sub: 'All five out of B main at once · trade every duel', steps: ['Go together', 'Trade', 'Grab their guns'] } },
+      spots: [
+        { player: 'a', zone: 'outsidelong', label: 'B main' }, { player: 'short', zone: 'outsidelong', label: 'B main' },
+        { player: 'b', zone: 'outsidelong', label: 'B main' }, { player: 'rotator', zone: 'ruins', label: 'ruins' }, { player: 'awp', zone: 'ruins', label: 'ruins' },
+      ],
+    },
+    {
+      id: 'tForce', name: 'Force · A main + water rush', side: 'T', answers: ['force'],
+      calls: { default: { head: 'Force · A main + water rush', sub: 'Three up A main, two up water · hit at the same time', steps: ['Flash main', 'Go fast', 'Trade'] } },
+      spots: [
+        { player: 'a', zone: 'main', label: 'A main' }, { player: 'short', zone: 'tsideupper', label: 'A main' },
+        { player: 'b', zone: 'canal', label: 'water' }, { player: 'rotator', zone: 'tsideupper', label: 'A main' }, { player: 'awp', zone: 'canal', label: 'water' },
+      ],
+    },
   ],
   jobs: {
     antieco: {
@@ -87,6 +133,41 @@ export const PLAYBOOK_ANUBIS: PlaybookDef = {
       b: 'B site. Anchor alone on B main, call connector contact fast.',
       rotator: 'Palace. Help B on connector pushes, cover top mid if the AWP falls.',
       awp: 'Top mid AWP. Hold the bridge, never peek mid doors early.',
+    },
+    tDefault: {
+      a: 'A main. Take control with a flash, call what holds the site.',
+      short: 'Canals. Flash your way into the water, trade A main or the bridge.',
+      b: "B main. Lurk quiet, call B numbers, don't peek alone.",
+      rotator: 'Bridge. Smoke mid doors after the AWP looks, read the map, call the hit.',
+      awp: 'Mid AWP. Look for the first pick down mid from the bridge, then join the hit.',
+    },
+    tExecA: {
+      a: 'A main. First onto the site off the flash, clear the close corners and default.',
+      short: 'A main flash. Pop flashes over main for the entry, then trade him.',
+      b: 'Mid. Hold mid for the rotate, push walkway once the smoke fades to pinch.',
+      rotator: 'Water. Smoke Heaven and walkway, push up water when main hits, call the plant.',
+      awp: 'A main AWP. Smoke CT, then hold the site from main and cover the plant.',
+    },
+    tExecB: {
+      a: 'B main. First onto the site after the flash, clear pillar and the close corners.',
+      short: 'B main flash. Pop flashes over the site for the entry, then trade him.',
+      b: 'Connector. Molly back of B as main hits, push through once it burns out.',
+      rotator: 'B main. Smoke alley and palace, then plant safe behind the smokes.',
+      awp: 'Canals. Watch mid for the flank, then hold connector and cover the plant.',
+    },
+    tEco: {
+      a: 'B main. First onto the site, aim for the anchor, trade fast.',
+      short: 'B main. Right behind the entry, flash if you have one, trade him.',
+      b: 'B main. Third in, clear pillar and back of B with the second.',
+      rotator: 'Ruins. Come in fourth, pick up a gun.',
+      awp: 'Ruins. Last in, watch connector for the flank.',
+    },
+    tForce: {
+      a: 'A main. First onto the site off the flash, clear the close corners.',
+      short: 'A main. Flash over main for the entry and trade him.',
+      b: 'Water. Hit with main, take the walkway side of the site for the crossfire.',
+      rotator: 'A main. Smoke Heaven if you bought one, plant default.',
+      awp: 'Water. Last up, watch walkway and mid for the flank, hold the plant.',
     },
   },
 };

@@ -128,10 +128,10 @@ function HeatCanvas({ img, geo, view: v }: { img: ImageData; geo: MapGeo; view: 
 }
 
 /** Who plays each slot: the room member assigned to it, else the slot's label. */
-function slotNamer(room?: RoomView, map?: string) {
+function slotNamer(room?: RoomView, map?: string, side?: 'CT' | 'T') {
   const byslot = new Map((room?.members ?? []).filter(m => m.slot).map(m => [m.slot!, m.name]));
   // Without a room (solo), the playbook's own position names.
-  const label = new Map((room?.slots ?? slotsFor(map)).map(s => [s.id, s.label]));
+  const label = new Map((room?.slots ?? slotsFor(map, side)).map(s => [s.id, s.label]));
   return (slot: string) => byslot.get(slot) ?? label.get(slot) ?? slot;
 }
 
@@ -299,7 +299,7 @@ export function MapPanel({ snap, room, intelBlock, onIntel }: {
 
   const view = viewOf(geo);
   const spots = snap.setupSpots ?? [];
-  const who = slotNamer(room, m.map);
+  const who = slotNamer(room, m.map, m.ourSide);
   const intel = snap.intel ?? [];
   const clockLeft = m.clock.phase === 'live' && m.clock.endsIn !== undefined ? m.clock.endsIn : undefined;
   return (

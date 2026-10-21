@@ -10,7 +10,7 @@ import type {
 import { applyRoundResult, argmax, buyProbs, FULL_BUY_CT, lossBonus, PISTOL_SPEND, startOfHalf, type BuyProbs, type EnemyEconomy, type RoundReason } from './economy.ts';
 import { planPosterior, planPrior, siteForecast, topPlan, type Intel, type MapModel, type Site } from './forecast.ts';
 import { MAPS, PLAYBOOKS } from './maps/index.ts';
-import { engineRoundCall, type Playbook } from './playbook.ts';
+import { engineRoundCall, engineTCall, ourBuyType, type Playbook, type Setup } from './playbook.ts';
 
 export interface PhaseLengths { freezetime: number; live: number; bomb: number; over: number }
 /** Valve matchmaking defaults. Freeze time is re-learned from the first full freeze seen. */
@@ -389,11 +389,22 @@ export class MatchTracker {
       }
       return call;
     }
-    const c = engineRoundCall(pb, enemy, buy);
-    const setup = pb.setups.find(s => s.id === c.setup);
-    this.setupSpots = setup?.spots.map(s => ({ player: s.player, at: [s.at[0], s.at[1]] as const, label: s.label }));
+    let c;
+    if (this.ourSide === 'T') {
+      // Our buy picks eco/force plays; with money, the exec toward the site their setup leaves light.
+      const fc = this.forecast(this.lastAt ?? 0);
+      const lighter = fc ? (fc.site.A >= fc.site.B ? { site: 'A' as const, p: fc.site.A } : { site: 'B' as const, p: fc.site.B }) : undefined;
+      c = engineTCall(pb, ourBuyType(this.me?.money), lighter, this.me?.money);
+      c = { ...c, why: [...c.why, `Enemy est. ${fmt$(enemy.lo)}–${fmt$(enemy.hi)} each → ${READ_WORD[read]}`].slice(0, 3) };
+    } else c = engineRoundCall(pb, enemy, buy);
+    this.useSetup(pb.setups.find(s => s.id === c.setup));
     const you = this.o.playbookHandle ? c.jobs[this.o.playbookHandle] : undefined;
     return { kind: 'pre', round, head: c.head, sub: c.sub, jobs: { ...c.jobs }, ...(you ? { you } : {}), steps: [...c.steps], why: [...c.why], setup: c.setup, source: 'engine' };
+  }
+
+  /** Planned spots on the map come from the setup the call uses. */
+  private useSetup(setup: Setup | undefined): void {
+    this.setupSpots = setup?.spots.map(s => ({ player: s.player, at: [s.at[0], s.at[1]] as const, label: s.label }));
   }
 
   private onLive(s: GameState): void {
@@ -531,15 +542,20 @@ export class MatchTracker {
     const handle = this.o.playbookHandle;
     if (fc.enemy === 'CT') {
       // Our T half: their setup leaves `site` light. The headline starts with the site (the coach keys on it).
+      // The jobs come from our exec for that site, when the playbook has one.
       const other: Site = site === 'A' ? 'B' : 'A';
+      const pb = this.o.playbooks[this.map!];
+      const exec = pb?.setups.find(s => s.side === 'T' && s.site === site && !s.answers);
+      const jobs = exec ? { ...(pb!.jobs[exec.id] ?? {}) } : { ...base.jobs };
+      if (exec) this.useSetup(exec);
       this.call = {
         kind: 'mid', round: this.round,
         head: `${site} likely light · ${pct(p)}`,
         sub: `${other} looks stacked · go ${site} together`,
-        jobs: { ...base.jobs }, ...(handle && base.jobs[handle] ? { you: base.jobs[handle] } : {}),
+        jobs, ...(handle && jobs[handle] ? { you: jobs[handle] } : {}),
         steps: [`Go ${site}`, 'Trade, no solo peeks', 'Plant for the crossfire'],
         why: [...seen, `Forecast: ${site} lighter ${pct(p)} (${fc.topPlan.name}) · estimate`].slice(0, 3),
-        ...(base.setup ? { setup: base.setup } : {}), source: 'engine',
+        ...(exec ? { setup: exec.id } : base.setup ? { setup: base.setup } : {}), source: 'engine',
       };
       this.push(now, 'PLAN', `Plan changed: ${site} looks light (${pct(p)}). Go ${site}.`);
       return;

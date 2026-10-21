@@ -107,17 +107,24 @@ describe('calls and the YOU line', () => {
     expect(over.head).toBe('Round lost');
   });
 
-  it('on T side: a generic call plus the read on their CT setup', () => {
+  it('on T side: our T playbook call, our job, planned spots, and the read on their CT setup', () => {
     const { snaps: t } = run(syntheticMatch({ rounds: FIRST_HALF, ourSide: 'T' }));
     const s = at(t, 2, 'freezetime');
-    expect(s.call!.head).toBe('Enemy eco likely');
-    expect(s.call!.you).toBeUndefined();
+    expect(s.call!.setup).toMatch(/^t(Default|ExecA|ExecB|Eco|Force)$/);
+    expect(s.call!.you).toBeTruthy();
+    expect(Object.keys(s.call!.jobs).sort()).toEqual(['a', 'awp', 'b', 'rotator', 'short']);
+    expect(s.setupSpots).toHaveLength(5);
+    expect(s.call!.why[0]).toMatch(/^Your money \$[\d,]+ → /);
     const f = s.forecast!;
     expect(f.enemy).toBe('CT');
     expect(f.basis).toBe('prior');
     expect(f.site.A + f.site.B).toBeCloseTo(1, 6);
     expect(Object.keys(f.plans)).toEqual(expect.arrayContaining(['default', 'stackA', 'stackB']));
-    expect(s.call!.why.some(w => /^Their likely setup: .+ lighter \d+% \(estimate\)$/.test(w))).toBe(true);
+  });
+
+  it('on T side: pistol rounds stay generic', () => {
+    const { snaps: t } = run(syntheticMatch({ rounds: FIRST_HALF, ourSide: 'T' }));
+    expect(at(t, 1, 'freezetime').call!.head).toBe('Pistol round');
   });
 
   it('on T side: intel of a B stack turns the call to "A likely light"', () => {
@@ -136,6 +143,10 @@ describe('calls and the YOU line', () => {
     expect(s.call!.kind).toBe('mid');
     expect(s.call!.head).toMatch(/^A likely light · \d+%$/);
     expect(s.call!.steps[0]).toBe('Go A');
+    // Our A exec takes over: its jobs, our job as the YOU line, its planned spots.
+    expect(s.call!.setup).toBe('tExecA');
+    expect(s.call!.you).toBeTruthy();
+    expect(s.setupSpots).toHaveLength(5);
   });
 
   it('forecasts the enemy plan from the buy read on CT', () => {

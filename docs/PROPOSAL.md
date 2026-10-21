@@ -610,6 +610,9 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
      - The map shows where defenders likely hold, and the tile says which site is likely light.
      - Intel is matched to how many defenders a setup puts on each site, so "4 on B" reads as a B stack.
      - When the read turns clear, PLAN CHANGED calls "A likely light · go A", and Claude is asked for its mid-round call as on CT.
+   - *M4d, built:* the T-side playbook. Every map has T slot roles (entry, support, lurk, IGL, AWP) and five T setups: a default, an exec per site, an eco play and a force play, each with planned spots, a job per slot and the call.
+     - At freeze time the engine picks by our money, and with a full buy goes toward the site their CT setup likely leaves light.
+     - When intel shows a light site, the call switches to that site's exec and its jobs.
    - *Still to do:* calibrating odds and timings with demos.
 5. **M5 · Live coach:** playbook, live session, per-player jobs, Coach page, voice, tournament mode, quotas.
    - *Built.* One warm session per match. Claude's call replaces the engine's on every screen.

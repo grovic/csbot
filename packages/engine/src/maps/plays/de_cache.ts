@@ -54,6 +54,11 @@ export const PLAYBOOK_CACHE: PlaybookDef = {
     { id: 'a', label: 'A anchor' }, { id: 'short', label: 'Mid / highway' }, { id: 'b', label: 'B anchor' },
     { id: 'rotator', label: 'Rotator' }, { id: 'awp', label: 'AWP' },
   ],
+  // The same five players on T: roles instead of positions.
+  tSlots: [
+    { id: 'a', label: 'Entry' }, { id: 'short', label: 'Support / flashes' }, { id: 'b', label: 'Lurk' },
+    { id: 'rotator', label: 'IGL / flex' }, { id: 'awp', label: 'AWP' },
+  ],
   setups: [
     {
       id: 'antieco', name: 'Anti-eco · stack B 3–2', side: 'CT', answers: ['eco'],
@@ -74,9 +79,55 @@ export const PLAYBOOK_CACHE: PlaybookDef = {
         { player: 'awp', zone: 'connector', label: 'connector AWP' }, { player: 'rotator', zone: 'backhall', label: 'back hall' }, { player: 'b', zone: 'bsite', label: 'headshot' },
       ],
     },
+    // Our T halves.
+    {
+      id: 'tDefault', name: 'Default · A main, mid, B halls', side: 'T',
+      calls: { default: { head: 'Default · A main, mid, B halls', sub: 'Take mid and main control, then hit the light site', steps: ['Smoke Z, take mid', 'Hold A main', 'Call contact'] } },
+      spots: [
+        { player: 'a', zone: 'amain', label: 'A main' }, { player: 'short', zone: 'mid', label: 'white box' },
+        { player: 'b', zone: 'bhalls', label: 'B halls' }, { player: 'rotator', zone: 'garage', label: 'garage' }, { player: 'awp', zone: 'garage', label: 'garage AWP' },
+      ],
+    },
+    {
+      id: 'tExecA', name: 'A exec · main + squeaky', side: 'T', site: 'A',
+      calls: { default: { head: 'Hit A · main + squeaky', sub: 'Smoke highway and truck, molly quad, flash main', steps: ['Smoke highway + truck', 'Flash main', 'Plant default'] } },
+      spots: [
+        { player: 'a', zone: 'amain', label: 'A main' }, { player: 'short', zone: 'amain', label: 'main flash' },
+        { player: 'b', zone: 'ahalls', label: 'squeaky' }, { player: 'rotator', zone: 'amain', label: 'main smokes' }, { player: 'awp', zone: 'mid', label: 'mid AWP' },
+      ],
+    },
+    {
+      id: 'tExecB', name: 'B exec · main + vents', side: 'T', site: 'B',
+      calls: { default: { head: 'Hit B · main + vents', sub: 'Smoke heaven and tree room, molly headshot, vents splits', steps: ['Smoke heaven + tree', 'Flash main', 'Vents drops in'] } },
+      spots: [
+        { player: 'a', zone: 'bmain', label: 'B main' }, { player: 'short', zone: 'bmain', label: 'main flash' },
+        { player: 'b', zone: 'vents', label: 'vents' }, { player: 'rotator', zone: 'bmain', label: 'main smokes' }, { player: 'awp', zone: 'bhalls', label: 'B halls AWP' },
+      ],
+    },
+    {
+      id: 'tEco', name: 'Eco · B rush together', side: 'T', answers: ['eco'],
+      calls: { default: { head: 'Eco · B rush together', sub: 'All five through B main at once · trade every duel', steps: ['Go together', 'Trade', 'Grab their guns'] } },
+      spots: [
+        { player: 'a', zone: 'bmain', label: 'B main' }, { player: 'short', zone: 'bmain', label: 'B main' },
+        { player: 'b', zone: 'bhalls', label: 'B halls' }, { player: 'rotator', zone: 'bhalls', label: 'B halls' }, { player: 'awp', zone: 'bhalls', label: 'B halls' },
+      ],
+    },
+    {
+      id: 'tForce', name: 'Force · A main rush', side: 'T', answers: ['force'],
+      calls: { default: { head: 'Force · A main rush', sub: 'Three through main fast, one squeaky, one mid for highway', steps: ['Flash main', 'Go fast', 'Trade'] } },
+      spots: [
+        { player: 'a', zone: 'amain', label: 'A main' }, { player: 'short', zone: 'amain', label: 'A main' },
+        { player: 'b', zone: 'ahalls', label: 'squeaky' }, { player: 'rotator', zone: 'amain', label: 'A main' }, { player: 'awp', zone: 'mid', label: 'mid' },
+      ],
+    },
   ],
   jobs: {
     antieco: { a: 'Truck. Play deep for the retake, call A main or squeaky contact.', short: 'Highway. Long angle on mid only, fall back to truck on contact.', b: 'Headshot. Hold B main from the site, call numbers, never peek main.', rotator: 'Heaven. Hold checkers and the vents drop, trade the anchor.', awp: 'Tree room. Hold B main deep across the site, long angle only.' },
     std: { a: 'Quad. Hold A main and squeaky, molly main on a rush, fall back to truck.', short: 'Highway. Hold mid and catwalk, help A on contact, never push mid alone.', b: 'Headshot. Anchor B alone, hold B main and call contact fast.', rotator: 'Back hall. Hold checkers and the vents drop, rotate to B first.', awp: 'Connector AWP. Hold mid to garage and watch vents, fall back to CT if smoked.' },
+    tDefault: { a: 'A main. Take control with a flash, call quad and squeaky contact.', short: 'White box. Smoke Z connector, flash out of garage, take mid.', b: "B halls. Lurk quiet, call B main numbers, don't peek headshot alone.", rotator: 'Garage. Watch vents and highway, read the map, call the hit.', awp: 'Garage AWP. Take the first pick down mid, then join the hit.' },
+    tExecA: { a: 'A main. Swing first off the flash, clear quad and forklift.', short: 'Main flash. Molly quad, pop two flashes over main, trade the entry.', b: 'Squeaky. Open the door as main flashes pop, take the close corners.', rotator: 'A main. Smoke highway and truck, third onto site, plant default.', awp: 'Mid AWP. Hold Z connector to cut the rotation, then watch the flank.' },
+    tExecB: { a: 'B main. First onto site off the flash, clear headshot, then back site.', short: 'Main flash. Molly headshot, pop two flashes over main, trade the entry.', b: 'Vents. Drop to checkers as main hits, clear it and pinch the site.', rotator: 'B main. Smoke heaven and tree room, third in, call the plant.', awp: 'B halls AWP. Hold the useless flank, then cover the plant from main.' },
+    tEco: { a: 'B main. First onto site, clear headshot, trade fast.', short: 'B main. Right behind the entry, trade him.', b: 'B halls. Third in, clear back site with the fourth.', rotator: 'B halls. Fourth in, check checkers, pick up a gun.', awp: 'B halls. Last in, watch useless for the flank.' },
+    tForce: { a: 'A main. First through off the flash, clear quad and forklift.', short: 'A main. Flash over main for the entry, trade him.', b: 'Squeaky. Open the door with the main flash, take the close corners.', rotator: 'A main. Smoke highway if you can, third in, plant default.', awp: 'Mid. Push toward highway to split their crossfire, watch Z.' },
   },
 };
