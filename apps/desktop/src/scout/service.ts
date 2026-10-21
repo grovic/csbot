@@ -78,6 +78,26 @@ export class ScoutService {
     this.refreshSources();
   }
 
+  /**
+   * Check the saved keys once (at startup): a key that was revoked, or saved by a build that didn't
+   * check keys, shows as refused in Settings before the first scout instead of during it.
+   */
+  async verifyKeys(): Promise<{ faceit?: boolean; steam?: boolean }> {
+    const out: { faceit?: boolean; steam?: boolean } = {};
+    const fk = this.o.keys.get('faceit'), sk = this.o.keys.get('steam');
+    const check = async (service: KeyService, ping: (() => Promise<void>) | undefined) => {
+      if (!ping) return;
+      try { await ping(); out[service] = true; } catch (e) {
+        if (e instanceof ApiError && e.kind === 'auth') { out[service] = false; this.markAuthError(service); }
+      }
+    };
+    await Promise.all([
+      fk ? check('faceit', this.faceit()?.ping) : undefined,
+      sk ? check('steam', (this.o.makeSteam ?? (k => steamClient({ apiKey: k })))(sk).ping) : undefined,
+    ]);
+    return out;
+  }
+
   get current(): ScoutView { return this.view; }
 
   onChange(cb: Listener): () => void {

@@ -271,6 +271,17 @@ describe('your FACEIT account and recent matches', () => {
   });
 });
 
+describe('saved keys at startup', () => {
+  it('marks a refused key without touching a good one', async () => {
+    const refusing: FaceitApi = { ...sampleFaceit(), ping: async () => { throw new ApiError('FACEIT', 401, 'nope'); } };
+    const steamOk = { ...sampleSteam(), ping: async () => {} };
+    const svc = new ScoutService({ keys: keys({ faceit: 'faceit-key-0000000000', steam: 'ABCDEF0123456789ABCDEF0123456789' }), makeFaceit: () => refusing, makeSteam: () => steamOk, autoReport: false });
+    expect(await svc.verifyKeys()).toEqual({ faceit: false, steam: true });
+    expect(svc.current.sources.faceit).toBe('error');
+    expect(svc.current.sources.steam).toBe('live');
+  });
+});
+
 describe('claude runner (fake binary)', () => {
   const cmd = () => claudeCommand({ CSBOT_CLAUDE_BIN: FAKE });
   const sampleView = async () => {

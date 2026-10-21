@@ -2,7 +2,7 @@ import { formatCode } from '@csbot/room';
 import type { SessionView } from '../data/session.ts';
 import type { Route } from '../hooks.ts';
 import { mapName, modeName } from '../format.ts';
-import { IconBot, IconGear, IconVoice } from './Icons.tsx';
+import { IconBot, IconGear, IconVoice, Logo } from './Icons.tsx';
 
 const CONN = {
   waiting: { dot: 'off', text: 'Waiting for CS2' },
@@ -42,7 +42,7 @@ export function Header({ view, route }: { view: SessionView; route: Route }) {
   const live = !!m && snap?.connection.gsi === 'live' && !['gameover', 'idle'].includes(m.clock.phase);
   return (
     <header className="hdr">
-      <div className="brand"><span className="logo" />csbot</div>
+      <div className="brand"><Logo />csbot</div>
       <nav className="nav" aria-label="Pages">
         <a href="#/scout" className={route === 'scout' ? 'on' : ''}>Scout</a>
         <a href="#/live" className={route === 'live' ? 'on' : ''}>Live <i className={'live-dot' + (live ? '' : ' off')} /></a>

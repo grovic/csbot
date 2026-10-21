@@ -20,3 +20,20 @@ export const ReasonIcon = ({ reason }: { reason: 'elimination' | 'bomb' | 'defus
     default: return <svg viewBox="0 0 12 12" aria-hidden><path d="M3 3l6 6M9 3L3 9" /></svg>;
   }
 };
+
+/** The csbot mark (tools/brand/icon.svg without its tile): a gold diamond with a cut-out centre. */
+export function Logo({ size = 18 }: { size?: number }) {
+  return (
+    <svg className="logo-mark" width={size} height={size} viewBox="96 96 320 320" aria-hidden="true">
+      <defs>
+        <linearGradient id="csbot-gold" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#ffd98a" />
+          <stop offset="1" stopColor="#e3a01f" />
+        </linearGradient>
+      </defs>
+      <rect x="140" y="140" width="232" height="232" rx="34" fill="url(#csbot-gold)" transform="rotate(45 256 256)" />
+      <rect x="206" y="206" width="100" height="100" rx="14" fill="var(--bg)" transform="rotate(45 256 256)" />
+      <rect x="238" y="238" width="36" height="36" rx="6" fill="url(#csbot-gold)" transform="rotate(45 256 256)" />
+    </svg>
+  );
+}

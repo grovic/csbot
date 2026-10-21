@@ -21,3 +21,5 @@ apps/*/screens/
 # API keys live only in the desktop app's encrypted store, never in the repo
 secrets.json
 *.key
+tools/brand/contact-sheet.png
+tools/brand/preview.png
