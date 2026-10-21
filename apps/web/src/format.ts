@@ -12,7 +12,7 @@ export function clockStr(sec: number): string {
 
 const MAP_NAMES: Record<string, string> = {
   de_mirage: 'Mirage', de_inferno: 'Inferno', de_nuke: 'Nuke', de_ancient: 'Ancient', de_anubis: 'Anubis',
-  de_dust2: 'Dust II', de_train: 'Train', de_vertigo: 'Vertigo', de_overpass: 'Overpass', cs_office: 'Office', cs_italy: 'Italy',
+  de_dust2: 'Dust II', de_cache: 'Cache', de_train: 'Train', de_vertigo: 'Vertigo', de_overpass: 'Overpass', cs_office: 'Office', cs_italy: 'Italy',
 };
 export function mapName(id?: string): string {
   if (!id) return 'Unknown map';

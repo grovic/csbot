@@ -7,12 +7,12 @@ import type { SteamBans, SteamSummary } from './steam.ts';
 
 export const MAP_NAMES: Record<string, string> = {
   de_mirage: 'Mirage', de_ancient: 'Ancient', de_nuke: 'Nuke', de_anubis: 'Anubis', de_inferno: 'Inferno',
-  de_dust2: 'Dust II', de_train: 'Train', de_vertigo: 'Vertigo', de_overpass: 'Overpass',
+  de_dust2: 'Dust II', de_cache: 'Cache', de_train: 'Train', de_vertigo: 'Vertigo', de_overpass: 'Overpass',
 };
 export const mapName = (id: string) => MAP_NAMES[id] ?? id.replace(/^de_/, '').replace(/^\w/, c => c.toUpperCase());
 
-/** Active duty pool used when the match doesn't say. Data, not code: update when Valve rotates maps. */
-export const DEFAULT_POOL = ['de_mirage', 'de_ancient', 'de_nuke', 'de_anubis', 'de_inferno', 'de_dust2', 'de_train'];
+/** The Active Duty pool (Cache replaced Overpass in 2026), for matches whose map vote doesn't list it. */
+export const DEFAULT_POOL = ['de_mirage', 'de_ancient', 'de_nuke', 'de_anubis', 'de_inferno', 'de_dust2', 'de_cache'];
 
 export const THREAT_WEIGHTS = { elo: 0.35, kd: 0.35, form: 0.15, map: 0.15 } as const;
 
