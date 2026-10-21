@@ -29,9 +29,18 @@ jobs:
           [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME but apps/desktop is $v"; exit 1; }
       - run: pnpm --filter @csbot/web build
       - run: node apps/desktop/scripts/stage.mjs
-      - name: Build and publish the installer
+      - name: Build the installer
         working-directory: apps/desktop
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: pnpm exec electron-builder --config electron-builder.config.cjs --win nsis --publish always
+        run: pnpm exec electron-builder --config electron-builder.config.cjs --win nsis --publish never
+      # One release with all three files. electron-builder's own publishing uploads the installer and
+      # its blockmap in parallel, and each upload created its own release for the tag (v0.5.0, v0.6.0).
+      - name: Publish the release
+        working-directory: apps/desktop/release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          v=${GITHUB_REF_NAME#v}
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --title "$v" --generate-notes             "csbot-Setup-$v.exe" "csbot-Setup-$v.exe.blockmap" latest.yml
