@@ -1,0 +1,1566 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>csbot · V1 design demo</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0}
+html.standalone{background:#07080a;color:#e6e8eb}
+html.standalone body{padding:14px 20px 24px}
+
+/* prototype controls: outside the app window, not part of the product */
+.proto{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:0 auto 10px;max-width:1720px;font:12px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--foreground,#e6e8eb)}
+.proto .pt{font-weight:700;letter-spacing:.04em}
+.proto .pm{color:var(--muted-foreground,#8a909b)}
+.proto button{font:inherit;font-size:12px;background:var(--secondary,#1e2229);color:var(--secondary-foreground,#e6e8eb);border:1px solid var(--border,#3a414d);border-radius:6px;padding:3px 9px;cursor:pointer}
+.proto button.on{box-shadow:inset 0 0 0 1.5px #8f86ea}
+.proto .grp{display:inline-flex;gap:4px;align-items:center;flex-wrap:wrap}
+.proto .vr{width:1px;height:18px;background:var(--border,#3a414d);margin:0 2px}
+
+/* app window */
+.app{
+  --bg:#0e1014; --panel:#171a1f; --panel2:#1e2229; --sunken:#121519; --mapbg:#101317;
+  --line:#272c34; --line2:#3a414d; --row:#22262d;
+  --ink:#eef0f3; --ink2:#b9bec8; --muted:#8a909b;
+  --ct:#3987e5; --t:#c98500; --t-hi:#f2bd4b; --ai:#9085e9;
+  --good:#0ca30c; --warn:#fab219; --crit:#d03b3b;
+  --graybar:#4a505c; --track:#22272e;
+  font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;
+  color:var(--ink); background:var(--bg);
+  border-radius:var(--radius,12px); border:1px solid #23272e;
+  overflow:hidden; max-width:1720px; margin:0 auto;
+}
+.app button{font:inherit;color:inherit}
+.titlebar{display:flex;justify-content:space-between;align-items:center;padding:7px 16px;background:#0a0c0f;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted);user-select:none}
+.tb-right{display:flex;gap:18px}
+
+/* header */
+.hdr{display:grid;grid-template-columns:auto auto 1fr auto;align-items:center;gap:10px 18px;padding:10px 16px;border-bottom:1px solid var(--line);background:#121418}
+.brand{display:flex;align-items:center;gap:8px;font-weight:750;font-size:15px}
+.logo{display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--t-hi);transform:rotate(45deg)}
+.nav{display:flex;gap:2px;background:var(--sunken);border:1px solid var(--line);border-radius:8px;padding:3px;flex-wrap:wrap}
+.nav button{background:none;border:0;border-radius:6px;padding:5px 13px;color:var(--muted);font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:7px}
+.nav button:hover{color:var(--ink2)}
+.nav button.on{background:#272c35;color:var(--ink)}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--good)}
+.scorebox{justify-self:center;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink2);white-space:nowrap}
+.scorebox .n{font-size:22px;font-weight:750;color:var(--ink);font-variant-numeric:tabular-nums}
+.scorebox .rnd{margin-left:4px;padding-left:12px;border-left:1px solid var(--line2);color:var(--muted)}
+.side-tag{font-size:10.5px;font-weight:750;padding:2px 6px;border-radius:4px;color:#fff}
+.side-tag.ct{background:var(--ct)}.side-tag.t{background:var(--t)}
+.hdr-right{display:flex;align-items:center;gap:8px}
+.status{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2);margin-right:4px;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+.dot.ok{background:var(--good)}.dot.warn{background:var(--warn)}.dot.off{background:#5b6270}
+.icon-btn{width:32px;height:32px;border-radius:8px;border:1px solid var(--line2);background:var(--panel2);display:grid;place-items:center;cursor:pointer;color:var(--ink2)}
+.icon-btn svg{width:16px;height:16px}
+.icon-btn.on{border-color:#8f86ea;color:#d6d1ff;background:#26234a}
+@media (max-width:980px){.hdr{grid-template-columns:auto 1fr auto}.scorebox{grid-column:1/-1;grid-row:2;justify-self:start}}
+@media (max-width:560px){.status span{display:none}}
+
+.main{padding:14px 16px 16px}
+.view{display:none}.view.on{display:block}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;min-width:0}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.card-h h3{margin:0;font-size:11.5px;font-weight:750;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2);display:flex;align-items:center;gap:7px}
+.h4{margin:14px 0 6px;font-size:11px;font-weight:750;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.ul{margin:0;padding-left:18px;color:var(--ink2);font-size:13px}
+.ul li{margin:3px 0}
+.key{display:inline-block;width:10px;height:10px;border-radius:2px;flex:none}
+.key.t{background:var(--t)}.key.ct{background:var(--ct)}
+.kicker{font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;padding:3px 9px;border-radius:999px;background:var(--sunken);border:1px solid var(--line);color:var(--ink2);white-space:nowrap}
+.chip em{font-style:normal;color:var(--muted)}
+.btn{background:var(--panel2);border:1px solid var(--line2);border-radius:7px;padding:4px 11px;cursor:pointer;color:var(--ink);font-size:12px}
+.btn:hover{background:#262b33}
+.btn.primary{background:#2c2850;border-color:#5b52b8}
+.seg{display:inline-flex;border:1px solid var(--line2);border-radius:7px;overflow:hidden}
+.seg button{background:var(--panel2);border:0;padding:4px 10px;cursor:pointer;color:var(--ink2);border-right:1px solid var(--line2);font-size:12px}
+.seg button:last-child{border-right:0}
+.seg button.on{background:#323946;color:var(--ink)}
+.grid2{display:grid;gap:12px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:1000px){.grid2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+.stack{display:grid;gap:12px;align-content:start}
+.mt{margin-top:12px}
+.num{font-variant-numeric:tabular-nums}
+
+/* tables */
+.tw{overflow-x:auto}
+table.t{width:100%;border-collapse:collapse;font-size:13px}
+table.t th{text-align:left;font-weight:600;color:var(--muted);font-size:11px;padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.t td{padding:7px 8px;border-bottom:1px solid var(--row);font-variant-numeric:tabular-nums;white-space:nowrap}
+table.t tr:last-child td{border-bottom:0}
+table.t th.r,table.t td.r{text-align:right}
+table.t tr.me-row td{background:rgba(57,135,229,.10)}
+table.t tr.me-row td:first-child{box-shadow:inset 3px 0 0 var(--ct)}
+.ok-t{color:#6fd36f;font-weight:700}.bad-t{color:#ff9b9b;font-weight:700}
+.wdot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px}
+.yb{flex:none;font-size:10.5px;font-weight:800;letter-spacing:.08em;background:var(--ct);color:#fff;border-radius:5px;padding:2px 6px}
+
+/* bar rows (single series; label · track · value) */
+.bars{--lw:130px}
+.br{display:grid;grid-template-columns:var(--lw) minmax(0,1fr) 52px;align-items:center;gap:10px;font-size:13px;margin:6px 0}
+.br .bl{color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.br .bt{position:relative;height:10px;background:var(--track)}
+.br .bf{height:100%;border-radius:0 4px 4px 0;background:var(--graybar);transition:width .5s}
+.br.max .bf{background:var(--t)}
+.br.us .bf{background:var(--ct)}
+.br .bv{font-variant-numeric:tabular-nums;text-align:right}
+.br.max .bl,.br.max .bv{color:var(--ink);font-weight:650}
+.br .tk{position:absolute;top:-3px;width:2px;height:16px;background:var(--ink);border-radius:1px}
+
+/* ============ LIVE ============ */
+.live-main{display:grid;gap:14px;grid-template-columns:minmax(0,1fr);grid-template-areas:"now" "map"}
+@media (min-width:1080px){.live-main{grid-template-columns:minmax(380px,1fr) minmax(0,620px);grid-template-areas:"now map";align-items:start}}
+.now{grid-area:now;display:flex;flex-direction:column;gap:12px;min-width:0}
+.mapcol{grid-area:map;min-width:0}
+.pb{display:flex;align-items:center;gap:14px;padding:10px 16px;border-radius:12px;border:1px solid;min-height:52px}
+.pb .ph{font-size:13px;font-weight:800;letter-spacing:.1em;white-space:nowrap}
+.pb .hint{font-size:14px;color:var(--ink2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pb .clk{margin-left:auto;font-size:26px;font-weight:750;font-variant-numeric:tabular-nums;color:var(--ink)}
+.pb.freezetime{background:rgba(57,135,229,.10);border-color:rgba(57,135,229,.45);color:#a9cdf7}
+.pb.live{background:rgba(12,163,12,.07);border-color:rgba(12,163,12,.42);color:#8be08b}
+.pb.alert{background:rgba(250,178,25,.12);border-color:rgba(250,178,25,.75);color:#ffd27a}
+.pb.bomb{background:rgba(208,59,59,.14);border-color:rgba(208,59,59,.8);color:#ffa0a0}
+.pb.over{background:#181b20;border-color:var(--line2);color:var(--ink2)}
+.call{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+.call.flash{animation:flash 1s ease 3}
+@keyframes flash{50%{box-shadow:0 0 0 3px rgba(250,178,25,.6)}}
+.kick{font-size:11.5px;font-weight:750;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.head{font-size:34px;font-weight:780;line-height:1.1;margin:6px 0 4px;letter-spacing:-.01em}
+.sub{font-size:16px;color:var(--ink2)}
+.youline{display:flex;gap:12px;align-items:flex-start;margin-top:16px;padding:12px 14px;border-radius:10px;background:rgba(57,135,229,.11);border:1px solid rgba(57,135,229,.4);font-size:18px;font-weight:650;line-height:1.3}
+.youline .yb{margin-top:2px}
+.youline.sm{font-size:14px;margin-top:10px;padding:9px 12px}
+.steps{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.steps li{font-size:14px;padding:5px 11px;border-radius:999px;background:var(--panel2);border:1px solid var(--line2)}
+.meta{display:flex;align-items:center;gap:10px;margin-top:14px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.lnk{background:none;border:0;color:#b9b2ff;cursor:pointer;padding:0;font-size:12px}
+.lnk:hover{text-decoration:underline}
+.fb{margin-left:auto;display:flex;gap:4px}
+.fb button{background:none;border:1px solid var(--line2);border-radius:6px;padding:1px 8px;cursor:pointer;color:var(--ink2);font-size:12px}
+.why{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:13px;color:var(--ink2);display:grid;gap:10px}
+.why[hidden]{display:none}
+.why h4{margin:0 0 4px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.why ul{margin:0;padding-left:18px}
+.tiles3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.tl{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-width:0;container-type:inline-size}
+.tl .lb{font-size:11px;font-weight:750;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl .vl{font-size:clamp(20px,15cqw,32px);font-weight:780;line-height:1.1;margin-top:6px;white-space:nowrap}
+.tl .vl small{font-size:.6em;font-weight:650;color:var(--ink2);margin-left:6px}
+.tl .sb{font-size:12.5px;color:var(--ink2);margin-top:4px}
+.split{display:flex;gap:2px;height:8px;margin-top:8px}
+.split i{display:block;height:100%;background:var(--graybar);transition:width .5s}
+.split i:first-child{border-radius:4px 0 0 4px}.split i:last-child{border-radius:0 4px 4px 0}
+.split i.max{background:var(--t)}
+.ticker{display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:10px;background:var(--sunken);border:1px solid var(--line);font-size:13px;color:var(--ink2);cursor:pointer;text-align:left;width:100%}
+.ticker:hover{border-color:var(--line2)}
+.ticker .tg{font-size:10.5px;font-weight:750;letter-spacing:.08em;color:var(--muted);white-space:nowrap}
+.ticker .tx{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+.ticker .go{color:#b9b2ff;font-size:12px;white-space:nowrap}
+.map{position:relative;width:100%;max-width:620px;margin:0 auto;aspect-ratio:1/1;background:var(--mapbg);border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+@media (max-width:1079px){.map{max-width:560px}}
+.map.intel{cursor:crosshair;border-color:var(--t)}
+.map>svg,.map>canvas,.map-html{position:absolute;left:0;top:0;width:100%;height:100%}
+.map-html{pointer-events:none}
+.zlabel{position:absolute;transform:translate(-50%,-50%);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:#7b828e;white-space:nowrap;font-weight:650;display:flex;flex-direction:column;align-items:center;gap:1px;text-shadow:0 1px 2px #0b0d10}
+.zlabel.site{color:#d4d8df;font-size:13px;font-weight:750}
+.zlabel .tt{display:none;font-size:9.5px;letter-spacing:0;font-weight:650;padding:0 5px;border-radius:999px;background:rgba(14,16,20,.9);border:1px solid #545b68;color:var(--ink2);font-variant-numeric:tabular-nums}
+.zlabel .tt i{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--t);margin-right:3px;vertical-align:1px}
+.map.show-timings .zlabel .tt{display:block}
+.mk{position:absolute;transform:translate(-7px,-50%);display:flex;align-items:center;gap:5px;white-space:nowrap}
+.mk i{width:14px;height:14px;border-radius:50%;background:var(--ct);box-shadow:0 0 0 2px var(--mapbg);flex:none}
+.mk span{font-size:10.5px;color:var(--ink2);text-shadow:0 1px 2px #000,0 0 5px #000}
+.mk.me{transform:translate(-50%,-50%)}
+.mk.me i{width:30px;height:30px;display:grid;place-items:center;font-style:normal;font-size:9px;font-weight:800;color:#fff;box-shadow:0 0 0 2px var(--mapbg),0 0 0 4.5px #fff}
+.ip{position:absolute;transform:translate(-50%,-50%);font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:6px;background:#2b1e02;border:1.5px solid var(--t-hi);color:#ffe2a6;white-space:nowrap;box-shadow:0 0 0 2px var(--mapbg)}
+.ip.clear{background:#0e1b0f;border-color:#3fae3f;color:#c4ecc4}
+.intel-pop{position:absolute;z-index:5;background:#1f232b;border:1px solid #5d6574;border-radius:8px;padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.55);font-size:12px;min-width:180px}
+.intel-pop[hidden]{display:none}
+.intel-pop .ttl{color:var(--ink2);margin-bottom:6px}
+.intel-pop .ttl b{color:var(--ink)}
+.intel-pop .opts{display:flex;gap:4px}
+.intel-pop .opts button{background:var(--panel2);border:1px solid var(--line2);border-radius:5px;padding:4px 9px;cursor:pointer}
+.intel-pop .opts button:hover{border-color:var(--t)}
+.mapbar{display:flex;align-items:center;gap:8px;margin:8px auto 0;max-width:620px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.mapbar .cap{margin-right:auto;display:flex;align-items:center;gap:6px}
+.ramp{display:inline-block;width:46px;height:8px;border-radius:4px;background:linear-gradient(90deg,rgba(201,133,0,.2),rgba(214,150,24,.65),#ffd678)}
+.btn.intel.on{background:rgba(201,133,0,.2);border-color:var(--t);color:var(--t-hi)}
+
+/* live scoreboard (TAB) */
+.sboard{margin-top:14px}
+.rounds{display:flex;gap:14px;align-items:flex-start;margin-bottom:14px}
+.rhalf{flex:1;min-width:0}
+.rhalf-h{font-size:11px;color:var(--muted);margin-bottom:4px}
+.cells{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:3px}
+.rc{height:28px;border-radius:5px;background:#1b1f25;border:1px solid var(--line);display:grid;place-items:center}
+.rc.us{background:var(--ct);border-color:var(--ct)}.rc.them{background:var(--t);border-color:var(--t)}
+.rc.cur{border:1.5px solid var(--ink);background:#262b33}
+.rc svg{width:13px;height:13px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.rn{font-size:9.5px;color:var(--muted);text-align:center;margin-top:2px}
+.teams{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:1080px){.teams{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+.team-h{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:650;margin-bottom:4px}
+.team-h .n{font-size:18px;font-weight:750;margin-left:auto}
+.srcd{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted)}
+.srcd i{width:7px;height:7px;border-radius:50%;background:var(--good)}
+.srcd.link i{background:#8f86ea}
+.srcd.spec i{background:none;border:1.5px solid var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11.5px;color:var(--muted);margin-top:10px}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend svg{width:11px;height:11px;stroke:var(--ink2);fill:none;stroke-width:2;stroke-linecap:round}
+.thr2{display:flex;align-items:center;gap:6px;font-size:12px;min-width:90px}
+.thr2 .trk{flex:1;height:6px;background:#3a2c0c;border-radius:3px;overflow:hidden}
+.thr2 .trk i{display:block;height:100%;background:var(--t);border-radius:0 3px 3px 0}
+.role{font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;background:#272c34;color:var(--ink2)}
+
+/* ============ COACH ============ */
+.coach{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:1080px){.coach{grid-template-columns:minmax(0,1fr) 400px;align-items:start}}
+.subnav{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:12px;flex-wrap:wrap}
+.subnav button{background:none;border:0;padding:8px 12px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;font-weight:600;font-size:13px}
+.subnav button:hover{color:var(--ink2)}
+.subnav button.on{color:var(--ink);border-bottom-color:var(--ink)}
+.chat{display:flex;flex-direction:column}
+@media (min-width:1080px){.chat{position:sticky;top:12px}}
+.chat-st{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.feed{display:flex;flex-direction:column;gap:8px;max-height:520px;min-height:200px;overflow:auto;padding-right:4px}
+.msg{border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--sunken)}
+.msg.ai{border-left:3px solid var(--ai)}.msg.engine{border-left:3px solid #5b6372}.msg.mine{border-left:3px solid var(--ct);background:#111925}
+.msg-h{display:flex;gap:8px;align-items:center;font-size:10.5px;color:var(--muted);margin-bottom:2px;flex-wrap:wrap}
+.msg-h .tag{font-weight:750;letter-spacing:.06em;color:var(--ink2)}
+.msg-h .src{margin-left:auto}
+.msg-b{font-size:13px}
+.msg-b.typing::after{content:'▍';color:var(--ai);margin-left:1px}
+.ask{display:flex;gap:6px;margin-top:10px}
+.ask input{flex:1;min-width:0;background:var(--sunken);border:1px solid var(--line2);border-radius:7px;padding:7px 10px;color:var(--ink);font:inherit;font-size:13px}
+.ask input::placeholder{color:#6c7380}
+.qchips{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.qchips button{background:none;border:1px solid var(--line2);border-radius:999px;padding:2px 9px;font-size:11.5px;color:var(--ink2);cursor:pointer}
+.qchips button:hover{border-color:var(--ai)}
+.c-head{font-size:22px;font-weight:750;line-height:1.2}
+.econ-big{font-size:22px;font-weight:700;line-height:1.2;margin:2px 0}
+.teamline{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink2);flex-wrap:wrap}
+.band{position:relative;height:40px;margin:4px 0 2px}
+.band .axis{position:absolute;left:0;right:0;top:10px;height:8px;background:var(--track);border-radius:4px}
+.band .rng{position:absolute;top:10px;height:8px;background:rgba(201,133,0,.6);border-radius:4px}
+.band .thr{position:absolute;top:4px;width:1px;height:20px;background:#69707d}
+.band .tl2{position:absolute;top:25px;font-size:10.5px;color:var(--muted);transform:translateX(-50%);white-space:nowrap}
+.pips{display:inline-flex;gap:3px;vertical-align:middle}
+.pips i{width:13px;height:6px;border-radius:3px;background:#2d323b}
+.pips i.on{background:var(--t)}
+.nextrow{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:12.5px;color:var(--ink2);margin-top:8px}
+.nextrow b{color:var(--ink);font-weight:650}
+.note{font-size:11.5px;color:var(--muted);margin-top:8px}
+.kpis{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (min-width:760px){.kpis{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.kpi .lbl{font-size:12px;color:var(--muted)}
+.kpi .val{font-size:26px;font-weight:750;line-height:1.2;margin-top:2px}
+.kpi .sub{font-size:12px;color:var(--ink2)}
+.cfg{display:grid;gap:10px 14px;grid-template-columns:auto 1fr;font-size:13px;align-items:center}
+.cfg .k{color:var(--muted)}
+select.sel{background:var(--sunken);border:1px solid var(--line2);border-radius:6px;color:var(--ink);font:inherit;font-size:12.5px;padding:3px 6px}
+.toggle{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2);cursor:pointer;user-select:none;margin-right:10px}
+.toggle input{accent-color:#8f86ea}
+input[type=range]{accent-color:#8f86ea;vertical-align:middle}
+.pbook{display:grid;gap:6px}
+.pbook div{display:flex;align-items:center;gap:10px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sunken);font-size:13px}
+.pbook div .muted{margin-left:auto;font-size:12px}
+pre.code{margin:8px 0 0;background:#0b0d10;border:1px solid var(--line);border-radius:7px;padding:9px 10px;font:11.5px/1.5 ui-monospace,"Cascadia Code",Consolas,monospace;color:#c7ccd4;overflow:auto;white-space:pre;max-height:320px}
+.conn-row{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;align-items:start;padding:9px 0;border-bottom:1px solid var(--row)}
+.conn-row:last-child{border-bottom:0}
+.conn-row .ttl{font-weight:650}
+.conn-row .d{font-size:12.5px;color:var(--muted)}
+.ic{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:800;margin-top:1px}
+.ic.ok{background:rgba(12,163,12,.2);color:#6fd36f}.ic.warn{background:rgba(250,178,25,.18);color:#ffd27a}
+.report ol{margin:4px 0 0;padding-left:18px;color:var(--ink2)}
+.report li{margin:0 0 7px}
+.report li b{color:var(--ink)}
+
+/* ============ SCOUT ============ */
+.vs{display:grid;gap:14px;grid-template-columns:minmax(0,1fr);align-items:center;margin-bottom:12px}
+@media (min-width:760px){.vs{grid-template-columns:1fr 1.4fr 1fr}}
+.vs-side .vs-name{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px}
+.vs-side.r{text-align:right}.vs-side.r .vs-name{justify-content:flex-end}
+.vs-elo{font-size:30px;font-weight:780;line-height:1.1;margin-top:2px}
+.vs-mid{text-align:center}
+.vs-map{font-size:28px;font-weight:780;line-height:1.1;margin:2px 0}
+.wc{margin-top:10px}
+.wc-bar{display:flex;gap:2px;height:10px}
+.wc-bar i{display:block;height:100%}
+.wc-bar i:first-child{background:var(--ct);border-radius:5px 0 0 5px}.wc-bar i:last-child{background:var(--t);border-radius:0 5px 5px 0}
+.wc-lbl{display:flex;justify-content:space-between;font-size:12px;color:var(--ink2);margin-top:4px}
+.know3{display:grid;gap:12px;grid-template-columns:minmax(0,1fr);margin-bottom:12px}
+@media (min-width:760px){.know3{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.know{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;border-top:3px solid var(--t)}
+.know .kn{font-size:11.5px;font-weight:750;color:var(--muted);letter-spacing:.06em}
+.know .kh{font-size:19px;font-weight:750;line-height:1.2;margin:4px 0 6px}
+.know .kb{font-size:13.5px;color:var(--ink2)}
+.sec-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:18px 0 8px;flex-wrap:wrap}
+.sec-h h2{margin:0;font-size:16px;font-weight:750}
+.pcards{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (min-width:760px){.pcards{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (min-width:1180px){.pcards{grid-template-columns:repeat(5,minmax(0,1fr))}}
+.pc{display:flex;flex-direction:column;gap:8px;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;min-width:0}
+.pc:hover{border-color:#4d5462}
+.pc.sel{border-color:var(--t);box-shadow:0 0 0 1px var(--t) inset}
+.pc-top{display:flex;align-items:center;gap:9px}
+.avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:800;background:#2a2f38;flex:none}
+.pc-name{font-size:15px;font-weight:750;line-height:1.1}
+.pc-sub{font-size:11.5px;color:var(--muted)}
+.pc-stats{display:flex;gap:12px;font-size:12.5px;font-variant-numeric:tabular-nums}
+.pc-stats em{font-style:normal;color:var(--muted);margin-right:3px;font-size:11px}
+.pc-tip{font-size:12.5px;color:var(--ink2);line-height:1.35}
+.pdetail{display:grid;gap:14px;grid-template-columns:minmax(0,1fr);margin-top:10px}
+@media (min-width:1000px){.pdetail{grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr) 300px}}
+.mini{display:block;width:100%;max-width:300px;border-radius:10px;background:var(--mapbg);border:1px solid var(--line)}
+.vgrid{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(132px,1fr))}
+.vt{background:var(--sunken);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.vt.decider{border-color:#8f86ea;box-shadow:0 0 0 1px #8f86ea inset}
+.vt.ban{border-color:rgba(208,59,59,.6)}
+.vt-name{font-weight:750;font-size:14px;display:flex;align-items:center;justify-content:space-between;gap:6px}
+.vt-row{font-size:12px;color:var(--ink2);margin-top:4px;font-variant-numeric:tabular-nums}
+.vt-act{display:inline-block;margin-top:7px;font-size:10.5px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:4px;background:#272c34;color:var(--ink2)}
+.vt.decider .vt-act{background:#2c2850;color:#d6d1ff}
+.vt.ban .vt-act{background:rgba(208,59,59,.2);color:#ffb0b0}
+.edge{display:inline-block;min-width:36px;text-align:center;padding:0 5px;border-radius:4px;font-weight:700;font-size:12px}
+.ours{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (min-width:640px){.ours{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (min-width:1100px){.ours{grid-template-columns:repeat(5,minmax(0,1fr))}}
+.oc{background:var(--sunken);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.oc .pc-name{font-size:14px}
+.oc .sug{font-size:12.5px;margin-top:6px;color:var(--ink)}
+.oc .sug span{color:var(--muted);font-size:11px;display:block}
+
+/* ============ DEBRIEF ============ */
+.dkpis{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:12px}
+@media (min-width:900px){.dkpis{grid-template-columns:1.3fr repeat(4,minmax(0,1fr))}}
+.res{border-top:3px solid var(--ct)}
+.deb-grid{display:grid;gap:12px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:1000px){.deb-grid{grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr)}}
+.deb-grid2{display:grid;gap:12px;grid-template-columns:minmax(0,1fr);margin-top:12px}
+@media (min-width:1000px){.deb-grid2{grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr)}}
+.work{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.work li{display:grid;grid-template-columns:26px 1fr;gap:10px}
+.work .wn{width:26px;height:26px;border-radius:50%;background:#26234a;color:#d6d1ff;display:grid;place-items:center;font-size:12px;font-weight:800}
+.work b{display:block;font-size:15px}
+.work span{font-size:13px;color:var(--ink2)}
+.chart-legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--ink2);margin-bottom:6px}
+.chart-legend span{display:inline-flex;align-items:center;gap:6px}
+.lk-bar{display:inline-block;width:10px;height:12px;background:var(--t);border-radius:2px 2px 0 0}
+.lk-wh{display:inline-block;width:10px;height:12px;border-left:1.5px solid #d4d8df;margin-left:4px;position:relative}
+.lk-miss{display:inline-block;width:10px;height:12px;border-left:1.5px solid #ff8a8a;margin-left:4px}
+#econChart{position:relative}
+#econChart svg{display:block;width:100%}
+.ctip{position:absolute;pointer-events:none;background:#20242c;border:1px solid #4d5462;border-radius:6px;padding:6px 8px;font-size:12px;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.45);display:none;z-index:3}
+.ctip .r{color:var(--muted);margin-bottom:2px}
+.ctip .row{display:flex;align-items:center;gap:6px}
+.wr h4{margin:12px 0 2px}
+.wr h4:first-child{margin-top:0}
+.died{display:grid;gap:12px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:640px){.died{grid-template-columns:240px minmax(0,1fr)}}
+.died .mini{max-width:240px}
+.facts{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.facts li b{display:block;font-size:20px;font-weight:750}
+.facts li span{font-size:12.5px;color:var(--ink2)}
+
+/* ============ SETTINGS ============ */
+.fair{display:grid;gap:6px 18px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:760px){.fair{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+.fair div{display:flex;gap:8px;align-items:flex-start;font-size:13px}
+.adv{display:grid;gap:10px}
+.adv details{border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:var(--sunken)}
+.adv summary{font-size:13px;color:var(--ink2);cursor:pointer}
+/* ============ ROOM / ROLES ============ */
+.room-chip{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 10px;border-radius:8px;border:1px solid var(--line2);background:var(--panel2);cursor:pointer;color:var(--ink2);font-size:12.5px;white-space:nowrap}
+.room-chip:hover{border-color:#5d6574}
+.room-chip.on{border-color:#8f86ea;background:#26234a}
+.room-chip .rc-code{color:var(--ink);font-weight:650}
+.rb{font-size:10px;font-weight:800;letter-spacing:.06em;padding:1px 6px;border-radius:4px}
+.rb.admin,.rolebadge.admin{background:#2c2850;color:#d6d1ff}
+.rb.member,.rolebadge.member{background:#272c34;color:var(--ink2)}
+.rolebadge{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.06em;padding:2px 7px;border-radius:4px;white-space:nowrap}
+.rolebadge.random{background:rgba(250,178,25,.13);color:#ffd27a}
+@media (max-width:640px){.room-chip .rc-code,.room-chip .rc-n{display:none}}
+.app.is-member .admin-only{display:none!important}
+.app:not(.is-member) .member-only{display:none!important}
+.banner-note{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 14px;border-radius:10px;background:#1b1a30;border:1px solid #3b3668;color:#d6d1ff;font-size:13px;margin-bottom:12px}
+fieldset{border:0;margin:0;padding:0;min-width:0}
+fieldset:disabled .card{opacity:.75}
+.room-top{display:grid;gap:12px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:1000px){.room-top{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)}}
+.big-code{font-size:32px;font-weight:800;letter-spacing:.12em;font-variant-numeric:tabular-nums;line-height:1.1}
+.invite{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.invite code{background:#0b0d10;border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:12px;color:#c7ccd4;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.perm{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--row);font-size:13px}
+.perm:last-child{border-bottom:0}
+.msg.human{border-left:3px solid var(--ct);background:#111925}
+.msg.human.other{border-left-color:#5d7fb0;background:var(--sunken)}
+.mk.st-planned i{background:rgba(16,19,23,.75);border:2px dashed #7fb0ef}
+.mk.me.st-planned i{border:2.5px dashed #fff;background:rgba(57,135,229,.35)}
+.mk.st-live i{animation:livepulse 1.4s ease-out infinite}
+@keyframes livepulse{0%{box-shadow:0 0 0 0 rgba(57,135,229,.75),0 0 0 2px var(--mapbg)}100%{box-shadow:0 0 0 11px rgba(57,135,229,0),0 0 0 2px var(--mapbg)}}
+.mk.st-dead i{background:#2a2f38;color:#ff8a8a;display:grid;place-items:center;font-style:normal;font-size:10px;font-weight:800}
+.mk.st-dead span{color:var(--muted)}
+.mk.st-rot span,.mk.st-live span{color:var(--ink)}
+.mk .tag{font-size:9.5px;font-weight:750;padding:0 5px;border-radius:4px;background:rgba(14,16,20,.9);border:1px solid #545b68;margin-left:2px}
+.mk.st-live .tag{border-color:#7fb0ef;color:#cfe2fb}
+.mk.st-rot .tag{border-color:#ffd27a;color:#ffe2a6}
+.mapkey{display:flex;flex-wrap:wrap;gap:4px 14px;margin:6px auto 0;max-width:620px;font-size:11.5px;color:var(--muted)}
+.mapkey span{display:inline-flex;align-items:center;gap:5px}
+.mapkey i{display:inline-block;width:11px;height:11px;border-radius:50%;flex:none}
+.mapkey .k-set{background:var(--ct)}
+.mapkey .k-plan{border:1.5px dashed #7fb0ef}
+.mapkey .k-live{background:var(--ct);box-shadow:0 0 0 3px rgba(57,135,229,.35)}
+.mapkey .k-dead{background:#2a2f38;color:#ff8a8a;font-size:8px;font-style:normal;font-weight:800;display:grid;place-items:center}
+.btn.spot.on{border-color:var(--ct);color:#cfe2fb;background:rgba(57,135,229,.15)}
+</style>
+</head>
+<body>
+
+<div class="proto" role="toolbar" aria-label="Prototype controls">
+  <span class="pt">PROTOTYPE</span><span class="pm">simulated GSI feed · fictional players</span>
+  <span class="vr"></span>
+  <span class="grp"><button id="btnPlay">❚❚ Pause</button><button data-speed="1">1×</button><button data-speed="3" class="on">3×</button><button data-speed="10">10×</button><button id="btnSkip">Skip phase ⏭</button></span>
+  <span class="vr"></span>
+  <span class="grp"><span class="pm">Jump to</span><button data-ff="6">Freeze time</button><button data-ff="38">Rotate to B</button><button data-ff="59">Round won</button><button data-ff="110">Rotate to A</button><button data-ff="131">Bomb planted</button></span>
+  <span class="vr"></span>
+  <span class="grp"><span class="pm">View as</span><button data-as="rdx" class="on">rdx · admin (host)</button><button data-as="kairo">kairo · member</button></span>
+</div>
+
+<div class="app" id="app">
+  <div class="titlebar"><span>csbot</span><span class="tb-right" aria-hidden="true"><span>—</span><span>☐</span><span>✕</span></span></div>
+
+  <header class="hdr">
+    <div class="brand"><span class="logo"></span>csbot</div>
+    <nav class="nav">
+      <button data-view="scout">Scout</button>
+      <button data-view="live" class="on">Live <i class="live-dot"></i></button>
+      <button data-view="debrief">Debrief</button>
+    </nav>
+    <div class="scorebox">
+      <span class="side-tag ct">CT</span><span>You</span><span class="n" id="scUs">5</span><span class="muted">:</span><span class="n" id="scThem">3</span><span>team_kappa</span><span class="side-tag t">T</span>
+      <span class="rnd" id="rndLbl">Round 9 · Mirage · FACEIT</span>
+    </div>
+    <div class="hdr-right">
+      <button class="room-chip" data-view="room" type="button" title="Room · host rdx · GSI, Claude Code and FACEIT connected"><i class="dot ok"></i><span class="rc-code">Room K7P-2QX</span><span class="rc-n">4 online</span><span class="rb admin" id="roomRole">ADMIN</span></button>
+      <button class="icon-btn" id="btnVoice" type="button" title="Voice callouts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.7a.7.7 0 0 0-1.2-.5L6.4 7.6a1.4 1.4 0 0 1-1 .4H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.4 18.4a9 9 0 0 0 0-12.8"/></svg></button>
+      <button class="icon-btn" data-view="coach" type="button" title="Coach"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg></button>
+      <button class="icon-btn" data-view="setup" type="button" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
+    </div>
+  </header>
+
+  <div class="main">
+    <!-- ================= LIVE ================= -->
+    <section class="view on" id="view-live">
+      <div class="live-main">
+        <div class="now">
+          <div class="pb freezetime" id="pb"><span class="ph" id="pbPh">FREEZE TIME</span><span class="hint" id="pbHint"></span><span class="clk" id="pbClk">0:20</span></div>
+          <div class="call" id="call"></div>
+          <div class="tiles3">
+            <div class="tl"><div class="lb"><i class="key t"></i>Enemy buy</div><div class="vl" id="tEnemy"></div><div class="sb" id="tEnemySub"></div></div>
+            <div class="tl"><div class="lb" id="tHitLbl"><i class="key t"></i>Likely hit</div><div class="vl" id="tHit"></div><div class="split" id="tHitBar"><i></i><i></i></div><div class="sb" id="tHitSub"></div></div>
+            <div class="tl"><div class="lb" id="tYouLbl"><i class="key ct"></i>Your buy</div><div class="vl" id="tYou"></div><div class="sb" id="tYouSub"></div></div>
+          </div>
+          <button class="ticker" id="ticker" type="button"><span class="tg">LATEST</span><span class="tx" id="tickTx"></span><span class="go">Coach ›</span></button>
+        </div>
+        <div class="mapcol">
+          <div class="map" id="map">
+            <svg id="mapBase" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true"></svg>
+            <canvas id="heat"></canvas>
+            <svg id="mapLines" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
+              <defs><marker id="arr" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#ffd27a"/></marker></defs>
+              <path id="rotPath" d="" fill="none" stroke="#ffd27a" stroke-width="3" stroke-dasharray="7 5" vector-effect="non-scaling-stroke" marker-end="url(#arr)" opacity="0"/>
+            </svg>
+            <div class="map-html" id="mapHtml"></div>
+            <div class="intel-pop" id="intelPop" hidden></div>
+          </div>
+          <div class="mapbar">
+            <span class="cap"><i class="ramp"></i>estimated enemy presence, not game data</span>
+            <div class="seg" id="fcSeg"><button data-v="0" class="on">Now</button><button data-v="10">+10s</button></div>
+            <button class="btn spot" id="btnSpot" type="button">✓ On my spot</button>
+            <button class="btn intel" id="btnIntel" type="button">＋ Log intel</button>
+          </div>
+          <div class="mapkey"><span><i class="k-set"></i>on spot (checked in)</span><span><i class="k-plan"></i>planned spot</span><span><i class="k-live"></i>live (a dead teammate is watching)</span><span><i class="k-dead">✕</i>dead</span></div>
+        </div>
+      </div>
+
+      <div class="card sboard">
+        <div class="card-h"><h3>Scoreboard</h3><span class="muted small" id="sbNote"></span></div>
+        <div id="rounds"></div>
+        <div class="teams" id="teams"></div>
+        <div class="legend"><span class="srcd"><i></i>host GSI</span><span class="srcd link"><i></i>room: member shares their own GSI</span><span class="srcd spec"><i></i>random, last seen while spectating</span><span>Enemy live stats aren't sent to players. Their full scoreboard arrives with the demo.</span></div>
+      </div>
+    </section>
+
+    <!-- ================= SCOUT ================= -->
+    <section class="view" id="view-scout">
+      <div class="card vs">
+        <div class="vs-side"><div class="vs-name"><i class="key ct"></i>Your team</div><div class="vs-elo">2,034</div><div class="muted small">avg ELO · 4 in room + 1 random · 61% on Mirage</div></div>
+        <div class="vs-mid"><div class="kicker">Match found · FACEIT 5v5 · starts in 2:10</div><div class="vs-map">Mirage</div><div class="muted small">decider · you start CT</div>
+          <div class="wc"><div class="wc-bar"><i style="width:44%"></i><i style="width:56%"></i></div><div class="wc-lbl"><span>Win chance <b>44%</b></span><span>ELO 40% + map edge</span></div></div></div>
+        <div class="vs-side r"><div class="vs-name">team_kappa<i class="key t"></i></div><div class="vs-elo">2,108</div><div class="muted small">avg ELO · 3-stack + duo · 57% on Mirage</div></div>
+      </div>
+      <div class="know3">
+        <div class="know"><div class="kn">THEIR AWP</div><div class="kh">Holo holds top mid</div><div class="kb">AWP in 71% of their gun rounds. Don't dry-peek mid before 1:35. Smoke window first.</div></div>
+        <div class="know"><div class="kn">LOW BUYS</div><div class="kh">Eco means B apps rush</div><div class="kb">11 of 17 low-buy rounds hit B through apps before 1:30. Stack B on their ecos.</div></div>
+        <div class="know"><div class="kn">AFTER A SAVE</div><div class="kh">They open A</div><div class="kb">41% A execute through palace + ramp. Pre-rotate one player when they save.</div></div>
+      </div>
+      <div class="sec-h"><h2>Their players</h2><span class="muted small">sorted by threat · click for tendencies and positions</span></div>
+      <div class="pcards" id="pcards"></div>
+      <div class="card pdetail" id="pdetail"></div>
+      <div class="grid2 mt">
+        <div class="card"><div class="card-h"><h3>How they play Mirage</h3><span class="muted small">46 demos · last 3 months</span></div>
+          <div class="h4" style="margin-top:0">T side · first contact plan</div><div class="bars" id="tPlans" style="--lw:190px"></div>
+          <div class="h4">CT side · setup</div><div class="bars" id="ctPlans" style="--lw:190px"></div>
+        </div>
+        <div class="card"><div class="card-h"><h3>Map veto</h3><span class="muted small">their win rate · yours · your edge</span></div><div class="vgrid" id="veto"></div></div>
+      </div>
+      <div class="sec-h"><h2>Your team</h2><span class="muted small">suggested roles for this match</span></div>
+      <div class="ours" id="ours"></div>
+    </section>
+
+    <!-- ================= DEBRIEF ================= -->
+    <section class="view" id="view-debrief">
+      <div class="dkpis" id="debTop"></div>
+      <div class="deb-grid">
+        <div class="card"><div class="card-h"><h3>Work on next</h3><span class="muted small">Claude Code · opus</span></div>
+          <ol class="work">
+            <li><span class="wn">1</span><div><b>Hold A better on CT</b><span>A held 2 of 5 times. They hit A after saves (R3, R7, R10). Pre-rotate one player when they save.</span></div></li>
+            <li><span class="wn">2</span><div><b>Trade your opening fights</b><span>You won 77% of rounds after your opening kill and 33% after theirs. 8 of your 14 deaths were untraded.</span></div></li>
+            <li><span class="wn">3</span><div><b>Follow the calls</b><span>When the call was followed you won 11 of 15. When it was ignored you won 2 of 7.</span></div></li>
+          </ol>
+        </div>
+        <div class="card"><div class="card-h"><h3>Enemy money per round</h3><span class="muted small">avg per player at round start</span></div>
+          <div class="chart-legend"><span><i class="lk-bar"></i>team_kappa (demo truth)</span><span><i class="lk-wh"></i>csbot live estimate</span><span><i class="lk-miss"></i>estimate missed</span></div>
+          <div id="econChart"><div class="ctip"></div></div>
+          <div class="note" id="econNote"></div>
+        </div>
+      </div>
+      <div class="card mt"><div class="card-h"><h3>Final scoreboard</h3><span class="muted small">from the demo</span></div><div id="finalBoard"></div></div>
+      <div class="deb-grid2">
+        <div class="card wr"><div class="card-h"><h3>Round win rate</h3><span class="muted small">what decided rounds</span></div><div id="winRates"></div></div>
+        <div class="card"><div class="card-h"><h3>Where you died</h3><span class="muted small" id="diedN"></span></div><div class="died" id="died"></div></div>
+      </div>
+      <div class="card mt"><div class="card-h"><h3>Round by round</h3><span class="muted small">live reads vs demo truth</span></div><div class="tw"><table class="t" id="revTable"></table></div></div>
+    </section>
+
+    <!-- ================= COACH ================= -->
+    <section class="view" id="view-coach">
+      <div class="coach">
+        <div>
+          <div class="subnav" id="coachTabs">
+            <button data-ct="reasoning" class="on">Round reasoning</button>
+            <button data-ct="economy">Economy</button>
+            <button data-ct="scouting">Scouting data</button>
+            <button data-ct="calls">Call log</button>
+            <button data-ct="config">Coach config</button>
+          </div>
+          <div id="coachPanel"></div>
+        </div>
+        <aside class="card chat">
+          <div class="card-h"><h3>Coach chat</h3><span class="muted small">shared with the room</span></div>
+          <div class="chat-st"><span class="chip"><i class="dot ok"></i>Claude Code <em>sonnet · warm session</em></span><span class="chip" id="budgetChip"></span></div>
+          <div class="feed" id="feed"></div>
+          <form class="ask" id="askForm" autocomplete="off"><input id="askIn" placeholder="Ask the coach… (push-to-talk: F13)"><button class="btn primary" type="submit">Ask</button></form>
+          <div class="qchips" id="qchips"><button type="button">Should we force next round?</button><button type="button">Where is their AWP?</button><button type="button">Timeout talking points</button></div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ================= ROOM ================= -->
+    <section class="view" id="view-room"><div id="roomBody"></div></section>
+
+    <!-- ================= SETTINGS ================= -->
+    <section class="view" id="view-setup">
+      <div class="grid2">
+        <div class="card admin-only">
+          <div class="card-h"><h3>Host connections</h3><span class="rolebadge admin">ADMIN · HOST</span></div>
+          <div class="conn-row"><span class="ic ok">✓</span><div><div class="ttl">Game · Valve GSI</div><div class="d">CS2 found · config installed · receiving 4 msg/s on localhost</div></div><button class="btn" type="button">Reinstall</button></div>
+          <div class="conn-row"><span class="ic ok">✓</span><div><div class="ttl">AI · your Claude Code</div><div class="d"><code>claude</code> 2.1.303 · signed in through Claude Code's own login. csbot never reads your credentials.</div></div><button class="btn" type="button">Test</button></div>
+          <div class="conn-row"><span class="ic ok">✓</span><div><div class="ttl">FACEIT · Steam · Leetify</div><div class="d">API keys stay on this desktop · replays folder watched for new demos</div></div><button class="btn" type="button">Keys</button></div>
+          <div class="conn-row"><span class="ic ok">✓</span><div><div class="ttl">Room relay</div><div class="d">relay.csbot-app.workers.dev · 31 ms · end-to-end encrypted</div></div><button class="btn" type="button">Test</button></div>
+          <div class="conn-row"><span class="ic warn">!</span><div><div class="ttl">FACEIT demo downloads</div><div class="d">Downloads API application pending. Meanwhile, drop .dem files on the window.</div></div><span></span></div>
+        </div>
+        <div class="card member-only">
+          <div class="card-h"><h3>Your device</h3><span class="rolebadge member">MEMBER</span></div>
+          <div class="conn-row"><span class="ic ok">✓</span><div><div class="ttl">Room K7P-2QX</div><div class="d">connected to rdx's host · 24 ms · end-to-end encrypted</div></div><button class="btn" type="button">Leave</button></div>
+          <div class="conn-row"><span class="ic ok">✓</span><div><div class="ttl">Your GSI</div><div class="d">shared from your desktop app: your money, K/A/D and weapon only</div></div><button class="btn" type="button">Pause</button></div>
+          <div class="conn-row"><span class="ic ok">✓</span><div><div class="ttl">AI and match data</div><div class="d">run on the host. Nothing to set up on your side.</div></div><span></span></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>Screen, voice & input</h3><span class="muted small">this device only</span></div>
+          <div class="cfg">
+            <span class="k">Display</span><span><select class="sel"><option>Display 2 · 2560×1440 · right of main</option><option>Display 2 · 1080×1920 · portrait</option><option>Phone (web)</option></select></span>
+            <span class="k">Window</span><span><label class="toggle"><input type="checkbox" checked> always on top</label></span>
+            <span class="k">Voice</span><span><label class="toggle"><input type="checkbox" id="setVoice"> speak your own job and plan changes</label></span>
+            <span class="k">Intel keys</span><span class="small">Num7 / 8 / 9 = apps / mid / ramp (+1 per press) · Num0 = clear · Num5 = on my spot · Num4 / Num6 = rotating A / B · F13 = talk to coach</span>
+          </div>
+          <div class="note">Hotkeys are OS-level shortcuts. Nothing is ever sent to the game.</div>
+        </div>
+        <div class="card" style="grid-column:1/-1">
+          <div class="card-h"><h3>Fair play</h3><label class="toggle admin-only"><input type="checkbox" id="tglTourn"> Tournament mode for the whole room</label><span class="muted small member-only">tournament mode is set by the admin</span></div>
+          <div class="fair">
+            <div><span class="ic ok">✓</span>Live data only from official Valve GSI</div>
+            <div><span class="ic ok">✓</span>No memory reading, injection or in-game overlay</div>
+            <div><span class="ic ok">✓</span>No packet capture, no screen capture of the game</div>
+            <div><span class="ic ok">✓</span>No input automation. csbot never presses keys</div>
+            <div><span class="ic ok">✓</span>Spectator-only GSI data from any device in the room is dropped while the match is live</div>
+            <div><span class="ic ok">✓</span>Enemy money and positions are always labeled estimates</div>
+          </div>
+        </div>
+        <div class="card admin-only" style="grid-column:1/-1">
+          <div class="card-h"><h3>Advanced</h3></div>
+          <div class="adv">
+            <details><summary>GSI config written to <code>game\csgo\cfg\gamestate_integration_csbot.cfg</code></summary>
+<pre class="code">"csbot v1"
+{
+  "uri"       "http://127.0.0.1:47321/gsi"
+  "timeout"   "1.1"
+  "buffer"    "0.1"
+  "throttle"  "0.25"
+  "heartbeat" "10.0"
+  "auth"      { "token" "c5b0…e91" }
+  "data"
+  {
+    "provider" "1"  "map" "1"  "round" "1"  "phase_countdowns" "1"  "map_round_wins" "1"
+    "player_id" "1"  "player_state" "1"  "player_weapons" "1"  "player_match_stats" "1"
+  }
+}</pre></details>
+            <details id="payloadBox"><summary>Last GSI payload: your own player only, no enemy data</summary><pre class="code" id="payload"></pre></details>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+const $=(s,el=document)=>el.querySelector(s);
+const $$=(s,el=document)=>[...el.querySelectorAll(s)];
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const fmt$=n=>'$'+Math.round(n).toLocaleString('en-US');
+const fmtK=n=>n>=1000?'$'+(n/1000).toFixed(1).replace(/\.0$/,'')+'k':'$'+Math.round(n);
+const clockStr=s=>{s=Math.max(0,Math.ceil(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');};
+const pct=v=>Math.round(v*100)+'%';
+const argmax=o=>Object.keys(o).reduce((a,b)=>o[a]>=o[b]?a:b);
+
+if(!getComputedStyle(document.documentElement).getPropertyValue('--background').trim()) document.documentElement.classList.add('standalone');
+
+/* ---------------- map model (schematic Mirage, 1000×1000) ---------------- */
+const ZONES=[
+  {id:'tspawn',name:'T Spawn',r:[845,360,130,240]},
+  {id:'talley',name:'',r:[860,200,65,170]},
+  {id:'tapps',name:'T Apps',r:[660,110,265,105]},
+  {id:'bapps',name:'B Apps',r:[380,120,290,75]},
+  {id:'bsite',name:'B Site',r:[110,80,280,210],site:true},
+  {id:'kitchen',name:'Kitchen',r:[200,285,85,75]},
+  {id:'market',name:'Market',r:[140,355,150,115]},
+  {id:'ctpath',name:'',r:[170,465,60,100]},
+  {id:'short',name:'Short',r:[290,285,160,75]},
+  {id:'cat',name:'',r:[390,285,60,130]},
+  {id:'under',name:'Under',r:[470,185,70,220]},
+  {id:'window',name:'Window',r:[290,405,105,85]},
+  {id:'mid',name:'Mid',r:[390,400,350,85]},
+  {id:'topmid',name:'Top Mid',r:[730,380,120,120]},
+  {id:'conn',name:'Conn.',r:[470,485,70,115]},
+  {id:'jungle',name:'Jungle',r:[360,520,115,125]},
+  {id:'stairs',name:'',r:[490,595,60,60]},
+  {id:'ctspawn',name:'CT Spawn',r:[90,560,190,150]},
+  {id:'ticket',name:'Ticket',r:[275,640,70,60]},
+  {id:'asite',name:'A Site',r:[340,640,240,220],site:true},
+  {id:'aramp',name:'A Ramp',r:[575,660,185,80]},
+  {id:'tramp',name:'T Ramp',r:[750,590,120,150]},
+  {id:'palace',name:'Palace',r:[570,815,235,75]},
+  {id:'palpath',name:'',r:[800,735,60,155]},
+];
+const HIDE_LABEL=new Set(['kitchen','ticket','tramp','tapps']);
+const ZMAP=Object.fromEntries(ZONES.map(z=>[z.id,z]));
+const zc=z=>[z.r[0]+z.r[2]/2,z.r[1]+z.r[3]/2];
+const LABEL_POS={mid:[600,442],under:[505,290],ctspawn:[180,625],asite:[460,830],bsite:[330,108],market:[215,455],window:[342,480],short:[320,345]};
+
+/* T routes: [x, y, seconds since round start at full run] */
+const ROUTES={
+  B:[[910,480,0],[892,300,4],[880,160,8],[720,160,12],[560,158,17],[430,158,23],[330,175,30],[220,180,38]],
+  A:[[910,480,0],[810,640,6],[690,700,11],[600,700,15],[500,730,22],[440,760,30]],
+  P:[[910,480,0],[840,640,6],[830,800,10],[700,850,14],[590,850,18],[520,800,24],[460,790,30]],
+  M:[[910,480,0],[790,440,4],[640,442,10],[505,442,15],[505,540,20],[520,625,25],[470,700,32]],
+  S:[[910,480,0],[790,440,4],[600,442,9],[420,442,16],[420,330,21],[340,320,25],[300,250,32]],
+  U:[[910,480,0],[790,440,4],[640,442,10],[505,430,16],[505,300,21],[505,170,26]],
+};
+const PLANS={
+  bRush:{name:'B apps rush',site:'B',speed:1.25,lineup:['B','B','B','B','S'],delay:[0,1,2,3,0]},
+  bExec:{name:'B exec (apps + short)',site:'B',speed:.8,lineup:['B','B','B','S','S'],delay:[0,2,4,0,3]},
+  aExec:{name:'A exec (ramp + palace)',site:'A',speed:.8,lineup:['A','A','P','P','M'],delay:[0,2,0,2,1]},
+  split:{name:'Mid-to-A split',site:'A',speed:.6,lineup:['M','M','P','A','U'],delay:[0,3,0,1,4]},
+  slowB:{name:'Default → late B',site:'B',speed:.45,lineup:['S','M','B','P','U'],delay:[0,2,0,4,3]},
+};
+const PLAN_PRIOR_BY_BUY={
+  eco:{bRush:.52,bExec:.12,aExec:.12,split:.08,slowB:.16},
+  force:{bRush:.30,bExec:.20,aExec:.22,split:.13,slowB:.15},
+  half:{bRush:.22,bExec:.22,aExec:.26,split:.15,slowB:.15},
+  full:{bRush:.06,bExec:.26,aExec:.36,split:.18,slowB:.14},
+};
+const OFF=[[0,0],[16,-12],[-14,12],[12,16],[-16,-10]];
+const SAMPLES=[[-6,.1],[-3,.2],[0,.4],[3,.2],[6,.1]];
+const TIMED={bapps:['B',4],topmid:['M',1],aramp:['A',2],palace:['P',3],under:['U',4],conn:['M',4],short:['S',5]};
+const RUSH=1.25;
+const tClock=id=>{const [rk,idx]=TIMED[id];return clockStr(115-ROUTES[rk][idx][2]/RUSH);};
+
+function posOn(route,tt){
+  if(tt<=0) return [route[0][0],route[0][1]];
+  for(let i=1;i<route.length;i++){const a=route[i-1],b=route[i];
+    if(tt<=b[2]){const f=(tt-a[2])/(b[2]-a[2]);return [a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f];}}
+  const l=route[route.length-1];return [l[0],l[1]];
+}
+function enemyPositions(k,t){const P=PLANS[k];
+  return P.lineup.map((rk,i)=>{const tt=Math.max(0,t-P.delay[i])*P.speed;const p=posOn(ROUTES[rk],tt);return [p[0]+OFF[i][0],p[1]+OFF[i][1]];});}
+function distRect(p,r){const dx=Math.max(r[0]-p[0],0,p[0]-(r[0]+r[2]));const dy=Math.max(r[1]-p[1],0,p[1]-(r[1]+r[3]));return Math.hypot(dx,dy);}
+function zoneAt(x,y){let best=null;for(const z of ZONES){const r=z.r;if(x>=r[0]&&x<=r[0]+r[2]&&y>=r[1]&&y<=r[1]+r[3]){if(!best||r[2]*r[3]<best.r[2]*best.r[3])best=z;}}
+  if(best&&!best.name){const near={talley:'tspawn',ctpath:'market',cat:'short',stairs:'conn',palpath:'tramp'}[best.id];best=ZMAP[near]||best;}
+  return best;}
+const zName=id=>ZMAP[id].name||id;
+
+/* ---------------- economy model ---------------- */
+const RULES={loss:[1400,1900,2400,2900,3400],winElim:3250,winBomb:3500,winDefuse:3500,plant:800};
+const SPEND={eco:[100,600],force:[1800,3000],half:[2200,3400],full:[3900,5200]};
+const BUY_LBL={eco:'Eco',force:'Force',half:'Half buy',full:'Full buy',pistol:'Pistol'};
+const BUY_BIG={eco:'ECO',force:'FORCE',half:'HALF BUY',full:'FULL BUY'};
+function lossBonus(streak){return RULES.loss[clamp(streak,1,5)-1];}
+function buyProbs(lo,hi,saved){
+  const p={eco:0,force:0,half:0,full:0};const N=24;
+  for(let k=0;k<=N;k++){const m=lo+(hi-lo)*k/N;
+    const row=m<2000?[.85,.12,.03,0]:m<3000?[.35,.45,.18,.02]:m<4100?[.08,.32,.45,.15]:[.02,.05,.13,.80];
+    p.eco+=row[0];p.force+=row[1];p.half+=row[2];p.full+=row[3];}
+  if(saved) p.full*=1.6;
+  const s=p.eco+p.force+p.half+p.full;for(const k in p)p[k]/=s;return p;
+}
+function projectEnemy(e,buy,winner,reason,planted){
+  const sp=SPEND[buy]||SPEND.half;
+  let lo=Math.max(0,e.lo-sp[1]),hi=Math.max(0,e.hi-sp[0]),streak=e.streak;
+  if(winner==='them'){const w=reason==='bomb'?RULES.winBomb:RULES.winElim;lo+=w;hi+=w+600;streak=Math.max(0,streak-1);}
+  else{streak=Math.min(5,streak+1);const lb=lossBonus(streak);lo+=lb;hi+=lb+300;if(planted){lo+=RULES.plant;hi+=RULES.plant;}}
+  return {lo:clamp(lo,0,16000),hi:clamp(hi,0,16000),streak,saved:winner!=='them'&&buy==='eco'};
+}
+
+/* ---------------- room (host = admin's desktop app) ---------------- */
+const HOST='rdx';
+const ROOM={code:'K7P-2QX',name:'kappa-night',created:'21:04',
+  members:[
+    {n:'rdx',role:'admin',device:'Desktop app · Windows',gsi:'desktop app',ping:'host',igl:false},
+    {n:'kairo',role:'member',device:'Desktop app · Windows',gsi:'desktop app',ping:'24 ms',igl:false},
+    {n:'nyx',role:'member',device:'Web · laptop browser',gsi:'room cfg (no install)',ping:'41 ms',igl:false},
+    {n:'mbt',role:'member',device:'Web · phone',gsi:'room cfg (no install)',ping:'58 ms',igl:true}],
+  randoms:['zeph']};
+const MEMBER_ASK_LIMIT=5;
+
+/* ---------------- scripted rounds (R9–R12, then loop) ---------------- */
+const SCEN={
+  9:{plan:'bRush',intel:[{t:16,zone:'bapps',k:3,by:'kairo'}],plant:null,end:{t:38,winner:'us',reason:'elim'},kills:1},
+  10:{plan:'aExec',intel:[{t:20,zone:'palace',k:2,by:'rdx'},{t:23,zone:'bapps',k:0,by:'nyx'}],plant:{t:44,site:'A'},end:{winner:'them',reason:'bomb'},youDie:52,kills:1},
+  11:{plan:'split',intel:[{t:22,zone:'mid',k:2,by:'mbt'}],plant:{t:58,site:'A'},end:{winner:'us',reason:'defuse',at:31},kills:2},
+  12:{plan:'bExec',intel:[{t:24,zone:'short',k:2,by:'kairo'},{t:27,zone:'bapps',k:2,by:'nyx'}],plant:null,end:{t:52,winner:'us',reason:'elim'},kills:1},
+};
+const SETUPS={
+  antieco:[{n:'nyx',x:150,y:150,l:'B van'},{n:'kairo',x:330,y:262,l:'B bench'},{n:'mbt',x:165,y:390,l:'market'},{n:'zeph',x:320,y:430,l:'window AWP'},{n:'rdx',x:430,y:715,l:'A'}],
+  std:[{n:'nyx',x:150,y:150,l:'B van'},{n:'kairo',x:345,y:305,l:'short'},{n:'zeph',x:320,y:430,l:'window AWP'},{n:'mbt',x:300,y:668,l:'ticket'},{n:'rdx',x:470,y:730,l:'A site'}],
+};
+const ROT={
+  toB:{who:'rdx',to:[180,215],eta:9,pts:[[430,705],[200,650],[195,470],[190,330],[180,215]],path:'M430 705 L200 650 L195 470 L190 330 L180 240'},
+  toA:{who:'nyx',to:[400,790],eta:10,pts:[[150,150],[230,330],[195,470],[200,640],[300,720],[400,790]],path:'M150 150 L230 330 L195 470 L200 640 L300 720 L390 782'},
+};
+/* squad positions: alive players' positions are not in their own GSI, so a marker is the planned spot until the player checks in.
+   A dead room member watching a teammate makes that teammate's position live (GSI follows the watched player). */
+const CHECKIN={rdx:8,kairo:6,nyx:7,mbt:9};
+const LIVE_PATH={mbt:[[300,668,52],[230,648,57],[205,632,61],[290,690,67],[380,742,74],[400,760,82]]};
+function along(pts,f){let L=0;const seg=[];for(let i=1;i<pts.length;i++){const d=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);seg.push(d);L+=d;}
+  let r=f*L;for(let i=0;i<seg.length;i++){if(r<=seg[i]){const g=seg[i]?r/seg[i]:0;return [pts[i][0]+(pts[i+1][0]-pts[i][0])*g,pts[i][1]+(pts[i+1][1]-pts[i][1])*g];}r-=seg[i];}
+  return pts[pts.length-1].slice(0,2);}
+function pathAt(path,t){if(t<=path[0][2])return [path[0][0],path[0][1]];for(let i=1;i<path.length;i++){const a=path[i-1],b=path[i];if(t<=b[2]){const g=(t-a[2])/(b[2]-a[2]);return [a[0]+(b[0]-a[0])*g,a[1]+(b[1]-a[1])*g];}}const l=path[path.length-1];return [l[0],l[1]];}
+/* every call carries one job per player; each viewer sees their own as the YOU line */
+const JOBS={
+  antieco:{rdx:'A site alone. Play deep and fall back to CT on contact.',kairo:'B bench. Hold the apps exit, long angles only.',nyx:'B van. Anchor, never peek apps.',mbt:'Market. Rotate to whichever site gets hit.',zeph:'Window AWP (random: his usual spot).'},
+  std:{rdx:'A site, crossfire with ticket. Molly palace on contact.',kairo:'Short. Take early info, then fall back to market.',nyx:'B van. Anchor alone and call contact fast.',mbt:'Ticket. Crossfire A, rotate to B via CT if called.',zeph:'Window AWP. Hold mid, don\'t duel Holo.'},
+  toB:{rdx:'Go to B now through CT spawn. You arrive in ~9 s.',kairo:'Hold bench and play for the trade with nyx.',nyx:'Fall back onto site and wait for the rotation.',mbt:'Hold market. You are the first retake player.',zeph:'Swing window to short only after their flash.'},
+  toA:{rdx:'Hold A from CT side. Don\'t die alone. nyx arrives in ~10 s.',kairo:'Hold short and watch for a fake.',nyx:'Rotate to A now through market, ~10 s.',mbt:'Fall back from ticket to CT and trade rdx.',zeph:'Hold window for a mid lurk, then rotate.'},
+  postA:{rdx:'Wait at CT for nyx, then go on the call.',kairo:'Come through jungle and take connector.',nyx:'Reach CT and flash over for rdx.',mbt:'Smoke ramp from CT.',zeph:'Hold mid for the lurker, then help.'},
+  postB:{rdx:'Group at market, then go on the call.',kairo:'Short. Molly van on the call.',nyx:'Retake from the CT side of B.',mbt:'Market with rdx, flash over the site.',zeph:'Swing short with kairo.'},
+};
+/* teammates other than the host: [k,a,d,dmg] per round. Room members share their own GSI; zeph is a random */
+const SQUAD0=[
+  {n:'kairo',k:10,a:2,d:5,dmg:752,mvp:2,money:5900,kept:true,src:'room'},
+  {n:'zeph',k:7,a:1,d:5,dmg:568,mvp:1,money:3100,kept:true,src:'spec',snap:{k:6,a:1,d:4,dmg:511,money:2600,seen:7}},
+  {n:'nyx',k:6,a:4,d:6,dmg:528,mvp:0,money:4300,kept:false,src:'room'},
+  {n:'mbt',k:4,a:5,d:7,dmg:464,mvp:0,money:3800,kept:false,src:'room'},
+];
+const SQUAD_ROUND={
+  9:{kairo:[2,0,0,180],zeph:[1,0,0,100],nyx:[1,1,1,90],mbt:[0,1,0,40]},
+  10:{kairo:[1,0,1,120],zeph:[1,0,1,110],nyx:[0,0,1,30],mbt:[0,1,1,60]},
+  11:{kairo:[1,1,0,130],zeph:[0,0,1,20],nyx:[1,0,0,90],mbt:[1,0,1,80]},
+  12:{kairo:[2,0,0,190],zeph:[2,0,0,170],nyx:[0,1,1,40],mbt:[0,1,0,50]},
+};
+const SEED_CALLS=[{r:0,tag:'SCOUT REPORT',model:'opus',lat:41,tin:38200,tout:1450,fol:null,by:'host'}];
+[[1,'CALL','sonnet',2.4,true],[1,'ROUND','haiku',1.8,null],[2,'CALL','sonnet',2.1,true],[2,'ROUND','haiku',1.6,null],[3,'CALL','sonnet',2.6,true],[3,'UPDATE','haiku',1.7,false],[3,'ROUND','haiku',1.9,null],
+ [4,'CALL','sonnet',2.2,true],[4,'POST-PLANT','haiku',1.5,true],[5,'CALL','sonnet',2.0,true],[5,'COACH','sonnet',2.3,null,'kairo'],[6,'CALL','sonnet',2.5,false],[6,'ROUND','haiku',1.7,null],[7,'CALL','sonnet',2.3,false],[7,'UPDATE','haiku',1.6,false],[8,'CALL','sonnet',2.2,true],[8,'ROUND','haiku',1.7,null]]
+ .forEach(([r,tag,model,lat,fol,by],i)=>SEED_CALLS.push({r,tag,model,lat,tin:1400+((i*373)%900),tout:60+((i*97)%90),fol,by:by||'host'}));
+
+/* ---------------- state ---------------- */
+const INIT_HISTORY=[
+  {r:1,win:'us',reason:'elim',buy:'pistol'},{r:2,win:'us',reason:'elim',buy:'eco'},{r:3,win:'them',reason:'bomb',buy:'force'},
+  {r:4,win:'us',reason:'defuse',buy:'half'},{r:5,win:'us',reason:'elim',buy:'force'},{r:6,win:'them',reason:'elim',buy:'force'},
+  {r:7,win:'them',reason:'bomb',buy:'full'},{r:8,win:'us',reason:'time',buy:'full'}];
+const PHASE_LEN={freezetime:20,live:115,bomb:40,over:7};
+let S;
+function freshState(){
+  return {playing:S?S.playing:true,speed:S?S.speed:3,round:9,phase:'freezetime',phaseT:0,liveT:0,gt:0,
+    me:S?S.me:HOST,asks:{kairo:1,nyx:0,mbt:2},
+    score:{us:5,them:3},history:INIT_HISTORY.map(h=>({...h})),usStreak:0,
+    you:{money:6200,hp:100,armor:100,helmet:true,weapon:'M4A1-S',k:11,a:3,d:6,mvps:2,dmg:688,roundKills:0,equip:1200,kept:true,bought:false},
+    squad:SQUAD0.map(p=>({...p,snap:p.snap?{...p.snap}:null})),calls:SEED_CALLS.map(c=>({...c})),
+    enemy:{lo:1450,hi:2800,streak:1,saved:false},
+    buy:null,prior:null,posterior:null,intel:[],scen:null,plantedSite:null,call:null,pos:{},
+    forecast:S?S.forecast:0,intelMode:false,whyOpen:false,
+    voice:S?S.voice:false,tourn:S?S.tourn:false,events:{},heatFade:1,last:null};
+}
+const isAdmin=()=>S.me===HOST;
+const meLabel=n=>n===S.me?n+' (you)':n;
+/* the viewer's own live state: host from local GSI, members from their GSI shared to the room */
+function meState(){
+  if(S.me===HOST)return S.you;
+  const m=S.squad.find(x=>x.n===S.me);
+  return {money:m.money,kept:m.kept,hp:100,bought:S.you.bought,k:m.k,a:m.a,d:m.d};
+}
+
+/* ---------------- calls (what the AI layer would publish to the room) ---------------- */
+function siteForecast(post){let A=0,B=0;for(const k in PLANS){if(PLANS[k].site==='A')A+=post[k];else B+=post[k];}return {A,B};}
+function curPost(){return S.posterior||S.prior;}
+function headText(c){if(!c.rotWho)return c.head;return c.rotWho===S.me?c.site+' hit → you rotate to '+c.site:c.site+' hit → '+c.rotWho+' rotates to '+c.site;}
+function youText(c){
+  if(c.kind==='over'){const m=meState();return m.kept?'You keep your rifle. '+fmt$(m.money)+' for next round.':'You have '+fmt$(m.money)+' for next round.';}
+  return JOBS[c.jobs][S.me];
+}
+function preRoundCall(){
+  const b=argmax(S.buy),band=fmt$(S.enemy.lo)+'–'+fmt$(S.enemy.hi);
+  if(b==='eco') return {kind:'pre',head:'Anti-eco · stack B',sub:'3 on B · 1 on A · AWP in window',jobs:'antieco',
+    steps:['Long angles only','Trade in pairs','Molly apps '+clockStr(115-12)],setup:'antieco',rot:null,
+    why:['T lost a full buy last round → est. '+band+' each','team_kappa low buys: B apps rush 64% (11/17, 46 demos)','Saving now gives them ~$4–5k next round, so they skip the force','zeph is a random: he gets his usual window AWP spot'],
+    alts:[['Aggressive apps info',.21],['Default 2-1-2',.05]],src:'sonnet · 2.3 s'};
+  if(b==='force') return {kind:'pre',head:'Anti-force · play safe',sub:'2-1-2 · fall back on contact',jobs:'std',
+    steps:['No early peeks','AWP holds mid','Rotate on 3+ seen'],setup:'std',rot:null,
+    why:['Est. '+band+': enough for SMGs and armor','They force 70% after a lost pistol'],alts:[['Stack B 3–2',.28]],src:'sonnet · 2.0 s'};
+  return {kind:'pre',head:'Standard 2-1-2',sub:'AWP in window · early info from short',jobs:'std',
+    steps:['No dry-peek on top mid (Holo AWP)','Rotate via CT: 9 s','Smoke top mid at 1:50'],setup:'std',rot:null,
+    why:['Est. '+band+' → '+BUY_LBL[b].toLowerCase()+' '+pct(S.buy[b]),'After a save they open A 41%, B exec 33%','Holo AWPs top mid → window 58% on T side'],
+    alts:[['Stack A 3–2',.22],['Aggressive short',.14]],src:'sonnet · 2.6 s'};
+}
+function intelWhy(){return S.intel.map(i=>i.by+' logged '+(i.k?i.k+' at ':'clear at ')+zName(i.zone)+' at '+clockStr(115-i.t));}
+function midCall(fc){
+  const site=fc.B>=fc.A?'B':'A',p=Math.min(.97,Math.max(fc.A,fc.B)),plan=PLANS[argmax(curPost())].name;
+  const base=S.call&&S.call.setup?S.call.setup:'std';
+  if(site==='B') return {kind:'mid',site:'B',rotWho:'rdx',sub:plan+' · '+pct(p)+' sure',jobs:'toB',
+    steps:['Short falls back to market','Hold for the trade','Retake together'],setup:base,rot:'toB',
+    why:intelWhy().concat(['Contact timing fits the '+plan+' pattern']),alts:[['Hold and play retake',.12]],src:'haiku · 1.6 s'};
+  return {kind:'mid',site:'A',rotWho:'nyx',sub:plan+' · '+pct(p)+' sure',jobs:'toA',
+    steps:['Fall back to CT and ticket','Smoke ramp for the retake'],setup:base,rot:'toA',
+    why:intelWhy().concat(['B side is quiet → A commit likely']),alts:[['Stay and play retake',.18]],src:'haiku · 1.7 s'};
+}
+function postPlantCall(site,p){
+  return {kind:'post',head:'Retake '+site+' together',sub:'Site inferred '+site+' · '+pct(p)+' · tap to confirm',jobs:site==='A'?'postA':'postB',
+    steps:site==='A'?['Smoke ramp','Molly default','Kit: start defuse by 0:10']:['Molly van','Flash over site','Defuse with cover'],
+    setup:S.call?S.call.setup:'std',rot:S.call?S.call.rot:null,why:['GSI: round.bomb = planted (player GSI has no site)','Site from the room\'s intel + forecast: '+site+' '+pct(p)],alts:[],src:'haiku · 1.4 s'};
+}
+const teamHead=c=>c.rotWho?c.site+' hit → '+c.rotWho+' rotates to '+c.site:c.head;
+
+/* ---------------- room feed (shared by everyone in the room) ---------------- */
+const feedEl=$('#feed');
+function addMsg(kind,tag,text,src,opts={}){
+  const el=document.createElement('div');
+  if(S.tourn&&(kind==='ai'||kind==='human'))return el;
+  el.className='msg '+kind+(kind==='human'&&opts.by&&opts.by!==S.me?' other':'');
+  const when='R'+S.round+' · '+(S.phase==='freezetime'?'freeze':S.phase==='over'?'end':clockStr(115-S.liveT));
+  el.innerHTML='<div class="msg-h"><span class="tag">'+tag+'</span><span>'+when+'</span><span class="src">'+(src||'')+'</span></div><div class="msg-b"></div>';
+  const b=el.querySelector('.msg-b');
+  feedEl.prepend(el);while(feedEl.children.length>40)feedEl.lastChild.remove();
+  if(kind==='ai'&&!opts.instant&&!S.fast){b.classList.add('typing');let i=0;const step=Math.max(2,Math.round(text.length/45));
+    const iv=setInterval(()=>{i+=step;b.textContent=text.slice(0,i);if(i>=text.length){clearInterval(iv);b.classList.remove('typing');}},22);}
+  else b.textContent=text;
+  if(!opts.noTicker)S.last={tag,text,when};
+  if(kind==='ai'&&src&&src.indexOf('Claude')===0&&!opts.instant){const p=src.split('·').map(x=>x.trim());
+    S.calls.push({r:S.round,tag,model:p[1]||'sonnet',lat:parseFloat(p[2])||2,tin:1500+text.length*2,tout:Math.round(text.length/3.5),fol:null,by:opts.for||'host'});}
+  return el;
+}
+function aiLater(ms,fn){if(S.fast){fn();return;}setTimeout(fn,ms);}
+function speak(t){if(!S.voice||S.fast||S.tourn||!('speechSynthesis' in window))return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.rate=1.08;speechSynthesis.speak(u);}catch(e){}}
+const speakCall=()=>speak(headText(S.call).replace(/·/g,',').replace(/→/g,', ')+'. '+youText(S.call));
+
+/* ---------------- simulation ---------------- */
+function startRound(r){
+  if(r>12){boot(true,0);addMsg('engine','DEMO','Demo loop: back to round 9. A real match continues to R24 or overtime.','engine');return;}
+  S.round=r;S.phase='freezetime';S.phaseT=0;S.liveT=0;S.events={};S.intel=[];S.posterior=null;S.plantedSite=null;S.heatFade=1;S.pos={};
+  S.you.roundKills=0;S.you.bought=false;if(S.you.hp<=0){S.you.hp=100;S.you.armor=0;S.you.helmet=false;}
+  S.scen=SCEN[r];
+  S.buy=buyProbs(S.enemy.lo,S.enemy.hi,S.enemy.saved);
+  const prior={};for(const k in PLANS){prior[k]=0;for(const b in S.buy)prior[k]+=S.buy[b]*PLAN_PRIOR_BY_BUY[b][k];}
+  S.prior=prior;S.call=preRoundCall();
+  const b=argmax(S.buy);
+  addMsg('engine','ECON','Enemy est. '+fmt$(S.enemy.lo)+'–'+fmt$(S.enemy.hi)+' each (loss streak '+S.enemy.streak+') → '+BUY_LBL[b].toLowerCase()+' '+pct(S.buy[b])+'.','engine · instant');
+  aiLater(2300,()=>{addMsg('ai','CALL',S.call.head+'. '+S.call.sub+'. Everyone has their own job on screen.','Claude · '+S.call.src);speakCall();});
+}
+function goLive(){S.phase='live';S.phaseT=0;S.liveT=0;}
+function roundOver(winner,reason){
+  const planted=!!S.plantedSite;
+  S.phase='over';S.phaseT=0;
+  if(winner==='us'){S.score.us++;S.usStreak=Math.max(0,S.usStreak-1);}else{S.score.them++;S.usStreak=Math.min(5,S.usStreak+1);}
+  const b=argmax(S.buy);
+  S.history.push({r:S.round,win:winner,reason,buy:b});
+  S.enemy=projectEnemy(S.enemy,b,winner,reason,planted);
+  const y=S.you,kills=S.scen?S.scen.kills||0:0;y.k+=kills;y.roundKills=kills;y.dmg+=kills*100+35;
+  const inc=winner==='us'?(reason==='defuse'?RULES.winDefuse:RULES.winElim):lossBonus(S.usStreak);
+  y.money=Math.min(16000,y.money+inc+kills*300);y.kept=y.hp>0;
+  const deltas=SQUAD_ROUND[S.round]||{};let top={n:HOST,k:kills};
+  for(const m of S.squad){const d=deltas[m.n]||[0,0,0,0];m.k+=d[0];m.a+=d[1];m.d+=d[2];m.dmg+=d[3];m.kept=d[2]===0;m.money=Math.min(16000,m.money+inc+d[0]*300);if(d[0]>top.k)top={n:m.n,k:d[0]};}
+  if(winner==='us'){if(top.n===HOST)y.mvps++;else S.squad.find(m=>m.n===top.n).mvp++;}
+  const nb=buyProbs(S.enemy.lo,S.enemy.hi,S.enemy.saved),nxt=argmax(nb);
+  const how={elim:'elimination',bomb:'bomb exploded',defuse:'defuse',time:'time'}[reason];
+  S.call={kind:'over',head:(winner==='us'?'Round won':'Round lost')+' · '+how,sub:'Next round they likely '+BUY_LBL[nxt].toLowerCase()+' ('+pct(nb[nxt])+')',
+    jobs:null,steps:[],setup:S.call.setup,rot:S.call.rot,why:['Result from GSI: round.win_team + map.round_wins','Enemy now est. '+fmt$(S.enemy.lo)+'–'+fmt$(S.enemy.hi)+' each'],alts:[],src:'engine'};
+  aiLater(1800,()=>addMsg('ai','ROUND '+S.round,(winner==='us'?'Won':'Lost')+' by '+how+'. Enemy now est. '+fmt$(S.enemy.lo)+'–'+fmt$(S.enemy.hi)+' → '+BUY_LBL[nxt].toLowerCase()+' likely next round.','Claude · haiku · 1.8 s'));
+}
+function addIntel(zone,k,src,by){
+  S.intel.push({zone,k,t:S.liveT,src,by});
+  updatePosterior();
+  const fc=siteForecast(curPost());
+  addMsg('human','INTEL · '+by.toUpperCase(),(k===0?'Clear':k+(k>=4?'+':'')+' seen')+' at '+zName(zone)+' at '+clockStr(115-S.liveT),src==='hotkey'?'hotkey · demo autoplay':'map click',{by});
+  const top=argmax(curPost());
+  aiLater(1600,()=>{
+    if(S.phase!=='live')return;
+    const site=fc.B>=fc.A?'B':'A',p=Math.max(fc.A,fc.B);
+    if(p>=.78&&S.call&&S.call.kind==='mid'&&S.call.rot===(site==='B'?'toB':'toA')){S.call=midCall(fc);addMsg('ai','INTEL','Confirms the '+site+' read ('+pct(Math.min(.97,p))+'). Keep rotating.','Claude · haiku · 1.4 s');}
+    else if(p>=.78){S.call=midCall(fc);addMsg('ai','UPDATE',teamHead(S.call)+'. '+S.call.sub+'.','Claude · '+S.call.src);speakCall();}
+    else addMsg('ai','INTEL',PLANS[top].name+' '+pct(curPost()[top])+', not committed yet (A '+pct(fc.A)+' / B '+pct(fc.B)+'). Hold your spots.','Claude · haiku · 1.5 s');
+  });
+}
+function updatePosterior(){
+  const post={};let sum=0;
+  for(const k in PLANS){let l=S.prior[k];
+    for(const it of S.intel){const pos=enemyPositions(k,it.t),r=ZMAP[it.zone].r;let E=0;for(const p of pos){const d=distRect(p,r);E+=Math.exp(-(d*d)/(2*35*35));}
+      const lam=E+.35,kk=Math.min(4,it.k);let f=1;for(let i=2;i<=kk;i++)f*=i;l*=Math.pow(Math.pow(lam,kk)*Math.exp(-lam)/f,.6);}
+    post[k]=l;sum+=l;}
+  if(sum<=0){S.posterior=null;return;}
+  for(const k in post)post[k]/=sum;S.posterior=post;
+}
+function stepSim(dt){
+  S.gt+=dt;S.phaseT+=dt;
+  const sc=S.scen,ev=S.events,y=S.you;
+  if(S.phase==='freezetime'){
+    if(!y.bought&&S.phaseT>=4){y.bought=true;const spend=y.kept?1300:(y.money>=4500?4950:y.money>=2600?2600:400);
+      y.money-=Math.min(spend,y.money);y.equip=y.kept?4600:(spend>=4950?5300:spend>=2600?2900:1050);y.armor=100;y.helmet=spend>=2600||y.kept;y.weapon=spend>=2600||y.kept?'M4A1-S':'USP-S';
+      for(const m of S.squad){const sp=m.kept?1200:(m.money>=4700?4400:m.money>=2500?2300:400);m.money=Math.max(0,m.money-Math.min(sp,m.money));}}
+    if(S.phaseT>=PHASE_LEN.freezetime)goLive();
+    return;
+  }
+  if(S.phase==='live'||S.phase==='bomb'){
+    S.liveT+=dt;
+    for(const n in CHECKIN){const st=S.pos[n];if(S.liveT>=CHECKIN[n]&&(!st||st.st==='planned'))S.pos[n]={st:'set'};}
+    if(!ev.checkin&&Object.keys(CHECKIN).every(n=>S.pos[n]&&S.pos[n].st!=='planned')){ev.checkin=1;addMsg('engine','SQUAD','rdx, kairo, nyx and mbt checked in on their spots. zeph (random) shows his planned spot.','check-ins',{noTicker:true});}
+    if(S.call&&S.call.rot&&S.call.kind==='mid'&&!ev['rot'+S.call.rot]){const R=ROT[S.call.rot];ev['rot'+S.call.rot]=1;const cur=S.pos[R.who];if(!cur||cur.st!=='dead')S.pos[R.who]={st:'rot',t0:S.liveT};}
+    for(const n in S.pos){const st=S.pos[n];if(st.st==='rot'){const R=Object.values(ROT).find(r=>r.who===n);if(R&&S.liveT-st.t0>=R.eta)S.pos[n]={st:'set'};}}
+    if(!ev.timing&&S.liveT>=2){ev.timing=1;addMsg('engine','TIMING','Earliest contact: top mid '+tClock('topmid')+' · palace '+tClock('palace')+' · B apps '+tClock('bapps')+'.','engine · instant',{noTicker:true});}
+    if(sc){sc.intel.forEach((it,i)=>{if(!ev['i'+i]&&S.liveT>=it.t&&S.phase==='live'){ev['i'+i]=1;addIntel(it.zone,it.k,'hotkey',it.by);}});
+      if(sc.youDie&&!ev.die&&S.liveT>=sc.youDie){ev.die=1;y.hp=0;y.armor=0;y.d++;y.kept=false;
+        const at=markerPos(setupOf(HOST));S.pos[HOST]={st:'dead',x:at[0],y:at[1]};S.pos.mbt={st:'live',via:HOST};
+        addMsg('engine','SPOTTER','rdx died and is watching mbt. His GSI now follows mbt, so mbt\'s position is live on everyone\'s map.','engine · instant');}}
+    if(S.phase==='live'){
+      if(sc&&sc.plant&&S.liveT>=sc.plant.t){S.phase='bomb';S.phaseT=0;S.plantedSite=sc.plant.site;
+        const fc=siteForecast(curPost());const p=sc.plant.site==='A'?Math.max(fc.A,.6):Math.max(fc.B,.6);
+        addMsg('engine','BOMB','Bomb planted (GSI). Site not in player GSI → inferred '+sc.plant.site+' '+pct(p)+'.','engine · instant');
+        S.call=postPlantCall(sc.plant.site,p);
+        aiLater(1400,()=>{addMsg('ai','POST-PLANT',S.call.head+'. '+S.call.steps.join(', ')+'.','Claude · haiku · 1.4 s');speakCall();});
+        return;}
+      if(sc&&!sc.plant&&S.liveT>=sc.end.t){roundOver(sc.end.winner,sc.end.reason);return;}
+      if(S.phaseT>=PHASE_LEN.live){roundOver('us','time');return;}
+    } else {
+      if(sc&&sc.end.winner==='us'&&S.phaseT>=(sc.end.at||30)){roundOver('us','defuse');return;}
+      if(S.phaseT>=PHASE_LEN.bomb){roundOver('them','bomb');return;}
+    }
+    return;
+  }
+  if(S.phase==='over'){S.heatFade=Math.max(0,1-S.phaseT/4);if(S.phaseT>=PHASE_LEN.over)startRound(S.round+1);}
+}
+function fastTo(cond,maxT){let t=0;while(t<maxT&&!cond()){stepSim(.1);t+=.1;}}
+function skipPhase(){
+  const sc=S.scen;
+  if(S.phase==='freezetime'){if(!S.you.bought)stepSim(4.01);if(S.phase==='freezetime')goLive();}
+  else if(S.phase==='live'){const target=sc?(sc.plant?sc.plant.t:sc.end.t):115;fastTo(()=>S.phase!=='live',Math.max(0,target-S.liveT)+.2);if(S.phase==='live')fastTo(()=>S.phase!=='live',120);}
+  else if(S.phase==='bomb')fastTo(()=>S.phase!=='bomb',45);
+  else startRound(S.round+1);
+  renderAll(true);
+}
+
+/* ---------------- heat ---------------- */
+const G=160,CELL=1000/G,heat=new Float32Array(G*G);
+const small=document.createElement('canvas');small.width=small.height=G;
+const sctx=small.getContext('2d');const img=sctx.createImageData(G,G);
+function splat(x,y,a,sig){
+  const cx=x/CELL,cy=y/CELL,s=sig/CELL,R=Math.ceil(s*3),inv=1/(2*s*s);
+  const x0=Math.max(0,Math.floor(cx-R)),x1=Math.min(G-1,Math.ceil(cx+R)),y0=Math.max(0,Math.floor(cy-R)),y1=Math.min(G-1,Math.ceil(cy+R));
+  for(let j=y0;j<=y1;j++){const dy=j+.5-cy;for(let i=x0;i<=x1;i++){const dx=i+.5-cx;heat[j*G+i]+=a*Math.exp(-(dx*dx+dy*dy)*inv);}}
+}
+function computeHeat(){
+  heat.fill(0);const post=curPost();if(!post)return;
+  const t=(S.phase==='freezetime'?0:S.liveT)+S.forecast;
+  for(const k in PLANS){const w=post[k];if(w<.004)continue;
+    for(const [dt,sw] of SAMPLES){const pos=enemyPositions(k,Math.max(0,t+dt));const sig=24+Math.min(t,45)*.45;for(const p of pos)splat(p[0],p[1],w*sw,sig);}}
+  if(S.plantedSite){const c=zc(ZMAP[S.plantedSite==='A'?'asite':'bsite']);splat(c[0],c[1],1.6,70);}
+  for(const it of S.intel){const age=S.liveT-it.t;if(age<0||age>25||!it.k)continue;const c=zc(ZMAP[it.zone]);splat(c[0],c[1],.5*it.k*Math.exp(-age/10),34);}
+  const d=img.data;
+  for(let n=0;n<G*G;n++){const v=1-Math.exp(-heat[n]*1.6),o=n*4;if(v<.03){d[o+3]=0;continue;}
+    d[o]=201+54*v;d[o+1]=133+81*v;d[o+2]=120*v;d[o+3]=255*(.16+.74*v);}
+  sctx.putImageData(img,0,0);
+}
+const heatCv=$('#heat');
+function sizeHeat(){const r=$('#map').getBoundingClientRect();const dpr=window.devicePixelRatio||1;const w=Math.max(1,Math.round(r.width*dpr)),h=Math.max(1,Math.round(r.height*dpr));if(heatCv.width!==w||heatCv.height!==h){heatCv.width=w;heatCv.height=h;}}
+function paintHeat(){
+  const ctx=heatCv.getContext('2d'),W=heatCv.width,H=heatCv.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.globalAlpha=S.heatFade;ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(small,0,0,W,H);ctx.globalAlpha=1;
+  ctx.globalCompositeOperation='destination-in';ctx.fillStyle='#000';const sx=W/1000,sy=H/1000;ctx.beginPath();
+  for(const z of ZONES){const [x,y,w,h]=z.r;if(ctx.roundRect)ctx.roundRect(x*sx,y*sy,w*sx,h*sy,8*sx);else ctx.rect(x*sx,y*sy,w*sx,h*sy);}
+  ctx.fill();ctx.globalCompositeOperation='source-over';
+}
+
+/* ---------------- map render ---------------- */
+function zoneRects(){let o='',f='';
+  for(const z of ZONES){const [x,y,w,h]=z.r;o+='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="8" fill="#363d4a" stroke="#363d4a" stroke-width="10"/>';
+    f+='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="8" fill="'+(z.site?'#252b35':'#20252d')+'"/>';}
+  return '<g>'+o+'</g><g>'+f+'</g>';}
+function buildMap(){
+  $('#mapBase').innerHTML=zoneRects()+'<rect x="395" y="690" width="130" height="110" rx="10" fill="#2b323d"/><rect x="150" y="125" width="150" height="110" rx="10" fill="#2b323d"/>'+
+    '<rect x="855" y="372" width="6" height="40" rx="3" fill="#c98500"/><rect x="100" y="572" width="6" height="40" rx="3" fill="#3987e5"/>';
+  let l='';
+  for(const z of ZONES){if(!z.name||HIDE_LABEL.has(z.id))continue;const c=LABEL_POS[z.id]||zc(z);
+    const tt=TIMED[z.id]?'<span class="tt"><i></i>'+tClock(z.id)+'</span>':'';
+    l+='<div class="zlabel'+(z.site?' site':'')+'" style="left:'+c[0]/10+'%;top:'+c[1]/10+'%">'+z.name+tt+'</div>';}
+  $('#mapHtml').innerHTML=l+'<div id="mkLayer"></div><div id="ipLayer"></div>';
+}
+/* small static map: spots = [[x,y,w]] heat blobs (clipped to the map), marks = [[x,y]] death markers */
+let miniId=0;
+function miniMap(spots,marks){
+  const id='hs'+(++miniId);let s='',m='';
+  (spots||[]).forEach(p=>{s+='<circle cx="'+p[0]+'" cy="'+p[1]+'" r="120" fill="url(#'+id+')" opacity="'+p[2]+'"/>';});
+  (marks||[]).forEach(p=>{const d='M'+(p[0]-16)+' '+(p[1]-16)+'l32 32M'+(p[0]+16)+' '+(p[1]-16)+'l-32 32';m+='<path d="'+d+'" stroke="#0e1014" stroke-width="20" stroke-linecap="round"/><path d="'+d+'" stroke="#ff8a8a" stroke-width="10" stroke-linecap="round"/>';});
+  return '<svg class="mini" viewBox="0 0 1000 1000" role="img" aria-label="Mirage schematic"><defs><radialGradient id="'+id+'"><stop offset="0" stop-color="#ffd678" stop-opacity=".95"/><stop offset=".45" stop-color="#d69618" stop-opacity=".5"/><stop offset="1" stop-color="#c98500" stop-opacity="0"/></radialGradient>'+
+    '<clipPath id="c'+id+'">'+ZONES.map(z=>'<rect x="'+z.r[0]+'" y="'+z.r[1]+'" width="'+z.r[2]+'" height="'+z.r[3]+'" rx="8"/>').join('')+'</clipPath></defs>'+zoneRects()+
+    '<g clip-path="url(#c'+id+')">'+s+'</g>'+m+
+    '<text x="240" y="200" font-size="64" font-weight="750" fill="#d4d8df" text-anchor="middle">B</text><text x="460" y="770" font-size="64" font-weight="750" fill="#d4d8df" text-anchor="middle">A</text></svg>';
+}
+function setupOf(n){const setup=SETUPS[(S.call&&S.call.setup)]||SETUPS.std;return setup.find(p=>p.n===n);}
+function markerPos(p){
+  const st=S.pos[p.n]||{st:'planned'},rot=S.call&&S.call.rot?ROT[S.call.rot]:null;
+  if(st.st==='dead')return [st.x,st.y];
+  if(st.st==='live'&&LIVE_PATH[p.n])return pathAt(LIVE_PATH[p.n],S.liveT);
+  if(rot&&rot.who===p.n)return st.st==='rot'?along(rot.pts,clamp((S.liveT-st.t0)/rot.eta,0,1)):rot.to;
+  return [p.x,p.y];
+}
+let lastMkKey='';
+function renderMarkers(){
+  const call=S.call;if(!call)return;
+  const setup=SETUPS[call.setup]||SETUPS.std,rot=call.rot?ROT[call.rot]:null;
+  const items=setup.map(p=>{const st=(S.pos[p.n]||{st:'planned'});const [x,y]=markerPos(p);return {p,st,x:Math.round(x),y:Math.round(y)};});
+  const key=[call.setup,call.rot,call.kind,S.me,items.map(i=>i.st.st+i.x+','+i.y).join(';'),S.phase==='live'||S.phase==='bomb'?Math.ceil(S.liveT):0].join('|');if(key===lastMkKey)return;lastMkKey=key;
+  let h='';
+  for(const {p,st,x,y} of items){
+    const rnd=ROOM.randoms.includes(p.n),me=p.n===S.me,stt=st.st;
+    let tag='';
+    if(stt==='rot'){const R=Object.values(ROT).find(r=>r.who===p.n);tag='<b class="tag">→ '+(R===ROT.toB?'B':'A')+' · '+Math.max(0,Math.ceil(R.eta-(S.liveT-st.t0)))+' s</b>';}
+    else if(stt==='live')tag='<b class="tag">live · via '+st.via+'</b>';
+    else if(rnd)tag='<b class="tag">random</b>';
+    const title=(me?'You':p.n)+' · '+p.l+' · '+({planned:'planned spot',set:'checked in',rot:'rotating',live:'live position via '+st.via,dead:'dead'}[stt]);
+    h+=me?'<div class="mk me st-'+stt+'" style="left:'+x/10+'%;top:'+y/10+'%" title="'+title+'"><i>'+(stt==='dead'?'✕':'YOU')+'</i>'+(tag?'<span>'+tag+'</span>':'')+'</div>'
+         :'<div class="mk st-'+stt+'" style="left:'+x/10+'%;top:'+y/10+'%" title="'+title+'"><i>'+(stt==='dead'?'✕':'')+'</i><span>'+p.n+tag+'</span></div>';}
+  $('#mkLayer').innerHTML=h;
+  const rp=$('#rotPath');if(rot&&call.kind!=='over'){rp.setAttribute('d',rot.path);rp.setAttribute('opacity','1');}else rp.setAttribute('opacity','0');
+  const b=$('#btnSpot'),mine=S.pos[S.me];if(b){const on=mine&&mine.st!=='planned';b.classList.toggle('on',!!on);b.textContent=on?(mine.st==='dead'?'✕ Dead':mine.st==='rot'?'→ Rotating':'✓ On my spot · sent'):'✓ On my spot';}
+}
+let lastIpKey='';
+function renderIntelPins(){
+  const key=S.round+'|'+S.intel.length;if(key===lastIpKey)return;lastIpKey=key;let h='';
+  S.intel.forEach((it,i)=>{const c=zc(ZMAP[it.zone]);const dy=i%2?48:-58;
+    h+='<div class="ip'+(it.k?'':' clear')+'" style="left:'+c[0]/10+'%;top:'+(c[1]+dy)/10+'%" title="logged by '+it.by+'">'+(it.k?it.k+(it.k>=4?'+':'')+' seen':'clear')+' · '+clockStr(115-it.t)+'</div>';});
+  $('#ipLayer').innerHTML=h;
+}
+
+/* ---------------- render: live ---------------- */
+function bannerState(){
+  const c=S.call;
+  if(S.phase==='freezetime')return ['freezetime','FREEZE TIME','Buy, then take your spot',PHASE_LEN.freezetime-S.phaseT];
+  if(S.phase==='live')return c&&c.kind==='mid'?['alert','PLAN CHANGED','Read the call',115-S.liveT]:['live','ROUND LIVE','Log contact: click the map or Num7–9',115-S.liveT];
+  if(S.phase==='bomb')return ['bomb','BOMB PLANTED','Bomb timer',PHASE_LEN.bomb-S.phaseT];
+  return ['over','ROUND OVER','Next round in',PHASE_LEN.over-S.phaseT];
+}
+function renderBanner(){
+  const [cls,ph,hint,rem]=bannerState();const pb=$('#pb');
+  if(pb.dataset.cls!==cls){pb.className='pb '+cls;pb.dataset.cls=cls;}
+  $('#pbPh').textContent=ph;$('#pbHint').textContent=hint;$('#pbClk').textContent=clockStr(rem);
+}
+let lastCallKey='',lastKind='';
+function renderCall(){
+  const c=S.call;if(!c)return;
+  const yt=youText(c),hd=headText(c);
+  const key=[c.kind,hd,yt,S.round,S.tourn,S.whyOpen].join('|');if(key===lastCallKey)return;lastCallKey=key;
+  const el=$('#call');
+  if(S.tourn){el.innerHTML='<div class="kick">Tournament mode</div><div class="head">Live coaching is off</div><div class="sub">The admin turned on tournament mode for the room. Scouting and the debrief still work.</div>';return;}
+  const kick={pre:'Team call · round '+S.round,mid:'Update · '+clockStr(115-S.liveT),post:'Post-plant',over:'Round '+S.round+' result'}[c.kind];
+  const post=curPost();const plans=post?Object.keys(post).sort((a,b)=>post[b]-post[a]).slice(0,3):[];
+  el.innerHTML='<div class="kick">'+kick+'</div><div class="head">'+hd+'</div><div class="sub">'+c.sub+'</div>'+
+    '<div class="youline"><span class="yb">YOU</span><span>'+yt+'</span></div>'+
+    (c.steps.length?'<ul class="steps">'+c.steps.map(s=>'<li>'+s+'</li>').join('')+'</ul>':'')+
+    '<div class="meta"><span>'+(c.src==='engine'?'local engine':'Claude Code · '+c.src+' · on rdx\'s desktop')+'</span><button class="lnk" type="button" id="whyBtn">'+(S.whyOpen?'Hide why':'Why this call?')+'</button><span class="fb"><button type="button" title="Good call">👍</button><button type="button" title="Bad call">👎</button></span></div>'+
+    '<div class="why"'+(S.whyOpen?'':' hidden')+'><div><h4>Facts</h4><ul>'+c.why.map(w=>'<li>'+w+'</li>').join('')+'</ul></div>'+
+    (plans.length?'<div><h4>Enemy plans</h4><ul>'+plans.map(k=>'<li>'+PLANS[k].name+' · '+pct(post[k])+'</li>').join('')+'</ul></div>':'')+
+    (c.alts.length?'<div><h4>Alternatives</h4><ul>'+c.alts.map(a=>'<li>'+a[0]+' · '+pct(a[1])+'</li>').join('')+'</ul></div>':'')+'</div>';
+  $('#whyBtn').addEventListener('click',()=>{S.whyOpen=!S.whyOpen;renderCall();});
+  if(lastKind&&c.kind!==lastKind&&(c.kind==='mid'||c.kind==='post')&&!S.fast){el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash');}
+  lastKind=c.kind;
+}
+function youTile(){
+  const y=meState();
+  if(S.phase==='freezetime'&&!y.bought){
+    if(y.kept)return ['Your buy','REFILL',fmt$(y.money)+' · rifle kept, buy util'];
+    if(y.money>=5000)return ['Your buy','FULL BUY',fmt$(y.money)+' · rifle, armor, kit, util'];
+    if(y.money>=3100)return ['Your buy','RIFLE',fmt$(y.money)+' · skip the kit'];
+    return ['Your buy','SAVE',fmt$(y.money)+' · pistol + armor'];}
+  if(S.phase==='over'){const can=y.kept||y.money>=4700;return ['Next round',can?'BUY':'SAVE',fmt$(y.money)+(y.kept?' · rifle kept':'')];}
+  if(y.hp<=0)return ['You','DEAD','next round '+fmt$(y.money+lossBonus(Math.min(5,S.usStreak+1)))+' if lost'];
+  const next=y.money+lossBonus(Math.min(5,S.usStreak+1)),ok=next>=4700;
+  return ['If round is lost',ok?'PLAY ON':'SAVE',(ok?'still a full buy · ':'keep your rifle · ')+fmt$(next)+' next'];
+}
+let lastTileKey='';
+function renderTiles(){
+  const b=S.buy;if(!b)return;const k=argmax(b),fc=siteForecast(curPost()),site=fc.B>=fc.A?'B':'A',p=Math.max(fc.A,fc.B);
+  const yt=youTile(),top=argmax(curPost());
+  const key=[k,b[k].toFixed(2),fc.A.toFixed(2),S.enemy.lo,S.enemy.hi,yt.join(),top,S.plantedSite].join('|');if(key===lastTileKey)return;lastTileKey=key;
+  $('#tEnemy').innerHTML=BUY_BIG[k]+'<small>'+pct(b[k])+'</small>';
+  $('#tEnemySub').textContent='~'+fmtK(S.enemy.lo)+'–'+fmtK(S.enemy.hi)+' each';
+  $('#tHit').innerHTML=site+' site<small>'+pct(p)+'</small>';
+  const bars=$$('#tHitBar i');bars[0].style.width=(fc.A*100)+'%';bars[1].style.width=(fc.B*100)+'%';bars[0].className=site==='A'?'max':'';bars[1].className=site==='B'?'max':'';
+  $('#tHitSub').textContent=S.plantedSite?'from the room\'s intel + forecast':'A '+pct(fc.A)+' · B '+pct(fc.B)+' · '+PLANS[top].name;
+  $('#tHitLbl').innerHTML='<i class="key t"></i>'+(S.plantedSite?'Bomb site (inferred)':'Likely hit');
+  $('#tYouLbl').innerHTML='<i class="key ct"></i>'+yt[0];$('#tYou').textContent=yt[1];$('#tYouSub').textContent=yt[2];
+}
+function renderTicker(){if(!S.last)return;const t=S.last.tag+': '+S.last.text;if($('#tickTx').textContent!==t)$('#tickTx').textContent=t;}
+function renderTop(){$('#scUs').textContent=S.score.us;$('#scThem').textContent=S.score.them;$('#rndLbl').textContent='Round '+S.round+' · Mirage · FACEIT';}
+const ICON={
+  elim:'<svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3L3 9"/></svg>',
+  bomb:'<svg viewBox="0 0 12 12"><circle cx="6" cy="7" r="3"/><path d="M8 4l1.5-1.5"/></svg>',
+  defuse:'<svg viewBox="0 0 12 12"><path d="M2.5 6.5l2.3 2.3L9.5 3.8"/></svg>',
+  time:'<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4"/><path d="M6 3.8V6l1.6 1"/></svg>'};
+const HOW={elim:'elimination',bomb:'bomb',defuse:'defuse',time:'time'};
+function roundsStrip(history,cur,sides){
+  const byR={};history.forEach(h=>byR[h.r]=h);
+  const half=(from,label)=>{let c='',n='';for(let r=from;r<from+12;r++){const h=byR[r];
+    c+='<div class="rc '+(h?h.win:(r===cur?'cur':''))+'" title="'+(h?'R'+r+': '+(h.win==='us'?'your team':'team_kappa')+' · '+HOW[h.reason]:'R'+r)+'">'+(h?ICON[h.reason]:'')+'</div>';n+='<div class="rn">'+r+'</div>';}
+    return '<div class="rhalf"><div class="rhalf-h">'+label+'</div><div class="cells">'+c+'</div><div class="cells">'+n+'</div></div>';};
+  return '<div class="rounds">'+half(1,sides[0])+half(13,sides[1])+'</div>';
+}
+const ROUND_LEGEND='<span><i class="key ct"></i>your team won</span><span><i class="key t"></i>they won</span><span>'+ICON.elim+'elimination</span><span>'+ICON.bomb+'bomb</span><span>'+ICON.defuse+'defuse</span><span>'+ICON.time+'time</span>';
+let lastSbKey='';
+function renderScoreboard(){
+  const y=S.you,played=S.history.length;
+  const key=[played,S.phase,y.money,y.k,y.d,S.me,S.squad.map(m=>m.money+'/'+m.k+'/'+(m.snap?m.snap.seen:'')).join()].join('|');if(key===lastSbKey)return;lastSbKey=key;
+  $('#sbNote').textContent='after '+played+' rounds · round '+S.round+(S.phase==='over'?' finished':' in progress');
+  $('#rounds').innerHTML=roundsStrip(S.history,S.phase==='over'?0:S.round,['1st half · you CT','2nd half · you T'])+'<div class="legend" style="margin:-6px 0 14px">'+ROUND_LEGEND+'</div>';
+  const adr=d=>Math.round(d/Math.max(1,played));
+  const rows=[{n:HOST,money:y.money,k:y.k,a:y.a,d:y.d,adr:adr(y.dmg),mvp:y.mvps,src:'host'}].concat(S.squad.map(m=>m.src==='spec'?
+    {n:m.n,money:m.snap.money,k:m.snap.k,a:m.snap.a,d:m.snap.d,adr:Math.round(m.snap.dmg/Math.max(1,m.snap.seen)),mvp:null,src:'spec',seen:m.snap.seen}:
+    {n:m.n,money:m.money,k:m.k,a:m.a,d:m.d,adr:adr(m.dmg),mvp:m.mvp,src:'room'})).sort((a,b)=>b.k-a.k);
+  const srcCell=r=>r.src==='host'?'<span class="srcd"><i></i>host GSI</span>':r.src==='room'?'<span class="srcd link"><i></i>room</span>':'<span class="srcd spec"><i></i>random · seen R'+r.seen+'</span>';
+  const ours='<div class="team-h"><span class="side-tag ct">CT</span>Your team<span class="n">'+S.score.us+'</span></div><div class="tw"><table class="t"><tr><th>Player</th><th class="r">Money</th><th class="r">K</th><th class="r">A</th><th class="r">D</th><th class="r">ADR</th><th class="r">MVP</th><th>Data</th></tr>'+
+    rows.map(r=>'<tr'+(r.n===S.me?' class="me-row"':'')+'><td>'+(r.n===S.me?'<b>'+meLabel(r.n)+'</b>':r.n)+'</td><td class="r">'+fmt$(r.money)+'</td><td class="r">'+r.k+'</td><td class="r">'+r.a+'</td><td class="r">'+r.d+'</td><td class="r">'+r.adr+'</td><td class="r">'+(r.mvp==null?'–':r.mvp)+'</td><td>'+srcCell(r)+'</td></tr>').join('')+'</table></div>';
+  const theirs='<div class="team-h"><span class="side-tag t">T</span>team_kappa<span class="n">'+S.score.them+'</span></div><div class="tw"><table class="t"><tr><th>Player</th><th>Role</th><th class="r">Level · ELO</th><th class="r">K/D (6 mo)</th><th>Threat</th></tr>'+
+    ENEMY.map(p=>'<tr><td>'+p.nick+'</td><td><span class="role">'+p.roles[0]+'</span></td><td class="r">'+p.lvl+' · '+p.elo.toLocaleString('en-US')+'</td><td class="r">'+p.kd.toFixed(2)+'</td><td><div class="thr2"><div class="trk"><i style="width:'+p.threat+'%"></i></div><span class="num">'+p.threat+'</span></div></td></tr>').join('')+
+    '</table></div><div class="note">Team money est. '+fmt$(S.enemy.lo)+'–'+fmt$(S.enemy.hi)+' each · loss streak '+S.enemy.streak+'</div>';
+  $('#teams').innerHTML='<div>'+ours+'</div><div>'+theirs+'</div>';
+}
+
+/* ---------------- coach page ---------------- */
+function barRow(label,v,o={}){
+  return '<div class="br'+(o.cls?' '+o.cls:'')+'"><span class="bl" title="'+label+'">'+label+'</span><div class="bt"><div class="bf" style="width:'+(clamp(v,0,1)*100).toFixed(1)+'%"></div>'+(o.tick!=null?'<i class="tk" style="left:'+(o.tick*100).toFixed(1)+'%"></i>':'')+'</div><span class="bv">'+(o.val||pct(v))+'</span></div>';
+}
+function enemyEconHTML(){
+  const e=S.enemy,b=S.buy,mx=argmax(b),X=v=>clamp(v/8000*100,0,100);
+  const win=projectEnemy(e,mx,'them','elim',false),loss=projectEnemy(e,mx,'us','elim',false);
+  const wb=buyProbs(win.lo,win.hi,win.saved),lb=buyProbs(loss.lo,loss.hi,loss.saved),wk=argmax(wb),lk=argmax(lb);
+  let pips='';for(let i=0;i<5;i++)pips+='<i class="'+(i<e.streak?'on':'')+'"></i>';
+  return '<div class="card"><div class="card-h"><h3><i class="key t"></i>Enemy economy</h3><span class="muted small">from GSI score, streaks, round results</span></div>'+
+    '<div class="teamline">team_kappa · per player</div><div class="econ-big">'+fmt$(e.lo)+' – '+fmt$(e.hi)+'</div>'+
+    '<div class="band"><div class="axis"></div><div class="rng" style="left:'+X(e.lo)+'%;width:'+(X(e.hi)-X(e.lo))+'%"></div><div class="thr" style="left:'+X(2000)+'%"></div><div class="thr" style="left:'+X(4100)+'%"></div>'+
+      '<span class="tl2" style="left:'+X(2000)+'%">force $2k</span><span class="tl2" style="left:'+X(4100)+'%">full buy $4.1k</span><span class="tl2" style="left:96%">$8k</span></div>'+
+    '<div class="teamline" style="margin:8px 0">Loss streak <span class="pips">'+pips+'</span> next loss pays '+fmt$(lossBonus(Math.min(5,e.streak+1)))+'</div>'+
+    '<div class="bars" style="--lw:64px">'+['eco','force','half','full'].map(k=>barRow(BUY_LBL[k],b[k],{cls:mx===k?'max':''})).join('')+'</div>'+
+    '<div class="nextrow"><span>If they lose</span><span><b>'+fmtK(loss.lo)+'–'+fmtK(loss.hi)+'</b> → '+BUY_LBL[lk].toLowerCase()+' '+pct(lb[lk])+'</span><span>If they win</span><span><b>'+fmtK(win.lo)+'–'+fmtK(win.hi)+'</b> → '+BUY_LBL[wk].toLowerCase()+' '+pct(wb[wk])+'</span></div></div>';
+}
+const lockNote=()=>isAdmin()?'':'<div class="banner-note"><span class="rolebadge member">MEMBER</span>Managed by rdx (admin). You can view these settings but not change them. Your own voice and screen settings are in Settings.</div>';
+const PANELS={
+  reasoning(){
+    const c=S.call,post=curPost(),prior=S.prior,fc=siteForecast(post);
+    const keys=Object.keys(PLANS).sort((a,b)=>post[b]-post[a]);
+    return '<div class="grid2"><div class="card"><div class="card-h"><h3>Current call</h3><span class="muted small">'+(c.src==='engine'?'local engine':'Claude Code · '+c.src)+'</span></div>'+
+      '<div class="c-head">'+headText(c)+'</div><div class="muted">'+c.sub+'</div><div class="youline sm"><span class="yb">YOU</span><span>'+youText(c)+'</span></div>'+
+      (c.jobs?'<div class="h4">Everyone\'s job</div><ul class="ul">'+Object.entries(JOBS[c.jobs]).map(([n,j])=>'<li><b>'+meLabel(n)+'</b>'+(ROOM.randoms.includes(n)?' <span class="rolebadge random">RANDOM</span>':'')+' · '+j+'</li>').join('')+'</ul>':'')+
+      '<div class="h4">Why</div><ul class="ul">'+c.why.map(w=>'<li>'+w+'</li>').join('')+'</ul>'+
+      (c.alts.length?'<div class="h4">Alternatives considered</div><ul class="ul">'+c.alts.map(a=>'<li>'+a[0]+' · '+pct(a[1])+'</li>').join('')+'</ul>':'')+'</div>'+
+      '<div class="card"><div class="card-h"><h3>Enemy plans</h3><span class="muted small">bar = now · tick = before the room\'s intel</span></div>'+
+      '<div class="bars" style="--lw:170px">'+keys.map(k=>barRow(PLANS[k].name,post[k],{cls:k===keys[0]?'max':'',tick:prior[k]})).join('')+'</div>'+
+      '<div class="h4">Site forecast</div><div class="bars" style="--lw:64px">'+barRow('A site',fc.A,{cls:fc.A>fc.B?'max':''})+barRow('B site',fc.B,{cls:fc.B>=fc.A?'max':''})+'</div>'+
+      '<div class="h4">Enemy buy read</div><div class="bars" style="--lw:64px">'+['eco','force','half','full'].map(k=>barRow(BUY_LBL[k],S.buy[k],{cls:argmax(S.buy)===k?'max':''})).join('')+'</div>'+
+      '<div class="h4">Intel this round</div>'+(S.intel.length?'<ul class="ul">'+S.intel.map(i=>'<li>'+clockStr(115-i.t)+' · <b>'+i.by+'</b> · '+(i.k?i.k+' seen':'clear')+' at '+zName(i.zone)+' <span class="muted">('+(i.src==='hotkey'?'hotkey':'map click')+')</span></li>').join('')+'</ul>':'<div class="muted small">None yet. Anyone in the room can log contact from the Live map or with Num7–9.</div>')+
+      '<div class="note">Prior = their plan frequencies for this buy type (46 demos). Each intel multiplies in how well every plan explains it.</div></div></div>';
+  },
+  economy(){
+    const y=S.you,mem=[{n:HOST,money:y.money,src:'host'}].concat(S.squad.map(m=>({n:m.n,money:m.src==='spec'?m.snap.money:m.money,src:m.src,seen:m.snap&&m.snap.seen})));
+    const full=mem.filter(m=>m.money>=4700).length,avg=mem.reduce((s,m)=>s+m.money,0)/mem.length;
+    return '<div class="grid2">'+enemyEconHTML()+
+      '<div class="card"><div class="card-h"><h3><i class="key ct"></i>Your team money</h3><span class="muted small">host GSI + members\' shared GSI</span></div>'+
+      '<div class="econ-big">'+fmt$(avg)+' <span class="muted small">avg</span></div><div class="teamline">'+full+' of 5 can full-buy (≥ $4,700)</div>'+
+      '<div class="bars" style="--lw:130px;margin-top:8px">'+mem.map(m=>barRow(meLabel(m.n)+(m.src==='spec'?' · R'+m.seen:''),m.money/8000,{cls:'us',val:fmtK(m.money)})).join('')+'</div>'+
+      '<div class="note">zeph is a random (not in the room). His money is from the last time someone in the room spectated him.</div></div></div>'+
+      '<div class="card mt"><div class="card-h"><h3>Economy rules used by the model</h3><span class="muted small">rules v1 · checked against demo truth</span></div><div class="tw"><table class="t">'+
+      '<tr><th>Rule</th><th>Value</th></tr><tr><td>Loss bonus ladder</td><td>$1,400 → $1,900 → $2,400 → $2,900 → $3,400</td></tr><tr><td>Round win (elimination / time)</td><td>$3,250</td></tr>'+
+      '<tr><td>Round win (bomb / defuse)</td><td>$3,500</td></tr><tr><td>Plant bonus (T, lost round)</td><td>$800</td></tr><tr><td>Kill reward</td><td>$300 rifle · $600 SMG · $900 shotgun · $100 AWP · $1,500 knife</td></tr><tr><td>Start / cap</td><td>$800 / $16,000</td></tr></table></div></div>';
+  },
+  scouting(){
+    return '<div class="grid2"><div class="card report"><div class="card-h"><h3>Full scouting report</h3><span class="muted small">Claude Code · opus · 41 s · on rdx\'s desktop</span></div><ol>'+
+      '<li><b>Holo decides rounds.</b> AWP 71% of gun rounds. Make him rotate by showing B first, and smoke window early on T side.</li>'+
+      '<li><b>Low buy = B apps rush.</b> 11 of 17 low-buy rounds. Molly apps at ≈1:44 when you hear steps.</li>'+
+      '<li><b>After a save they open A</b> (41%) through palace + ramp. Drift lurks underpass late (avg 1:05).</li>'+
+      '<li><b>Their CT side stacks B with 3 (40%).</b> On T, default into an A execute with a CT smoke.</li>'+
+      '<li><b>They force after a lost pistol (70%).</b> Play R2 anti-force: no close angles, armor first.</li>'+
+      '<li><b>Your random, zeph</b>, plays window AWP on CT in 68% of his matches. The calls give him that spot.</li></ol>'+
+      '<div class="report meta admin-only" style="margin-top:6px"><button class="btn" type="button">Regenerate</button><button class="btn" type="button">Ask a follow-up</button></div></div>'+
+      '<div class="card"><div class="card-h"><h3>Data sources</h3><span class="muted small">fetched by the host · refreshed 2 min before connect</span></div>'+
+      [['ok','FACEIT Data API','10 of 10 players · 212 matches · veto history'],['ok','Steam Web API','9 of 10 public profiles · no bans'],['ok','Leetify','7 of 10 players with ratings'],['ok','Demos','46 parsed for team_kappa · 23 MB of tendencies'],['warn','FACEIT Downloads API','application pending · manual demo drops work']]
+      .map(r=>'<div class="conn-row"><span class="ic '+r[0]+'">'+(r[0]==='ok'?'✓':'!')+'</span><div><div class="ttl">'+r[1]+'</div><div class="d">'+r[2]+'</div></div><span></span></div>').join('')+'</div></div>'+
+      '<div class="card mt"><div class="card-h"><h3>Player stats</h3><span class="muted small">FACEIT, last 6 months</span></div><div class="tw"><table class="t"><tr><th>Player</th><th>Team</th><th>Role</th><th class="r">Level</th><th class="r">ELO</th><th class="r">Matches</th><th class="r">Win rate</th><th class="r">K/D</th><th class="r">ADR</th><th class="r">HS%</th></tr>'+
+      ENEMY.concat(OURS).map(p=>'<tr'+(p.nick===S.me?' class="me-row"':'')+'><td>'+meLabel(p.nick)+'</td><td><i class="key '+(OURS.includes(p)?'ct':'t')+'"></i></td><td>'+p.roles[0]+'</td><td class="r">'+p.lvl+'</td><td class="r">'+p.elo.toLocaleString('en-US')+'</td><td class="r">'+p.n+'</td><td class="r">'+p.wr+'%</td><td class="r">'+p.kd.toFixed(2)+'</td><td class="r">'+p.adr+'</td><td class="r">'+p.hs+'%</td></tr>').join('')+'</table></div></div>';
+  },
+  calls(){
+    const live=S.calls.filter(c=>c.r>0),lats=live.map(c=>c.lat).sort((a,b)=>a-b),p50=lats[Math.floor(lats.length/2)]||0;
+    const judged=live.filter(c=>c.fol!=null),fol=judged.filter(c=>c.fol).length;
+    const tin=S.calls.reduce((s,c)=>s+c.tin,0),tout=S.calls.reduce((s,c)=>s+c.tout,0),memberQ=live.filter(c=>c.by!=='host').length;
+    return '<div class="kpis">'+[['Calls this match',live.length+' / 40','budget per match · host\'s plan'],['Median latency',p50.toFixed(1)+' s','event → on everyone\'s screen'],['Calls followed',judged.length?pct(fol/judged.length):'–',fol+' of '+judged.length+' judged'],['Member questions',String(memberQ),'max '+MEMBER_ASK_LIMIT+' per member per match']]
+      .map(t=>'<div class="card kpi"><div class="lbl">'+t[0]+'</div><div class="val">'+t[1]+'</div><div class="sub">'+t[2]+'</div></div>').join('')+'</div>'+
+      '<div class="card mt"><div class="card-h"><h3>Every Claude Code call</h3><span class="muted small">'+fmtK(tin).replace('$','')+' tokens in · '+fmtK(tout).replace('$','')+' out · newest first</span></div><div class="tw"><table class="t"><tr><th>Round</th><th>Type</th><th>For</th><th>Model</th><th class="r">Latency</th><th class="r">Tokens in / out</th><th>Followed</th></tr>'+
+      S.calls.slice().reverse().map(c=>'<tr><td>'+(c.r?'R'+c.r:'pre-match')+'</td><td>'+c.tag+'</td><td>'+(c.by==='host'?'room':c.by)+'</td><td>'+c.model+'</td><td class="r">'+c.lat.toFixed(1)+' s</td><td class="r">'+c.tin.toLocaleString('en-US')+' / '+c.tout+'</td><td>'+(c.fol==null?'<span class="muted">–</span>':c.fol?'<span class="ok-t">✓</span>':'<span class="bad-t">✗</span>')+'</td></tr>').join('')+'</table></div></div>';
+  },
+  config(){
+    return lockNote()+'<fieldset'+(isAdmin()?'':' disabled')+'><div class="grid2"><div class="card"><div class="card-h"><h3>Models</h3><span class="muted small">run on the host\'s own Claude Code</span></div><div class="cfg">'+
+      '<span class="k">Scouting report</span><span><select class="sel"><option>opus</option><option>sonnet</option></select> effort <select class="sel"><option>high</option><option>medium</option></select></span>'+
+      '<span class="k">Live round calls</span><span><select class="sel"><option>sonnet</option><option>haiku</option><option>opus</option></select> effort <select class="sel"><option>low</option><option>medium</option></select></span>'+
+      '<span class="k">Intel reactions</span><span><select class="sel"><option>haiku</option><option>sonnet</option></select> effort <select class="sel"><option>low</option></select></span>'+
+      '<span class="k">Debrief</span><span><select class="sel"><option>opus</option><option>sonnet</option></select> effort <select class="sel"><option>high</option><option>medium</option></select></span>'+
+      '<span class="k">Call budget</span><span><input type="range" min="10" max="80" value="40"> 40 calls per match, then engine-only calls</span>'+
+      '<span class="k">Member questions</span><span><select class="sel"><option>5 per member per match</option><option>10 per member</option><option>off</option></select></span></div>'+
+      '<details class="mt"><summary class="small muted">How the host runs Claude Code</summary><pre class="code">claude -p --input-format stream-json --output-format stream-json --verbose \\\n  --session-id &lt;match-uuid&gt; --model sonnet --effort low \\\n  --system-prompt-file prompts/live-coach.md \\\n  --mcp-config mcp/csbot.json --strict-mcp-config \\\n  --tools "" --allowedTools "mcp__csbot__*" --permission-mode dontAsk</pre><div class="note">Not <code>--bare</code>: bare mode skips the subscription login. One call per event goes to the whole room, so the cost doesn\'t grow with members.</div></details></div>'+
+      '<div class="card"><div class="card-h"><h3>Calls</h3></div><div class="cfg">'+
+      '<span class="k">Team mode</span><span><label class="toggle"><input type="radio" name="tm"> 5-stack</label><label class="toggle"><input type="radio" name="tm" checked> gather (randoms)</label><span class="muted small">auto-detected from the room vs the FACEIT roster</span></span>'+
+      '<span class="k">Randoms</span><span class="small">Give them the spot they play most (from FACEIT + demos). The IGL relays it in voice.</span>'+
+      '<span class="k">Call length</span><span><label class="toggle"><input type="radio" name="len" checked> short (glance)</label><label class="toggle"><input type="radio" name="len"> detailed</label></span>'+
+      '<span class="k">Prompts</span><span class="small">live-coach.md · analyst.md · debrief.md <button class="btn" type="button">Edit</button></span></div></div></div>'+
+      '<div class="card mt"><div class="card-h"><h3>Team playbook · Mirage</h3><span class="muted small">shared by the room · calls are picked from these</span><button class="btn" type="button">Edit playbook.yaml</button></div><div class="pbook">'+
+      [['Anti-eco · stack B 3–2','CT',1,'won 2 of 2'],['Standard 2-1-2','CT',1,'won 6 of 9'],['Anti-force · play safe','CT',1,'won 1 of 2'],['A stack 3–2','CT',0,'not used'],['Aggressive apps info','CT',0,'not used'],['A execute (ramp + palace)','T',1,'won 2 of 4'],['B exec (apps + short)','T',1,'won 3 of 4'],['Mid-to-B split','T',1,'won 0 of 1']]
+      .map(p=>'<div><label class="toggle"><input type="checkbox"'+(p[2]?' checked':'')+'> '+p[0]+'</label><span class="side-tag '+(p[1]==='CT'?'ct':'t')+'">'+p[1]+'</span><span class="muted">'+p[3]+'</span></div>').join('')+'</div></div></fieldset>';
+  },
+};
+let coachTab='reasoning',lastCoachKey='';
+function renderCoach(force){
+  if(!$('#view-coach').classList.contains('on'))return;
+  const k=coachTab==='reasoning'?[S.round,S.phase,S.intel.length,S.call&&headText(S.call),S.posterior?1:0].join():coachTab==='economy'?[S.round,S.phase,S.enemy.lo,S.you.money,S.squad.map(m=>m.money).join()].join():coachTab==='calls'?String(S.calls.length):'static';
+  const key=coachTab+'|'+S.me+'|'+k;
+  $('#budgetChip').textContent=isAdmin()?S.calls.filter(c=>c.r>0).length+' / 40 calls · your plan':(MEMBER_ASK_LIMIT-(S.asks[S.me]||0))+' of '+MEMBER_ASK_LIMIT+' questions left';
+  if(!force&&key===lastCoachKey)return;lastCoachKey=key;
+  $('#coachPanel').innerHTML=PANELS[coachTab]();
+}
+
+/* ---------------- room page ---------------- */
+function buildRoom(){
+  const me=ROOM.members.find(m=>m.n===S.me);
+  const memberRows=ROOM.members.map(m=>'<tr'+(m.n===S.me?' class="me-row"':'')+'><td><b>'+meLabel(m.n)+'</b>'+(m.igl?' <span class="role">IGL</span>':'')+'</td><td><span class="rolebadge '+m.role+'">'+m.role.toUpperCase()+'</span></td><td>'+m.device+'</td><td><span class="ok-t">✓</span> '+m.gsi+'</td><td>'+(m.ping==='host'?'<span class="srcd"><i></i>hosting</span>':'<span class="srcd"><i></i>online · '+m.ping+'</span>')+'</td>'+
+    '<td class="admin-only">'+(m.role==='admin'?'':'<button class="btn" type="button">Make admin</button> <button class="btn" type="button">Remove</button>')+'</td></tr>').join('')+
+    ROOM.randoms.map(n=>'<tr><td>'+n+'</td><td><span class="rolebadge random">RANDOM</span></td><td class="muted">not in the room</td><td class="muted">seen while spectating</td><td class="muted">–</td><td class="admin-only"><button class="btn" type="button">Send invite</button></td></tr>').join('');
+  const perm=(t,d,on,locked)=>'<div class="perm"><div><div>'+t+'</div><div class="muted small">'+d+'</div></div><label class="toggle"><input type="checkbox"'+(on?' checked':'')+(locked||!isAdmin()?' disabled':'')+'>'+(on?'on':'off')+'</label></div>';
+  $('#roomBody').innerHTML=
+   '<div class="room-top"><div class="card"><div class="card-h"><h3>Room</h3><span class="chip"><i class="dot ok"></i>end-to-end encrypted</span></div>'+
+     '<div class="big-code">'+ROOM.code+'</div><div class="muted small">'+ROOM.name+' · created by rdx at '+ROOM.created+' · closes 3 h after the match</div>'+
+     '<div class="invite mt admin-only"><code>https://csbot-app.github.io/#/r/K7P2QX?k=••••••••••</code><button class="btn primary" type="button">Copy invite link</button><button class="btn" type="button">New code</button></div>'+
+     '<div class="note">Friends open the link in a browser or the desktop app. The key after # never leaves your devices, so the relay only sees encrypted traffic.</div>'+
+     '<div class="member-only mt"><button class="btn" type="button">Leave room</button></div></div>'+
+   '<div class="card"><div class="card-h"><h3>Host</h3><span class="rolebadge admin">ADMIN · rdx</span></div>'+
+     ['Game · Valve GSI|receiving 4 msg/s from rdx\'s CS2','AI · Claude Code|sonnet live calls, opus reports · rdx\'s own login','Data · FACEIT, Steam, Leetify|keys stay on rdx\'s desktop','Relay|31 ms · 4 devices connected'].map(r=>{const [a,b]=r.split('|');return '<div class="conn-row"><span class="ic ok">✓</span><div><div class="ttl">'+a+'</div><div class="d">'+b+'</div></div><span></span></div>';}).join('')+
+     '<div class="note">Calls are made once on the host and sent to everyone. If the host drops, the room pauses and keeps its state. The admin can hand hosting to kairo (desktop app + Claude Code).</div><button class="btn admin-only mt" type="button">Hand over host…</button></div></div>'+
+   '<div class="card mt"><div class="card-h"><h3>Members</h3><span class="muted small">4 of 5 teammates in the room · gather mode (1 random)</span></div><div class="tw"><table class="t"><tr><th>Player</th><th>Role</th><th>Device</th><th>Shares own GSI</th><th>Status</th><th class="admin-only"></th></tr>'+memberRows+'</table></div></div>'+
+   '<div class="grid2 mt"><div class="card"><div class="card-h"><h3>Team</h3><span class="muted small">used by every call</span></div><div class="cfg">'+
+     '<span class="k">Team mode</span><span>Gather · 4 in room + zeph (random)</span><span class="k">IGL</span><span><select class="sel"'+(isAdmin()?'':' disabled')+'><option>mbt</option><option>rdx</option><option>kairo</option><option>nyx</option></select></span>'+
+     '<span class="k">CT positions</span><span class="small">rdx A anchor · kairo short / bench · nyx B anchor · mbt ticket / rotator · zeph window AWP (from his history)</span>'+
+     '<span class="k">T roles</span><span class="small">kairo entry · nyx second · mbt support · rdx lurk · zeph AWP</span></div>'+
+     '<div class="note">Members can edit their own positions. The coach uses them to give everyone their own job.</div></div>'+
+   '<div class="card"><div class="card-h"><h3>Permissions</h3><span class="muted small">'+(isAdmin()?'you can change these':'set by the admin')+'</span></div>'+
+     perm('Members log intel','map clicks and hotkeys feed the shared forecast',true)+perm('Members ask the coach','uses the host\'s Claude plan · 5 questions each per match',true)+perm('Members edit their own position','used for their YOU line',true)+
+     perm('Calls, playbook and AI settings','admin only',false,true)+perm('Tournament mode (room-wide)','turns off live coaching for everyone',S.tourn)+'</div></div>'+
+   (me&&me.role==='member'?'<div class="card mt"><div class="card-h"><h3>Your device</h3><span class="muted small">'+me.device+'</span></div><div class="cfg"><span class="k">Share your GSI</span><span><span class="ok-t">✓</span> from your '+me.gsi+'. Your money, K/A/D and weapon go to the room. Enemy data never does.</span>'+
+     '<span class="k">On the web</span><span class="small">No install: download a room GSI config, drop it in <code>game\\csgo\\cfg</code>, and CS2 sends your own player data to the room. <button class="btn" type="button">Download cfg</button></span></div></div>':'');
+}
+
+function renderAll(force){
+  if(force){lastCallKey='';lastMkKey='';lastIpKey='';lastTileKey='';lastSbKey='';lastCoachKey='';}
+  renderTop();renderBanner();renderCall();renderTiles();renderTicker();renderMarkers();renderIntelPins();renderScoreboard();renderCoach();
+  $('#map').classList.toggle('show-timings',S.phase==='freezetime'||(S.phase==='live'&&S.liveT<25));
+  computeHeat();paintHeat();
+}
+
+/* ---------------- interactions ---------------- */
+let curView='live';
+function showView(v){
+  curView=v;
+  $$('.nav button').forEach(x=>x.classList.toggle('on',x.dataset.view===v));
+  $$('.hdr-right [data-view]').forEach(x=>x.classList.toggle('on',x.dataset.view===v));
+  $$('.view').forEach(x=>x.classList.toggle('on',x.id==='view-'+v));
+  if(v==='debrief')drawBars();if(v==='setup')renderPayload();if(v==='live'){sizeHeat();paintHeat();}if(v==='coach')renderCoach(true);if(v==='room')buildRoom();
+}
+function setViewAs(n){
+  S.me=n;$('#app').classList.toggle('is-member',n!==HOST);
+  $$('[data-as]').forEach(b=>b.classList.toggle('on',b.dataset.as===n));
+  const m=ROOM.members.find(x=>x.n===n);$('#roomRole').textContent=m.role==='admin'?'ADMIN':'MEMBER';$('#roomRole').className='rb '+m.role;
+  buildScout();buildDebrief();if(curView==='debrief')drawBars();if(curView==='room')buildRoom();
+  renderAll(true);
+}
+$$('[data-view]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.view)));
+$$('[data-as]').forEach(b=>b.addEventListener('click',()=>setViewAs(b.dataset.as)));
+$$('#coachTabs button').forEach(b=>b.addEventListener('click',()=>{coachTab=b.dataset.ct;$$('#coachTabs button').forEach(x=>x.classList.toggle('on',x===b));renderCoach(true);}));
+$('#btnPlay').addEventListener('click',()=>{S.playing=!S.playing;$('#btnPlay').textContent=S.playing?'❚❚ Pause':'▶ Play';});
+$$('[data-speed]').forEach(b=>b.addEventListener('click',()=>{S.speed=+b.dataset.speed;$$('[data-speed]').forEach(x=>x.classList.toggle('on',x===b));}));
+$('#btnSkip').addEventListener('click',skipPhase);
+$$('[data-ff]').forEach(b=>b.addEventListener('click',()=>{boot(false,+b.dataset.ff);showView('live');}));
+$('#ticker').addEventListener('click',()=>showView('coach'));
+$('#btnSpot').addEventListener('click',()=>{const st=S.pos[S.me];if(S.phase==='over'||(st&&st.st!=='planned'))return;S.pos[S.me]={st:'set'};addMsg('human','SPOT · '+S.me.toUpperCase(),S.me+' is on their spot.','button',{by:S.me,noTicker:true});renderAll();});
+$$('#fcSeg button').forEach(b=>b.addEventListener('click',()=>{S.forecast=+b.dataset.v;$$('#fcSeg button').forEach(x=>x.classList.toggle('on',x===b));renderAll();}));
+$('#btnIntel').addEventListener('click',()=>{S.intelMode=!S.intelMode;$('#btnIntel').classList.toggle('on',S.intelMode);$('#map').classList.toggle('intel',S.intelMode);$('#intelPop').hidden=true;
+  $('#btnIntel').textContent=S.intelMode?'Click a zone…':'＋ Log intel';});
+$('#map').addEventListener('click',ev=>{
+  const pop=$('#intelPop');if(ev.target.closest('.intel-pop'))return;
+  if(!S.intelMode){pop.hidden=true;return;}
+  const r=$('#map').getBoundingClientRect();const x=(ev.clientX-r.left)/r.width*1000,y=(ev.clientY-r.top)/r.height*1000;const z=zoneAt(x,y);
+  if(!z){pop.hidden=true;return;}
+  const live=S.phase==='live';
+  pop.innerHTML='<div class="ttl">'+(live?'Enemies at <b>'+z.name+'</b> · '+clockStr(115-S.liveT)+' · shared with the room':'Intel is logged while the round is live')+'</div>'+(live?'<div class="opts">'+[0,1,2,3,4].map(k=>'<button type="button" data-k="'+k+'">'+(k===0?'clear':k===4?'4+':k)+'</button>').join('')+'</div>':'');
+  pop.hidden=false;const px=ev.clientX-r.left,py=ev.clientY-r.top;
+  pop.style.left=Math.max(4,Math.min(px+8,r.width-230))+'px';pop.style.top=Math.max(4,Math.min(py+8,r.height-72))+'px';
+  pop.querySelectorAll('button').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();addIntel(z.id,+b.dataset.k,'click',S.me);pop.hidden=true;renderAll();}));
+});
+function setVoice(on){S.voice=on;$('#btnVoice').classList.toggle('on',on);const c=$('#setVoice');if(c)c.checked=on;if(on)speak('Voice callouts on.');}
+$('#btnVoice').addEventListener('click',()=>setVoice(!S.voice));
+$('#setVoice').addEventListener('change',e=>setVoice(e.target.checked));
+$('#tglTourn').addEventListener('change',e=>{S.tourn=e.target.checked;renderAll(true);addMsg('engine','ROOM','Tournament mode '+(S.tourn?'on for the whole room: live coaching disabled.':'off.'),'admin');});
+const CANNED=[
+  [/force|buy|eco|money|save/i,()=>{const nb=buyProbs(S.enemy.lo,S.enemy.hi,S.enemy.saved),k=argmax(nb),m=meState();return S.me+' has '+fmt$(m.money)+'. If we lose, the team is not on a full buy next round. Only force if they are on '+BUY_LBL[k].toLowerCase()+' ('+pct(nb[k])+'). Otherwise save together and full-buy with utility.';}],
+  [/awp|holo|sniper/i,()=>'Holo AWPs 71% of gun rounds. On T side he opens top mid → window 58% of the time and re-peeks after a kill. Don\'t dry-peek mid. Jiggle after a smoke on top mid, or show B early so he rotates.'],
+  [/timeout|talk/i,()=>'Timeout: 1) They hit B on 4 of 5 low buys, so keep the B stack on their ecos. 2) We lost 2 rifles in R6–R7 to solo peeks. Play for the trade. 3) Smoke top mid on every gun round.'],
+];
+function ask(q){
+  if(!q.trim())return;
+  if(!isAdmin()){const used=S.asks[S.me]||0;if(used>=MEMBER_ASK_LIMIT){addMsg('engine','ROOM','You used your '+MEMBER_ASK_LIMIT+' questions for this match. Ask rdx to raise the limit.','room',{noTicker:true});return;}S.asks[S.me]=used+1;}
+  addMsg('human','ASK · '+S.me.toUpperCase(),q,isAdmin()?'typed':'typed · '+(MEMBER_ASK_LIMIT-S.asks[S.me])+' left',{by:S.me,noTicker:true});
+  const hit=CANNED.find(c=>c[0].test(q));const fc=siteForecast(curPost());
+  const a=hit?hit[1]():'Round '+S.round+': enemy est. '+fmt$(S.enemy.lo)+'–'+fmt$(S.enemy.hi)+', forecast A '+pct(fc.A)+' / B '+pct(fc.B)+'. Stick to the call. I\'ll update as soon as someone logs contact.';
+  const el=addMsg('ai','COACH','…','Claude · sonnet',{instant:true,noTicker:true});
+  setTimeout(()=>{el.remove();addMsg('ai','COACH → '+S.me.toUpperCase(),a,'Claude · sonnet · 2.1 s',{for:isAdmin()?'host':S.me});renderCoach();},1100);
+}
+$('#askForm').addEventListener('submit',e=>{e.preventDefault();ask($('#askIn').value);$('#askIn').value='';});
+$$('#qchips button').forEach(b=>b.addEventListener('click',()=>ask(b.textContent)));
+
+/* ---------------- scout ---------------- */
+const OURS=[
+  {nick:'kairo',lvl:10,elo:2210,kd:1.21,adr:88,hs:58,wr:57,n:1490,roles:['Entry'],form:'7–3',room:'member',sug:'Entry B · first into apps on T'},
+  {nick:'zeph',lvl:10,elo:2100,kd:1.15,adr:80,hs:33,wr:54,n:1105,roles:['AWP'],form:'6–4',room:'random',sug:'AWP window · his usual spot (68%)'},
+  {nick:'rdx',lvl:9,elo:2050,kd:1.12,adr:83,hs:49,wr:56,n:1320,roles:['Rifler'],form:'6–4',room:'admin',sug:'A anchor · ticket crossfire'},
+  {nick:'nyx',lvl:9,elo:1940,kd:1.03,adr:76,hs:45,wr:55,n:980,roles:['Anchor'],form:'5–5',room:'member',sug:'B anchor · van'},
+  {nick:'mbt',lvl:9,elo:1870,kd:.95,adr:70,hs:41,wr:58,n:1650,roles:['IGL'],form:'7–3',room:'member',sug:'IGL · market rotator'}];
+const ENEMY=[
+  {nick:'Holo',lvl:10,elo:2640,kd:1.41,adr:92,hs:38,wr:63,n:912,roles:['AWP'],threat:92,party:'A',key:['AWP','71%'],tip:'Never dry-peek mid. Smoke window and make him rotate.',
+   tend:['AWP in 71% of gun rounds (34 of 48, last 20 matches)','T side: opens top mid → window 58%, re-peeks after a kill','CT side: A ramp / palace AWP 44%, window 39%','Weak in pistol rounds: 0.61 K/D'],maps:[['Mirage','61%','1.46'],['Inferno','57%','1.33'],['Ancient','70%','1.52']],
+   spots:{t:[[790,440,1],[720,165,.45],[690,850,.35]],ct:[[650,700,.85],[342,447,.7],[250,180,.3]]}},
+  {nick:'sk1p',lvl:9,elo:1980,kd:1.17,adr:84,hs:57,wr:54,n:1203,roles:['Entry'],threat:74,party:'B',key:['Entry','38%'],tip:'Deagle peeks on ecos. Hold long and trade him.',
+   tend:['First into the site in 38% of rounds','Deagle in 48% of eco rounds, aggressive apps peeks','Over-peeks after a kill: dies within 3 s in 41% of those rounds'],maps:[['Mirage','53%','1.19'],['Dust II','59%','1.25']],
+   spots:{t:[[520,158,1],[400,330,.55],[260,190,.45]],ct:[[505,290,.85],[345,315,.6]]}},
+  {nick:'vex',lvl:10,elo:2310,kd:1.08,adr:79,hs:44,wr:58,n:1874,roles:['IGL'],threat:68,party:'A',key:['Fast hits','72%'],tip:'Calls a fast hit after every lost round. Expect pace.',
+   tend:['Calls a fast hit after a lost round 72% of the time','Low buys: B apps rush 64%','Uses the first timeout when 3+ rounds down'],maps:[['Mirage','58%','1.10'],['Inferno','55%','1.04'],['Ancient','66%','1.12']],
+   spots:{t:[[560,158,.85],[690,700,.65]],ct:[[300,668,.85],[460,760,.5]]}},
+  {nick:'Drift',lvl:8,elo:1720,kd:.97,adr:71,hs:41,wr:51,n:640,roles:['Lurk'],threat:49,party:'B',key:['Lurk','1:05'],tip:'Late lurker. Check underpass and palace after 1:10.',
+   tend:['Lurks palace / underpass late (avg contact 1:05)','Rarely buys utility (1.1 grenades per round)','Private Steam profile: stats from FACEIT and demos only'],maps:[['Mirage','50%','0.95']],
+   spots:{t:[[505,300,.95],[690,850,.75]],ct:[[215,410,.85],[505,540,.5]]}},
+  {nick:'Okami',lvl:9,elo:1890,kd:.94,adr:68,hs:36,wr:55,n:1510,roles:['Support'],threat:41,party:'A',key:['Flash ast.','0.21/r'],tip:'Throws their execute smokes. Kill him early to break hits.',
+   tend:['Throws the execute smokes for both sites','Most flash assists in the lobby (0.21 per round)','Anchors B on CT side 80%'],maps:[['Mirage','56%','0.92'],['Ancient','67%','0.99']],
+   spots:{t:[[880,170,.7],[810,640,.65]],ct:[[200,170,.95]]}}];
+let scoutSel=0,scoutSide='t';
+function renderPDetail(){
+  const p=ENEMY[scoutSel];
+  $('#pdetail').innerHTML='<div><div class="card-h" style="margin-bottom:6px"><h3>'+p.nick+' · tendencies</h3><span class="role">'+p.roles[0]+'</span></div><ul class="ul">'+p.tend.map(t=>'<li>'+t+'</li>').join('')+'</ul>'+
+    '<div class="youline sm"><span class="yb">TIP</span><span>'+p.tip+'</span></div></div>'+
+    '<div><div class="card-h" style="margin-bottom:6px"><h3>By map</h3></div><table class="t"><tr><th>Map</th><th class="r">Win rate</th><th class="r">K/D</th></tr>'+p.maps.map(m=>'<tr><td>'+m[0]+'</td><td class="r">'+m[1]+'</td><td class="r">'+m[2]+'</td></tr>').join('')+'</table>'+
+    '<div class="note">'+p.n+' FACEIT matches · party '+p.party+' · level '+p.lvl+' · '+p.elo.toLocaleString('en-US')+' ELO</div></div>'+
+    '<div><div class="card-h" style="margin-bottom:6px"><h3>Where he plays</h3><div class="seg" id="sideSeg"><button data-s="t"'+(scoutSide==='t'?' class="on"':'')+'>T side</button><button data-s="ct"'+(scoutSide==='ct'?' class="on"':'')+'>CT side</button></div></div>'+miniMap(p.spots[scoutSide])+'</div>';
+  $$('#sideSeg button').forEach(b=>b.addEventListener('click',()=>{scoutSide=b.dataset.s;renderPDetail();}));
+}
+function buildScout(){
+  $('#pcards').innerHTML=ENEMY.map((p,i)=>'<button type="button" class="pc'+(i===scoutSel?' sel':'')+'" data-i="'+i+'"><div class="pc-top"><span class="avatar">'+p.nick.slice(0,2).toUpperCase()+'</span><div><div class="pc-name">'+p.nick+'</div><div class="pc-sub">'+p.roles[0]+' · lvl '+p.lvl+' · '+p.elo.toLocaleString('en-US')+'</div></div></div>'+
+    '<div class="thr2"><span class="muted small">threat</span><div class="trk"><i style="width:'+p.threat+'%"></i></div><span class="num">'+p.threat+'</span></div>'+
+    '<div class="pc-stats"><span><em>K/D</em>'+p.kd.toFixed(2)+'</span><span><em>'+p.key[0]+'</em>'+p.key[1]+'</span></div><div class="pc-tip">'+p.tip+'</div></button>').join('');
+  $$('#pcards .pc').forEach(c=>c.addEventListener('click',()=>{scoutSel=+c.dataset.i;$$('#pcards .pc').forEach(x=>x.classList.toggle('sel',x===c));renderPDetail();}));
+  renderPDetail();
+  $('#tPlans').innerHTML=[['B apps rush',.31],['A exec (ramp + palace)',.28],['Mid-to-A split',.16],['Default → late B',.15],['B exec (apps + short)',.10]].map((r,i)=>barRow(r[0],r[1],{cls:i===0?'max':''})).join('')+
+    '<div class="note">On their ecos: B apps rush 64%. After a save: A exec 41%.</div>';
+  $('#ctPlans').innerHTML=[['2-1-2 (AWP window)',.45],['B stack (3 on B)',.40],['A stack (3 on A)',.15]].map((r,i)=>barRow(r[0],r[1],{cls:i===0?'max':''})).join('');
+  const MAPS=[['Mirage',57,58,61,44,'decider','Decider'],['Ancient',68,41,47,30,'ban','Your ban'],['Nuke',38,13,49,22,'','They ban · 84%'],['Anubis',44,16,52,25,'','They ban · 61%'],['Inferno',52,41,55,37,'','Their pick'],['Dust II',55,33,58,29,'','Neutral'],['Train',49,9,41,12,'','Little data']];
+  const edgeBg=d=>{const a=Math.min(.55,Math.abs(d)/22*.55);return d>=0?'rgba(57,135,229,'+a+')':'rgba(227,73,72,'+a+')';};
+  $('#veto').innerHTML=MAPS.map(m=>{const d=m[3]-m[1];return '<div class="vt '+m[5]+'"><div class="vt-name">'+m[0]+'<span class="edge" style="background:'+edgeBg(d)+'">'+(d>0?'+':'')+d+'</span></div><div class="vt-row">them '+m[1]+'% ('+m[2]+') · you '+m[3]+'% ('+m[4]+')</div><span class="vt-act">'+m[6]+'</span></div>';}).join('');
+  $('#ours').innerHTML=OURS.map(p=>'<div class="oc"><div class="pc-top"><span class="avatar">'+p.nick.slice(0,2).toUpperCase()+'</span><div><div class="pc-name">'+p.nick+(p.nick===S.me?' <span class="yb">YOU</span>':'')+'</div><div class="pc-sub">lvl '+p.lvl+' · '+p.elo.toLocaleString('en-US')+' · last 10: '+p.form+'</div></div></div>'+
+    '<div style="margin-top:8px"><span class="rolebadge '+p.room+'">'+(p.room==='random'?'RANDOM · NOT IN ROOM':p.room.toUpperCase())+'</span></div><div class="sug"><span>Suggested role</span>'+p.sug+'</div></div>').join('');
+}
+
+/* ---------------- debrief ---------------- */
+const DEB={
+  us:[800,3350,4200,3900,5200,6100,3800,2900,6300,3700,4900,4500,800,1950,3300,4800,5600,3000,4100,6200,3400,5100],
+  them:[800,1900,2700,4800,2400,2950,5400,6100,2050,4300,4600,3100,800,4300,2300,4400,2100,4900,3800,2400,4600,2900],
+  err:[0,-200,-300,-1400,250,-200,400,-500,100,-200,600,-250,0,-1100,350,-900,-150,300,-450,200,-600,250],
+  win:['us','us','them','us','us','them','them','us','us','them','us','us','them','us','them','us','us','them','us','them','them','us'],
+  reason:['elim','elim','bomb','defuse','elim','elim','bomb','time','elim','bomb','defuse','elim','elim','bomb','time','elim','bomb','defuse','elim','elim','defuse','bomb'],
+  pred:['pistol','eco','force','half','force','force','full','full','eco','full','full','half','pistol','force','eco','half','eco','full','half','eco','full','force'],
+  act:['pistol','eco','force','full','force','eco','full','full','eco','full','full','half','pistol','full','eco','full','eco','full','half','eco','full','force'],
+  ours:['pistol','force','full','full','full','full','force','eco','full','full','full','full','pistol','eco','eco','full','full','force','full','full','eco','full'],
+  site:['B','B','A','A','B','B','A','–','B','A','A','B','A','B','B','A','B','A','B','A','B','A'],
+  siteF:['B','B','B','B','B','B','A','B','B','A','A','B'],
+  fk:['kairo','rdx','Holo','zeph','kairo','kairo','Holo','zeph','rdx','sk1p','kairo','Holo','sk1p','kairo','mbt','zeph','vex','Holo','nyx','rdx','sk1p','Drift'],
+  call:['Pistol default','Anti-eco · stack B','Anti-force','Standard 2-1-2','Anti-force','Anti-force','Standard 2-1-2','Standard 2-1-2','Anti-eco · stack B','Standard → rotate A','Standard 2-1-2','Standard → rotate B','Pistol · A split','Eco · fast B','Save','A execute','B exec','Force A','B exec','A execute','Save','A execute'],
+  fol:[1,1,1,1,1,0,0,1,1,1,1,0,1,1,0,1,1,1,1,0,0,0],
+};
+const OUR_NAMES=['kairo','rdx','zeph','nyx','mbt'];
+const BOARD={
+  us:[['kairo',24,5,15,96,77,58,'5–2',1,64,1.31],['rdx',19,6,14,84,73,49,'3–2',1,41,1.12],['zeph',18,2,13,74,73,33,'3–1',0,12,1.10],['nyx',14,7,16,69,68,45,'1–2',1,88,.93],['mbt',11,9,16,61,70,41,'1–2',0,121,.86]],
+  them:[['Holo',21,3,15,82,68,36,'4–3',1,18,1.15],['sk1p',17,4,18,79,64,55,'3–4',0,35,.98],['vex',14,6,17,70,66,44,'1–2',0,52,.91],['Drift',12,5,17,63,61,40,'1–2',1,9,.84],['Okami',10,10,19,58,64,35,'0–2',0,97,.79]],
+};
+const DEATHS={
+  rdx:{pts:[[420,700],[470,780],[500,690],[390,800],[300,665],[310,692],[180,620],[230,150],[560,158],[470,150],[650,850],[720,850],[600,442],[520,442]],
+    facts:[['6 of 14','at A site or ticket, mostly in the first 40 s of CT rounds'],['8 untraded','57% of your deaths had no teammate within trade range'],['$2,300','of utility still in your hands when you died'],['3 opening deaths','vs 3 opening kills. Holo got 2 of them from top mid']]},
+  kairo:{pts:[[560,158],[480,150],[430,160],[380,320],[340,315],[300,250],[520,442],[600,442],[690,700],[620,700],[700,850],[250,160],[200,410],[470,760],[505,300]],
+    facts:[['7 of 15','in B apps or short, usually as the first contact'],['9 traded','60% of your deaths were traded, so your entries paid off'],['$900','of utility still in your hands when you died'],['5 opening kills','vs 2 opening deaths. Best opener on the team']]},
+};
+const BAND=650;
+function boardTable(rows,side,label,score){
+  return '<div class="team-h"><span class="side-tag '+side+'">'+(side==='ct'?'CT→T':'T→CT')+'</span>'+label+'<span class="n">'+score+'</span></div><div class="tw"><table class="t"><tr><th>Player</th><th class="r">K</th><th class="r">A</th><th class="r">D</th><th class="r">+/–</th><th class="r">ADR</th><th class="r">KAST</th><th class="r">HS%</th><th class="r">Opening</th><th class="r">Clutch</th><th class="r">Util dmg</th><th class="r">Rating</th></tr>'+
+    rows.map(r=>'<tr'+(r[0]===S.me?' class="me-row"':'')+'><td>'+(r[0]===S.me?'<b>'+meLabel(r[0])+'</b>':r[0])+'</td><td class="r">'+r[1]+'</td><td class="r">'+r[2]+'</td><td class="r">'+r[3]+'</td><td class="r">'+(r[1]-r[3]>0?'+':'')+(r[1]-r[3])+'</td><td class="r">'+r[4]+'</td><td class="r">'+r[5]+'%</td><td class="r">'+r[6]+'%</td><td class="r">'+r[7]+'</td><td class="r">'+r[8]+'</td><td class="r">'+r[9]+'</td><td class="r"><b>'+r[10].toFixed(2)+'</b></td></tr>').join('')+'</table></div>';
+}
+function buildDebrief(){
+  const n=22;let ok=0,cov=0,fOk=0,fN=0;for(let i=0;i<n;i++){if(DEB.pred[i]===DEB.act[i])ok++;if(Math.abs(DEB.err[i])<=BAND)cov++;if(i<12&&DEB.site[i]!=='–'){fN++;if(DEB.siteF[i]===DEB.site[i])fOk++;}}
+  const folN=DEB.fol.filter(Boolean).length,mine=BOARD.us.find(r=>r[0]===S.me)||BOARD.us[1];
+  $('#debTop').innerHTML='<div class="card kpi res"><div class="lbl">Result · Mirage · 22 rounds · 41 min</div><div class="val">Win 13 – 9</div><div class="sub">vs team_kappa · MVP kairo (1.31)</div></div>'+
+    [['Your rating',mine[10].toFixed(2),'ADR '+mine[4]+' · KAST '+mine[5]+'%'],['Enemy buy read',pct(ok/n),ok+' of '+n+' rounds right'],['Site read on defense',fOk+' / '+fN,'first half, rounds with a hit'],['Calls followed',folN+' / '+n,'the team won 73% of those']].map(t=>'<div class="card kpi"><div class="lbl">'+t[0]+'</div><div class="val">'+t[1]+'</div><div class="sub">'+t[2]+'</div></div>').join('');
+  $('#finalBoard').innerHTML='<div class="teams"><div>'+boardTable(BOARD.us,'ct','Your team',13)+'</div><div>'+boardTable(BOARD.them,'t','team_kappa',9)+'</div></div>'+
+    '<div class="legend" style="margin-top:12px">'+roundsStrip(DEB.win.map((w,i)=>({r:i+1,win:w,reason:DEB.reason[i]})),0,['1st half · you CT','2nd half · you T']).replace('class="rounds"','class="rounds" style="margin:0;width:100%"')+'</div>';
+  const sec=(t,rows)=>'<div class="h4">'+t+'</div><div class="bars" style="--lw:150px">'+rows.map(r=>barRow(r[0]+' · '+r[1]+'/'+r[2],r[1]/r[2],{cls:'us'})).join('')+'</div>';
+  $('#winRates').innerHTML=sec('By your buy',[['Full buy',9,13],['Force',1,3],['Eco',2,4],['Pistol',1,2]])+sec('After the opening duel',[['Your team got it',10,13],['They got it',3,9]])+
+    sec('Coach calls',[['Followed',11,15],['Ignored',2,7]])+sec('Defending a site (CT half)',[['A held',2,5],['B held',5,6]])+sec('Attacking a site (T half)',[['A won',2,5],['B won',3,5]]);
+  const dd=DEATHS[S.me]||DEATHS.rdx;
+  $('#diedN').textContent=dd.pts.length+' deaths';
+  $('#died').innerHTML=miniMap(null,dd.pts)+'<ul class="facts">'+dd.facts.map(f=>'<li><b>'+f[0]+'</b><span>'+f[1]+'</span></li>').join('')+'</ul>';
+  let rows='<tr><th>R</th><th>Winner</th><th>Our buy</th><th>Their buy (read → truth)</th><th>Site (read → actual)</th><th>First kill</th><th>Call</th><th>Followed</th></tr>';
+  for(let i=0;i<n;i++){const good=DEB.pred[i]===DEB.act[i],us=DEB.win[i]==='us',fkUs=OUR_NAMES.includes(DEB.fk[i]);
+    const site=i<12?(DEB.site[i]==='–'?'no hit':(DEB.siteF[i]===DEB.site[i]?DEB.site[i]+' <span class="ok-t">✓</span>':DEB.siteF[i]+' → '+DEB.site[i]+' <span class="bad-t">✗</span>')):'you hit '+DEB.site[i];
+    rows+='<tr><td>'+(i+1)+'</td><td><i class="wdot" style="background:'+(us?'var(--ct)':'var(--t)')+'"></i>'+(us?'Your team':'team_kappa')+' · '+HOW[DEB.reason[i]]+'</td><td>'+BUY_LBL[DEB.ours[i]]+'</td>'+
+      '<td>'+BUY_LBL[DEB.pred[i]]+(good?' <span class="ok-t">✓</span>':' → '+BUY_LBL[DEB.act[i]]+' <span class="bad-t">✗</span>')+'</td><td>'+site+'</td>'+
+      '<td><i class="wdot" style="background:'+(fkUs?'var(--ct)':'var(--t)')+'"></i>'+(DEB.fk[i]===S.me?'<b>'+meLabel(DEB.fk[i])+'</b>':DEB.fk[i])+'</td><td>'+DEB.call[i]+'</td><td>'+(DEB.fol[i]?'<span class="ok-t">✓</span>':'<span class="bad-t">✗</span>')+'</td></tr>';}
+  $('#revTable').innerHTML=rows;
+  const worst=DEB.err.reduce((b,e,i)=>Math.abs(e)>Math.abs(DEB.err[b])?i:b,0);
+  $('#econNote').textContent=cov+' of 22 rounds inside the estimate band (±'+fmt$(BAND)+'). Biggest miss: R'+(worst+1)+' ('+(DEB.err[worst]>0?'+':'−')+fmtK(Math.abs(DEB.err[worst]))+'), when they dropped rifles to each other.';
+}
+function drawBars(){
+  const host=$('#econChart');const W=host.clientWidth;if(!W)return;
+  const H=240,m={l:44,r:8,t:14,b:26},n=22,gap=16,plotW=W-m.l-m.r-gap,bw=plotW/n,barW=Math.min(18,bw*.62);
+  const cx=i=>m.l+bw*i+(i>=12?gap:0)+bw/2,y=v=>m.t+(H-m.t-m.b)*(1-v/8000),base=y(0);
+  let s='<svg viewBox="0 0 '+W+' '+H+'" height="'+H+'" role="img" aria-label="Enemy money per round, demo truth vs live estimate">';
+  for(const v of [0,2000,4000,6000,8000])s+='<line x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="'+(v?'#272c34':'#3a414d')+'"/><text x="'+(m.l-8)+'" y="'+(y(v)+4)+'" text-anchor="end" font-size="10.5" fill="#8a909b">'+(v?'$'+v/1000+'k':'$0')+'</text>';
+  [1,6,12,13,18,22].forEach(r=>{s+='<text x="'+cx(r-1)+'" y="'+(H-8)+'" text-anchor="middle" font-size="10.5" fill="#8a909b">R'+r+'</text>';});
+  const hx=(cx(11)+cx(12))/2;s+='<line x1="'+hx+'" x2="'+hx+'" y1="'+m.t+'" y2="'+base+'" stroke="#3a414d"/><text x="'+(hx+5)+'" y="'+(m.t+2)+'" font-size="10.5" fill="#8a909b">halftime</text>';
+  for(let i=0;i<n;i++){const v=DEB.them[i],x0=cx(i)-barW/2,x1=cx(i)+barW/2,yt=y(v),r=Math.min(4,base-yt);
+    s+='<path d="M'+x0+' '+base+'V'+(yt+r)+'Q'+x0+' '+yt+' '+(x0+r)+' '+yt+'H'+(x1-r)+'Q'+x1+' '+yt+' '+x1+' '+(yt+r)+'V'+base+'Z" fill="#c98500"/>';
+    const mid=DEB.them[i]+DEB.err[i],lo=Math.max(0,mid-BAND),hi=Math.min(8000,mid+BAND),miss=Math.abs(DEB.err[i])>BAND,col=miss?'#ff8a8a':'#d4d8df';
+    s+='<g stroke="'+col+'" stroke-width="1.6" stroke-linecap="round"><line x1="'+cx(i)+'" x2="'+cx(i)+'" y1="'+y(lo)+'" y2="'+y(hi)+'"/><line x1="'+(cx(i)-4)+'" x2="'+(cx(i)+4)+'" y1="'+y(lo)+'" y2="'+y(lo)+'"/><line x1="'+(cx(i)-4)+'" x2="'+(cx(i)+4)+'" y1="'+y(hi)+'" y2="'+y(hi)+'"/></g>';
+    if(miss)s+='<text x="'+cx(i)+'" y="'+(y(Math.max(hi,v))-6)+'" text-anchor="middle" font-size="10.5" font-weight="700" fill="#ff8a8a">miss</text>';
+    s+='<rect class="hb" data-i="'+i+'" x="'+(cx(i)-bw/2)+'" y="'+m.t+'" width="'+bw+'" height="'+(base-m.t)+'" fill="transparent"/>';}
+  s+='</svg>';
+  host.innerHTML='<div class="ctip"></div>'+s;
+  const tip=$('.ctip',host);
+  $$('.hb',host).forEach(rc=>{rc.addEventListener('mouseenter',()=>{const i=+rc.dataset.i,mid=DEB.them[i]+DEB.err[i],miss=Math.abs(DEB.err[i])>BAND;
+    tip.innerHTML='<div class="r">Round '+(i+1)+(i>=12?' · you T':' · you CT')+'</div><div class="row"><i class="key t"></i>Truth '+fmt$(DEB.them[i])+'</div><div class="row">Estimate '+fmtK(Math.max(0,mid-BAND))+'–'+fmtK(mid+BAND)+' '+(miss?'<span class="bad-t">miss</span>':'<span class="ok-t">✓</span>')+'</div><div class="row muted">Read: '+BUY_LBL[DEB.pred[i]]+' · truth: '+BUY_LBL[DEB.act[i]]+'</div>';
+    tip.style.display='block';const tw=tip.offsetWidth,tx=cx(i)+14;tip.style.left=(tx+tw>W?cx(i)-tw-14:tx)+'px';tip.style.top='8px';});
+    rc.addEventListener('mouseleave',()=>{tip.style.display='none';});});
+}
+
+/* ---------------- GSI payload (what the host's game actually sends) ---------------- */
+function renderPayload(){
+  if(!$('#view-setup').classList.contains('on'))return;
+  const wins={};S.history.forEach(h=>{wins[h.r]=(h.win==='us'?'ct':'t')+'_win_'+HOW[h.reason];});
+  const rem=S.phase==='live'?115-S.liveT:PHASE_LEN[S.phase]-S.phaseT;
+  const p={provider:{name:'Counter-Strike: Global Offensive',appid:730,version:14100,steamid:'7656119•••••••••',timestamp:Math.floor(Date.now()/1000)},
+    map:{mode:'competitive',name:'de_mirage',phase:'live',round:S.round-1,
+      team_ct:{score:S.score.us,consecutive_round_losses:S.usStreak,timeouts_remaining:1,matches_won_this_series:0},
+      team_t:{score:S.score.them,consecutive_round_losses:S.enemy.streak,timeouts_remaining:1,matches_won_this_series:0},
+      num_matches_to_win_series:0,round_wins:wins},
+    round:Object.assign({phase:S.phase==='bomb'?'live':S.phase},S.plantedSite?{bomb:'planted'}:{},S.phase==='over'?{win_team:S.history[S.history.length-1].win==='us'?'CT':'T'}:{}),
+    player:{steamid:'7656119•••••••••',name:HOST,observer_slot:1,team:'CT',activity:'playing',
+      state:{health:S.you.hp,armor:S.you.armor,helmet:S.you.helmet,flashed:0,smoked:0,burning:0,money:S.you.money,round_kills:S.you.roundKills,round_killhs:0,round_totaldmg:S.you.roundKills*100,equip_value:S.you.equip},
+      match_stats:{kills:S.you.k,assists:S.you.a,deaths:S.you.d,mvps:S.you.mvps,score:S.you.k*2+S.you.a}},
+    phase_countdowns:{phase:S.phase,phase_ends_in:rem.toFixed(1)}};
+  $('#payload').textContent=JSON.stringify(p,null,2);
+}
+
+/* ---------------- boot & loop ---------------- */
+function boot(keepFeed,ff){
+  S=freshState();
+  if(!keepFeed){feedEl.innerHTML='';S.fast=true;
+    addMsg('engine','ROOM','Room K7P-2QX open. kairo, nyx and mbt joined. zeph is a random (not in the room).','room');
+    addMsg('engine','MATCH','FACEIT match detected → scouting report ready (Scout tab). de_mirage · you start CT.','engine');
+    addMsg('ai','ROUND 8','Won on time. They full-bought and lost, so expect a save in R9.','Claude · haiku · 1.7 s',{instant:true});S.fast=false;}
+  S.fast=ff>0;startRound(9);if(ff>0)fastTo(()=>false,ff);S.fast=false;
+  lastKind='';renderAll(true);
+}
+buildMap();
+boot(false,38);
+buildScout();buildDebrief();
+new ResizeObserver(()=>{sizeHeat();paintHeat();}).observe($('#map'));
+let chartW=0;new ResizeObserver(()=>{const w=$('#econChart').clientWidth;if(w&&w!==chartW){chartW=w;drawBars();}}).observe($('#econChart'));
+let last=performance.now(),acc=0,lastRender=0,lastPayload=0;
+function frame(now){
+  const dt=Math.min(.25,(now-last)/1000);last=now;
+  if(S.playing){acc+=dt*S.speed;while(acc>=.1){stepSim(.1);acc-=.1;}}
+  if(now-lastRender>120){lastRender=now;renderAll();}
+  if(now-lastPayload>500){lastPayload=now;renderPayload();}
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+for(const h of location.hash.slice(1).split('&')){
+  const ff=/^ff=(\d+)$/.exec(h),ct=/^coach-(\w+)$/.exec(h);
+  if(ff){boot(false,+ff[1]);}
+  else if(h==='member')setViewAs('kairo');
+  else if(ct){coachTab=ct[1];$$('#coachTabs button').forEach(x=>x.classList.toggle('on',x.dataset.ct===coachTab));showView('coach');}
+  else if(h){const v=$('#view-'+h);if(v)showView(h);}
+}
+})();
+</script>
+</body>
+</html>

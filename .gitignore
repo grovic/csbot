@@ -1,0 +1,19 @@
+node_modules/
+dist/
+out/
+build/
+coverage/
+.turbo/
+.wrangler/
+.vite/
+playwright-report/
+test-results/
+*.log
+.env
+.env.*
+!.env.example
+# GSI recordings and probe logs can contain Steam IDs
+*.ndjson
+!**/fixtures/**/*.ndjson
+.DS_Store
+Thumbs.db
