@@ -27,6 +27,22 @@ export const PLANS_DUST2: MapPlans = {
     half: { longRush: 0.12, longTake: 0.22, aSplit: 0.18, bRush: 0.15, bExec: 0.18, midB: 0.15 },
     full: { longRush: 0.05, longTake: 0.28, aSplit: 0.26, bRush: 0.06, bExec: 0.2, midB: 0.15 },
   },
+  // Enemy CT setups for our T halves: one hold zone per defender.
+  defense: {
+    setups: [
+      { id: 'default', name: 'Standard 2-1-2', holds: ['longa', 'asite', 'middoors', 'bsite', 'bsite'] },
+      { id: 'stackA', name: 'Stack A (long + short)', holds: ['longa', 'asite', 'shortstairs', 'middoors', 'bsite'] },
+      { id: 'stackB', name: 'Stack B (3 on B)', holds: ['asite', 'middoors', 'bdoors', 'bsite', 'bsite'] },
+      { id: 'longPush', name: 'Long push for info', holds: ['longdoors', 'longa', 'asite', 'middoors', 'bsite'] },
+      { id: 'retake', name: 'Light sites, play the retake', holds: ['asite', 'ctspawn', 'middoors', 'bdoors', 'bsite'] },
+    ],
+    priorByBuy: {
+      eco: { default: 0.2, stackA: 0.25, stackB: 0.25, longPush: 0.2, retake: 0.1 },
+      force: { default: 0.3, stackA: 0.18, stackB: 0.18, longPush: 0.2, retake: 0.14 },
+      half: { default: 0.38, stackA: 0.15, stackB: 0.15, longPush: 0.17, retake: 0.15 },
+      full: { default: 0.45, stackA: 0.12, stackB: 0.12, longPush: 0.16, retake: 0.15 },
+    },
+  },
 };
 
 export const PLAYBOOK_DUST2: PlaybookDef = {

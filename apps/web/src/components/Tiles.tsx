@@ -6,7 +6,7 @@ function noForecastReason(s: LiveSnapshot): string {
   const m = s.match;
   if (!m) return 'Arrives with the first round';
   if (!m.map || !MAPS[m.map]) return `No forecast for ${mapName(m.map)} yet`;
-  if (m.ourSide === 'T') return 'Forecast covers your CT halves';
+  if (m.ourSide === 'T' && !MAPS[m.map]!.ct) return `No read on ${mapName(m.map)} CT setups yet`;
   if (!s.enemy) return 'Arrives at freeze time';
   return 'No forecast this round';
 }
@@ -40,7 +40,7 @@ export function Tiles({ snap, webMember = false }: { snap: LiveSnapshot; webMemb
       </div>
 
       <div className="tl" data-testid="tile-hit">
-        <div className="lb"><i className="key t" />{planted ? 'Bomb planted' : 'Likely hit'}</div>
+        <div className="lb"><i className="key t" />{planted ? 'Bomb planted' : f?.enemy === 'CT' ? 'Likely light' : 'Likely hit'}</div>
         {planted ? (
           <>
             <div className="vl">{f && site ? <>{site}?<small>forecast {pct(sp)}</small></> : '—'}</div>
@@ -53,7 +53,9 @@ export function Tiles({ snap, webMember = false }: { snap: LiveSnapshot; webMemb
               <i className={site === 'A' ? 'max' : ''} style={{ width: f.site.A * 100 + '%' }} />
               <i className={site === 'B' ? 'max' : ''} style={{ width: f.site.B * 100 + '%' }} />
             </div>
-            <div className="sb">A {pct(f.site.A)} · B {pct(f.site.B)} · {f.topPlan.name} · estimate</div>
+            <div className="sb">{f.enemy === 'CT'
+              ? <>A {pct(f.site.A)} · B {pct(f.site.B)} · they likely play {f.topPlan.name} · estimate</>
+              : <>A {pct(f.site.A)} · B {pct(f.site.B)} · {f.topPlan.name} · estimate</>}</div>
           </>
         ) : (
           <><div className="vl none">—</div><div className="sb">{noForecastReason(snap)}</div></>

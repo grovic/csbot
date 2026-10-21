@@ -82,14 +82,17 @@ test('round over: result call and history', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('second half on T: generic call, forecast placeholder', async ({ page }) => {
+test('second half on T: generic call plus the read on their CT setup', async ({ page }) => {
   const errors = await open(page, 'at=freeze-14%2B3&pause=1');
   await expect(page.getByTestId('banner')).toHaveAttribute('data-phase', 'freezetime');
   await expect(page.getByTestId('scorebox')).toContainText('Round 14');
   await expect(page.getByTestId('call-head')).toHaveText(/^Enemy /);
   await expect(page.getByTestId('youline')).toHaveCount(0);
-  await expect(page.getByTestId('tile-hit')).toContainText('Forecast covers your CT halves');
-  await expect(page.getByTestId('map-note')).toBeVisible();
+  await expect(page.getByTestId('tile-hit')).toContainText('Likely light');
+  await expect(page.getByTestId('tile-hit')).toContainText(/they likely play .+ · estimate/);
+  await expect(page.getByTestId('forecast-basis')).toHaveAttribute('data-basis', 'prior');
+  await expect(page.getByTestId('heat')).toBeVisible();
+  await expect(page.getByTestId('map-note')).toHaveCount(0);
   await expect(page.locator('.rhalf-h').nth(1)).toContainText('you T');
   await shot(page, 'live-second-half-t');
   expect(errors).toEqual([]);

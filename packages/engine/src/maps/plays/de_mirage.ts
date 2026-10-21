@@ -27,6 +27,22 @@ export const PLANS_MIRAGE: MapPlans = {
     half: { bRush: 0.22, bExec: 0.22, aExec: 0.26, split: 0.15, slowB: 0.15 },
     full: { bRush: 0.06, bExec: 0.26, aExec: 0.36, split: 0.18, slowB: 0.14 },
   },
+  // Enemy CT setups for our T halves: one hold zone per defender (`:mid` = counts toward neither site).
+  defense: {
+    setups: [
+      { id: 'default', name: 'Standard (A, connector, window, short, B)', holds: ['asite', 'conn:mid', 'window:mid', 'short:mid', 'bsite'] },
+      { id: 'stackA', name: 'Stack A (ramp + palace)', holds: ['asite', 'asite', 'jungle', 'window:mid', 'bsite'] },
+      { id: 'stackB', name: 'Stack B (market + van)', holds: ['asite', 'short', 'market', 'bsite', 'bsite'] },
+      { id: 'midPush', name: 'Aggressive mid (top mid + short)', holds: ['asite', 'topmid', 'short', 'window:mid', 'bsite'] },
+      { id: 'retake', name: 'Light sites, play the retake', holds: ['asite', 'ctspawn', 'ctspawn', 'market', 'bsite'] },
+    ],
+    priorByBuy: {
+      eco: { default: 0.2, stackA: 0.25, stackB: 0.25, midPush: 0.2, retake: 0.1 },
+      force: { default: 0.3, stackA: 0.18, stackB: 0.18, midPush: 0.2, retake: 0.14 },
+      half: { default: 0.38, stackA: 0.15, stackB: 0.15, midPush: 0.17, retake: 0.15 },
+      full: { default: 0.45, stackA: 0.12, stackB: 0.12, midPush: 0.16, retake: 0.15 },
+    },
+  },
 };
 
 export const PLAYBOOK_MIRAGE: PlaybookDef = {

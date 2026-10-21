@@ -70,7 +70,7 @@ function Reasoning({ live, room, coach }: { live?: LiveSnapshot; room?: RoomView
   const entry = c ? claudeCallFor(coach, c.round) : undefined;
   const fc = live?.forecast;
   const plans = fc ? Object.entries(fc.plans).sort((a, b) => b[1] - a[1]).slice(0, 5) : [];
-  const planName = (id: string) => (fc ? MAPS[fc.map]?.plans.find(p => p.id === id)?.name : undefined) ?? id;
+  const planName = (id: string) => (fc ? (fc.enemy === 'CT' ? MAPS[fc.map]?.ct : MAPS[fc.map])?.plans.find(p => p.id === id)?.name : undefined) ?? id;
   const buy = live?.enemy?.buy;
   const top = buy ? (Object.keys(buy) as (keyof typeof buy)[]).reduce((a, b) => (buy[a] >= buy[b] ? a : b)) : undefined;
   return (
@@ -104,21 +104,21 @@ function Reasoning({ live, room, coach }: { live?: LiveSnapshot; room?: RoomView
         )}
       </div>
       <div className="card">
-        <div className="card-h"><h3>Enemy plans</h3><span className="chip est">estimate</span></div>
+        <div className="card-h"><h3>{fc?.enemy === 'CT' ? 'Their CT setup' : 'Enemy plans'}</h3><span className="chip est">estimate</span></div>
         {fc ? (
           <>
             <div className="bars" style={{ ['--lw' as string]: '170px' }}>
               {plans.map(([id, p], i) => <BarRow key={id} label={planName(id)} v={p} max={i === 0} />)}
             </div>
-            <div className="h4">Site forecast</div>
+            <div className="h4">{fc.enemy === 'CT' ? 'Lighter site' : 'Site forecast'}</div>
             <div className="bars" style={{ ['--lw' as string]: '64px' }}>
               <BarRow label="A site" v={fc.site.A} max={fc.site.A > fc.site.B} />
               <BarRow label="B site" v={fc.site.B} max={fc.site.B >= fc.site.A} />
             </div>
-            <div className="note" data-testid="forecast-note">Forecast: {fc.basis === 'intel' ? `updated by ${live?.intel?.length ?? 0} intel this round` : 'from the buy read'}. Plans from their demos arrive in M4.</div>
+            <div className="note" data-testid="forecast-note">Forecast: {fc.basis === 'intel' ? `updated by ${live?.intel?.length ?? 0} intel this round` : 'from the buy read'}. First estimates per map, until demo data calibrates them.</div>
           </>
         ) : (
-          <div className="muted">The plan forecast covers Mirage on the CT side for now.</div>
+          <div className="muted">The forecast arrives at freeze time, from the enemy buy read.</div>
         )}
         <div className="h4">Intel this round</div>
         {live?.intel?.length ? (

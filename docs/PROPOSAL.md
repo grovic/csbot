@@ -605,7 +605,12 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
 4. **M4 · Forecast:** demo ingest, zones and routes for the map pool, plan priors, heat, intel from all members, gather mode.
    - *M4a, built:* intel from all members (map clicks, optional numpad hotkeys), and PLAN CHANGED with a mid-round call.
    - *M4b, built:* real maps for the whole pool (Ancient, Anubis, Cache, Dust II, Inferno, Mirage, Nuke), all generated from the CS2 map files. Each map has callout zones, timed routes, enemy plans with first-estimate odds by buy, and a CT playbook (anti-eco and default setups). Intel clicks work anywhere inside a zone.
-   - *Still to do:* calibrating odds and timings with demos, and enemy CT setups for our T halves.
+   - *M4c, built:* the forecast on our T halves.
+     - Each map has 5–6 typical enemy CT setups (standard, stack A, stack B, a map-specific push, light sites), with odds by their buy.
+     - The map shows where defenders likely hold, and the tile says which site is likely light.
+     - Intel is matched to how many defenders a setup puts on each site, so "4 on B" reads as a B stack.
+     - When the read turns clear, PLAN CHANGED calls "A likely light · go A", and Claude is asked for its mid-round call as on CT.
+   - *Still to do:* calibrating odds and timings with demos.
 5. **M5 · Live coach:** playbook, live session, per-player jobs, Coach page, voice, tournament mode, quotas.
    - *Built.* One warm session per match. Claude's call replaces the engine's on every screen.
    - *Measured through the app's own runner:* warm-up 2.2 s, round call 3.0 s (Sonnet, low effort), about $0.011 at API-equivalent prices for both.

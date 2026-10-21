@@ -377,7 +377,18 @@ export class MatchTracker {
     const pb = this.map ? this.o.playbooks[this.map] : undefined;
     const enemy = this.enemy, buy = this.enemyBuy!, read = this.enemyRead!;
     const usable = pb && pb.setups.some(s => s.side === this.ourSide);
-    if (!usable || read === 'pistol') { this.setupSpots = undefined; return genericCall(round, read, buy, enemy, this.ourSide); }
+    if (!usable || read === 'pistol') {
+      this.setupSpots = undefined;
+      const call = genericCall(round, read, buy, enemy, this.ourSide);
+      // On T, the setup read says which site their buy leaves lighter, when it leans one way.
+      const fc = this.ourSide === 'T' ? this.forecast(this.lastAt ?? 0) : undefined;
+      if (fc) {
+        const site: Site = fc.site.B > fc.site.A ? 'B' : 'A';
+        call.why = [...call.why, `Their likely setup: ${fc.topPlan.name} · ${site} lighter ${pct(fc.site[site])} (estimate)`];
+        if (fc.site[site] >= 0.55) call.steps = [...call.steps.slice(0, 2), `Lean ${site}`];
+      }
+      return call;
+    }
     const c = engineRoundCall(pb, enemy, buy);
     const setup = pb.setups.find(s => s.id === c.setup);
     this.setupSpots = setup?.spots.map(s => ({ player: s.player, at: [s.at[0], s.at[1]] as const, label: s.label }));
@@ -471,10 +482,15 @@ export class MatchTracker {
     return { endsIn: Math.max(0, len - (now - since) / 1000), source: 'derived' };
   }
 
-  private forecast(now: number): ForecastView | undefined {
+  /** The plan model for the enemy we face: their attack on our CT halves, their setups on our T halves. */
+  private sideModel(): MapModel | undefined {
     const model = this.map ? this.o.maps[this.map] : undefined;
-    // Plans model the enemy's attack, so only when they're T.
-    if (!model || !this.enemyBuy || this.ourSide !== 'CT') return undefined;
+    return this.ourSide === 'CT' ? model : this.ourSide === 'T' ? model?.ct : undefined;
+  }
+
+  private forecast(now: number): ForecastView | undefined {
+    const model = this.sideModel();
+    if (!model || !this.enemyBuy) return undefined;
     const buy = this.enemyRead === 'pistol' ? { eco: 1, force: 0, half: 0, full: 0 } : this.enemyBuy;
     const prior = planPrior(model, buy);
     const plans = this.intel.length ? planPosterior(model, prior, this.intel.map(({ zone, count, t }) => ({ zone, count, t }))) : prior;
@@ -484,12 +500,14 @@ export class MatchTracker {
       map: model.id, plans, site: siteForecast(model, plans),
       topPlan: { id: top, name: model.plans.find(p => p.id === top)?.name ?? top, p: plans[top] ?? 0 },
       ...(liveT !== undefined ? { liveT } : {}), basis: this.intel.length ? 'intel' : 'prior',
+      ...(this.ourSide === 'T' ? { enemy: 'CT' as const } : {}),
     };
   }
 
   /**
    * After new intel: if one site is now clearly likely (≥ 70%) and the call doesn't already say so,
-   * switch to a "plan changed" call: the rotator goes to that site, the rest of the setup holds.
+   * switch to a "plan changed" call. On CT: the rotator goes to the site they're hitting. On T: go to
+   * the site their setup leaves light.
    */
   private maybePlanChanged(now: number): void {
     const fc = this.forecast(now);
@@ -501,7 +519,7 @@ export class MatchTracker {
       if (this.call.head.startsWith(`${site} `)) return; // already calling this site
     } else {
       // Only when intel changed the read: the likely site flipped, or became clear (≥ 70%) from unclear.
-      const model = this.o.maps[this.map!]!;
+      const model = this.sideModel()!;
       const buy = this.enemyRead === 'pistol' ? { eco: 1, force: 0, half: 0, full: 0 } : this.enemyBuy!;
       const before = siteForecast(model, planPrior(model, buy));
       const beforeSite: Site = before.B >= before.A ? 'B' : 'A';
@@ -509,10 +527,25 @@ export class MatchTracker {
     }
     const base = this.baseCall ?? this.call;
     this.baseCall = base;
-    const jobs = { ...base.jobs };
-    if (jobs.rotator !== undefined || Object.keys(jobs).length === 0) jobs.rotator = `Rotate to ${site} now. Call when you're in position.`;
     const seen = this.intel.slice(-3).map(x => `${x.by.join(' + ')}: ${x.count ? `${x.count} at ${this.zoneName(x.zone)}` : `${this.zoneName(x.zone)} clear`}`);
     const handle = this.o.playbookHandle;
+    if (fc.enemy === 'CT') {
+      // Our T half: their setup leaves `site` light. The headline starts with the site (the coach keys on it).
+      const other: Site = site === 'A' ? 'B' : 'A';
+      this.call = {
+        kind: 'mid', round: this.round,
+        head: `${site} likely light · ${pct(p)}`,
+        sub: `${other} looks stacked · go ${site} together`,
+        jobs: { ...base.jobs }, ...(handle && base.jobs[handle] ? { you: base.jobs[handle] } : {}),
+        steps: [`Go ${site}`, 'Trade, no solo peeks', 'Plant for the crossfire'],
+        why: [...seen, `Forecast: ${site} lighter ${pct(p)} (${fc.topPlan.name}) · estimate`].slice(0, 3),
+        ...(base.setup ? { setup: base.setup } : {}), source: 'engine',
+      };
+      this.push(now, 'PLAN', `Plan changed: ${site} looks light (${pct(p)}). Go ${site}.`);
+      return;
+    }
+    const jobs = { ...base.jobs };
+    if (jobs.rotator !== undefined || Object.keys(jobs).length === 0) jobs.rotator = `Rotate to ${site} now. Call when you're in position.`;
     this.call = {
       kind: 'mid', round: this.round,
       head: `${site} hit likely · ${pct(p)}`,

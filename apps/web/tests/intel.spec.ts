@@ -196,3 +196,20 @@ test('room: a member logs intel through the host, sees the pin, and is refused w
   await memCtx.close();
   await hostCtx.close();
 });
+
+test('on T: a B stack seen → their read flips, PLAN CHANGED, "A likely light"', async ({ page }) => {
+  const errors = watchErrors(page);
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  await page.goto('./?at=live-14%2B3&pause=1#/live');
+  await expect(page.getByTestId('banner')).toHaveAttribute('data-phase', 'live');
+  await expect(page.getByTestId('tile-hit')).toContainText('Likely light');
+  await zone(page, 'bsite').click();
+  await count(page, 4).click();
+  await expect(page.getByTestId('forecast-basis')).toHaveAttribute('data-basis', 'intel');
+  await expect(page.getByTestId('banner')).toContainText('PLAN CHANGED');
+  await expect(page.getByTestId('call-head')).toHaveText(/^A likely light · \d+%$/);
+  await expect(page.getByTestId('tile-hit')).toContainText('A site');
+  await page.getByTestId('map').screenshot({ path: path.join(SCREENS, 'live-t-intel.png') });
+  await page.screenshot({ path: path.join(SCREENS, 'live-t-plan-changed.png') });
+  expect(errors).toEqual([]);
+});

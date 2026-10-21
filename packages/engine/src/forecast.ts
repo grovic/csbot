@@ -2,7 +2,7 @@
 // Maps are the real layouts (map units 0..1000, see geometry.ts); routes walk the map's graph.
 
 import { BUY_TYPES, type BuyProbs, type BuyType } from './economy.ts';
-import { distanceToZone, routeThrough, walkableAt, type GeoZone, type MapGeo, type Point, type Site, type Waypoint } from './geometry.ts';
+import { distanceToZone, routeThrough, walkableAt, zoneSides, type GeoZone, type MapGeo, type Point, type Site, type Waypoint } from './geometry.ts';
 
 export type { Point, Site, Waypoint } from './geometry.ts';
 export type Zone = GeoZone;
@@ -17,6 +17,32 @@ export interface Plan {
   lineup: readonly string[];
   /** Seconds after the round goes live before each player starts walking. */
   delay: readonly number[];
+  /**
+   * Share of `siteForecast` this plan gives each site, when it isn't all on `site`. CT setups use it:
+   * the share is how clearly each site is the lighter one to hit.
+   */
+  share?: Readonly<Record<Site, number>>;
+  /** CT setups: which site each defender counts toward (intel on a site's side is matched to these). */
+  sides?: readonly (Site | 'mid')[];
+}
+
+/**
+ * An enemy CT setup: where the five defenders hold, one zone id per player. A hold counts toward the
+ * site its zone sides with (see zoneSides); `zone:mid`, `zone:A` or `zone:B` overrides that.
+ */
+export interface DefenseSetup { id: string; name: string; holds: readonly string[] }
+
+/** A hold's zone id and the side it counts toward. */
+export function parseHold(geo: MapGeo, hold: string): { zone: string; side: Site | 'mid' | undefined } {
+  const [zone = '', forced] = hold.replace(/\*$/, '').split(':');
+  const side = forced === 'A' || forced === 'B' || forced === 'mid' ? forced : zoneSides(geo)[zone];
+  return { zone, side };
+}
+
+/** Enemy CT setups for our T halves, with their odds by the enemy's buy. */
+export interface MapDefense {
+  setups: readonly DefenseSetup[];
+  priorByBuy: Readonly<Record<BuyType, Readonly<Record<string, number>>>>;
 }
 
 /**
@@ -29,6 +55,8 @@ export interface MapPlans {
   routes: Readonly<Record<string, readonly string[]>>;
   plans: readonly Plan[];
   planPriorByBuy: Readonly<Record<BuyType, Readonly<Record<string, number>>>>;
+  /** Enemy CT setups (our T halves). */
+  defense?: MapDefense;
 }
 
 export interface MapModel {
@@ -40,6 +68,27 @@ export interface MapModel {
   routes: Readonly<Record<string, readonly Waypoint[]>>;
   plans: readonly Plan[];
   planPriorByBuy: Readonly<Record<BuyType, Readonly<Record<string, number>>>>;
+  /** The same map seen from T: plans are the enemy CT setups (each player walks from CT spawn to a hold). */
+  ct?: MapModel;
+  /**
+   * How intel is matched. 'moving' (T plans): Poisson counts, forgiving, since attackers move and fake.
+   * 'holds' (CT setups): defenders sit on spots, so a count far off the setup's is strong evidence.
+   */
+  intelFit?: 'moving' | 'holds';
+}
+
+/** CTs take their spots at a jog with utility ready, a bit under knife speed. */
+const CT_PACE = 0.85;
+
+/**
+ * Which site a setup leaves light, from the defenders counted on each side: even → 50/50, one more on
+ * B → A light 71%, two more → 86%, three more → 94%.
+ */
+export function defenseShare(geo: MapGeo, holds: readonly string[]): Record<Site, number> {
+  let a = 0, b = 0;
+  for (const h of holds) { const s = parseHold(geo, h).side; if (s === 'A') a++; else if (s === 'B') b++; }
+  const A = 1 / (1 + Math.exp(-0.9 * (b - a)));
+  return { A, B: 1 - A };
 }
 
 export function buildMapModel(geo: MapGeo, p: MapPlans): MapModel {
@@ -47,7 +96,20 @@ export function buildMapModel(geo: MapGeo, p: MapPlans): MapModel {
   const routes: Record<string, readonly Waypoint[]> = {};
   for (const [id, zones] of Object.entries(p.routes)) routes[id] = routeThrough(geo, 'T', zones);
   for (const plan of p.plans) for (const r of plan.lineup) if (!routes[r]) throw new Error(`${geo.id}: plan ${plan.id} uses unknown route ${r}`);
-  return { id: geo.id, name: geo.name, roundTime: p.roundTime ?? 115, geo, zones: geo.zones, routes, plans: p.plans, planPriorByBuy: p.planPriorByBuy };
+  const model: MapModel = { id: geo.id, name: geo.name, roundTime: p.roundTime ?? 115, geo, zones: geo.zones, routes, plans: p.plans, planPriorByBuy: p.planPriorByBuy };
+  if (p.defense) {
+    const ctRoutes: Record<string, readonly Waypoint[]> = {};
+    for (const s of p.defense.setups) for (const h of s.holds) { const z = parseHold(geo, h).zone; ctRoutes[z] ??= routeThrough(geo, 'CT', [z + '*']); }
+    const plans: Plan[] = p.defense.setups.map(s => {
+      const share = defenseShare(geo, s.holds);
+      return {
+        id: s.id, name: s.name, site: share.A >= share.B ? 'A' : 'B', share, speed: CT_PACE,
+        lineup: s.holds.map(h => parseHold(geo, h).zone), delay: s.holds.map(() => 0), sides: s.holds.map(h => parseHold(geo, h).side ?? 'mid'),
+      };
+    });
+    model.ct = { ...model, routes: ctRoutes, plans, planPriorByBuy: p.defense.priorByBuy, intelFit: 'holds' };
+  }
+  return model;
 }
 
 export interface Intel {
@@ -118,12 +180,25 @@ function zoneIndex(map: MapModel, id: string): number {
 /** Expected number of a plan's players near a zone at time t. */
 export function expectedInZone(map: MapModel, plan: Plan, zoneId: string, t: number): number {
   const zi = zoneIndex(map, zoneId);
+  // Defenders: a sighting anywhere on a site's side is matched to how many the setup puts on that site.
+  if (map.intelFit === 'holds' && plan.sides) {
+    const side = zoneSides(map.geo)[zoneId];
+    if (side === 'A' || side === 'B') return plan.sides.filter(x => x === side).length;
+  }
+  // Defenders hold angles into a zone from next to it: they count a little further out.
+  const reach = map.intelFit === 'holds' ? 45 : 30;
   let e = 0;
   for (const p of enemyPositions(map, plan, t)) {
     const d = distanceToZone(map.geo, zi, p);
-    e += Math.exp(-(d * d) / (2 * 30 * 30));
+    e += Math.exp(-(d * d) / (2 * reach * reach));
   }
   return e;
+}
+
+/** Defenders: likely when the count is near the setup's; seeing fewer is easier (you see part of a stack). */
+function holdsLikelihood(k: number, lam: number): number {
+  const d = k - lam, s = d > 0 ? 0.8 : 1.3;
+  return Math.max(0.02, Math.exp(-(d * d) / (2 * s * s)));
 }
 
 /**
@@ -136,6 +211,10 @@ export function planPosterior(map: MapModel, prior: PlanProbs, intel: readonly I
   for (const plan of map.plans) {
     let l = prior[plan.id] ?? 0;
     for (const it of intel) {
+      if (map.intelFit === 'holds') {
+        l *= holdsLikelihood(Math.min(5, Math.max(0, Math.round(it.count))), expectedInZone(map, plan, it.zone, it.t));
+        continue;
+      }
       const lam = expectedInZone(map, plan, it.zone, it.t) + 0.35;
       const k = Math.min(4, Math.max(0, Math.round(it.count)));
       let fact = 1;
@@ -150,7 +229,10 @@ export function planPosterior(map: MapModel, prior: PlanProbs, intel: readonly I
 
 export function siteForecast(map: MapModel, post: PlanProbs): Record<Site, number> {
   const out: Record<Site, number> = { A: 0, B: 0 };
-  for (const plan of map.plans) out[plan.site] += post[plan.id] ?? 0;
+  for (const plan of map.plans) {
+    const p = post[plan.id] ?? 0;
+    if (plan.share) { out.A += p * plan.share.A; out.B += p * plan.share.B; } else out[plan.site] += p;
+  }
   return out;
 }
 

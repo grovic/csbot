@@ -2,7 +2,7 @@
 // tools/map-build/src/inspect.ts while writing plays.
 
 import { BUY_TYPES } from '../economy.ts';
-import { buildMapModel, type MapModel, type MapPlans } from '../forecast.ts';
+import { buildMapModel, defenseShare, parseHold, type MapModel, type MapPlans } from '../forecast.ts';
 import { zoneAt, type MapGeo } from '../geometry.ts';
 import { buildPlaybook, SLOT_IDS, type PlaybookDef } from '../playbook.ts';
 
@@ -43,6 +43,33 @@ export function validatePlays(geo: MapGeo, plans: MapPlans, playbook: PlaybookDe
     if (Math.abs(sum - 1) > 0.011) out.push(`planPriorByBuy.${b} sums to ${sum.toFixed(3)}, not 1`);
     for (const k of Object.keys(row)) if (!ids.has(k)) out.push(`planPriorByBuy.${b} names unknown plan ${k}`);
     for (const k of ids) if (row[k] === undefined) out.push(`planPriorByBuy.${b} misses plan ${k}`);
+  }
+
+  if (!plans.defense) out.push('needs enemy CT setups (defense) for our T halves');
+  else {
+    const d = plans.defense;
+    const sids = new Set<string>();
+    for (const s of d.setups) {
+      if (sids.has(s.id)) out.push(`duplicate CT setup ${s.id}`);
+      sids.add(s.id);
+      if (s.holds.length !== 5) out.push(`CT setup ${s.id} needs 5 holds`);
+      for (const h of s.holds) {
+        if (!geo.zones.some(z => z.id === parseHold(geo, h).zone)) out.push(`CT setup ${s.id}: unknown zone ${h}`);
+        if (h.includes(':') && !/:(A|B|mid)$/.test(h)) out.push(`CT setup ${s.id}: ${h} — the side after ':' is A, B or mid`);
+      }
+    }
+    if (d.setups.length < 4) out.push('needs at least 4 CT setups');
+    const shares = d.setups.map(s => defenseShare(geo, s.holds).A);
+    if (!shares.some(a => a > 0.6)) out.push('needs a CT setup that leaves A light (stacks B)');
+    if (!shares.some(a => a < 0.4)) out.push('needs a CT setup that leaves B light (stacks A)');
+    if (!shares.some(a => a >= 0.4 && a <= 0.6)) out.push('needs a balanced CT setup');
+    for (const b of BUY_TYPES) {
+      const row = d.priorByBuy[b];
+      const sum = Object.values(row).reduce((t, v) => t + v, 0);
+      if (Math.abs(sum - 1) > 0.011) out.push(`defense.priorByBuy.${b} sums to ${sum.toFixed(3)}, not 1`);
+      for (const k of Object.keys(row)) if (!sids.has(k)) out.push(`defense.priorByBuy.${b} names unknown setup ${k}`);
+      for (const k of sids) if (row[k] === undefined) out.push(`defense.priorByBuy.${b} misses setup ${k}`);
+    }
   }
 
   const slots = playbook.slots.map(s => s.id).sort();

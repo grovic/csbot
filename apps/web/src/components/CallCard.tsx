@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { claudeCallFor, secs } from '../data/coachInfo.ts';
 import { clockStr, pct } from '../format.ts';
 
-const planName = (map: string, id: string) => MAPS[map]?.plans.find(p => p.id === id)?.name ?? id;
+const planName = (map: string, ct: boolean, id: string) => (ct ? MAPS[map]?.ct : MAPS[map])?.plans.find(p => p.id === id)?.name ?? id;
 
 /** "Claude Code · sonnet · 3.1 s", from the call log entry that wrote this round's call. */
 function claudeMeta(coach: CoachView | undefined, round: number): string {
@@ -91,7 +91,7 @@ export function CallCard({ snap, room, coach }: { snap: LiveSnapshot; room?: Roo
         <div className="why" data-testid="why">
           {c.why.length > 0 && <div><h4>Facts</h4><ul>{c.why.map(w => <li key={w}>{w}</li>)}</ul></div>}
           {plans.length > 0 && (
-            <div><h4>Enemy plans (estimate)</h4><ul>{plans.map(([id, p]) => <li key={id}>{planName(fmap!, id)} · {pct(p)}</li>)}</ul></div>
+            <div><h4>{snap.forecast?.enemy === 'CT' ? 'Their setups (estimate)' : 'Enemy plans (estimate)'}</h4><ul>{plans.map(([id, p]) => <li key={id}>{planName(fmap!, snap.forecast?.enemy === 'CT', id)} · {pct(p)}</li>)}</ul></div>
           )}
         </div>
       )}

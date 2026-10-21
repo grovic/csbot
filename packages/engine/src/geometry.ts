@@ -200,3 +200,34 @@ export function routeThrough(geo: MapGeo, from: 'T' | 'CT', zones: readonly stri
   });
   return out;
 }
+
+const sides = new WeakMap<MapGeo, Record<string, Site | 'mid'>>();
+/**
+ * Which site each zone belongs to, by walking time from its hub to each site's hub: clearly closer to
+ * one site (under 70% of the time to the other) is that site's side, else mid.
+ */
+export function zoneSides(geo: MapGeo): Readonly<Record<string, Site | 'mid'>> {
+  let out = sides.get(geo);
+  if (out) return out;
+  const { adj } = graphOf(geo);
+  const timesFrom = (start: number) => {
+    const dist = new Map<number, number>([[start, 0]]);
+    const open = new Set([start]);
+    while (open.size) {
+      let u = -1, du = Infinity;
+      for (const n of open) { const d = dist.get(n)!; if (d < du) { du = d; u = n; } }
+      open.delete(u);
+      for (const e of adj.get(u) ?? []) { const nd = du + e[2]!; if (nd < (dist.get(e[1]!) ?? Infinity)) { dist.set(e[1]!, nd); open.add(e[1]!); } }
+    }
+    return dist;
+  };
+  const ai = geo.zones.findIndex(z => z.site === 'A'), bi = geo.zones.findIndex(z => z.site === 'B');
+  const fromA = timesFrom(ai), fromB = timesFrom(bi);
+  out = {};
+  geo.zones.forEach((z, i) => {
+    const ta = fromA.get(i) ?? Infinity, tb = fromB.get(i) ?? Infinity;
+    out![z.id] = z.site ?? (ta < 0.7 * tb ? 'A' : tb < 0.7 * ta ? 'B' : 'mid');
+  });
+  sides.set(geo, out);
+  return out;
+}

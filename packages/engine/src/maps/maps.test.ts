@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buyProbs } from '../economy.ts';
-import { heatGrid, planPrior, siteForecast } from '../forecast.ts';
+import { heatGrid, planPosterior, planPrior, siteForecast } from '../forecast.ts';
 import { gridCells, routeThrough, walkableAt, zoneAt } from '../geometry.ts';
 import { engineRoundCall, SLOT_IDS } from '../playbook.ts';
 import { GEOS, MAP_POOL, MAPS, PLAYBOOKS, slotsFor } from './index.ts';
@@ -88,6 +88,20 @@ describe.each(POOL)('%s plays', id => {
     for (let j = 0; j < 100; j++) for (let i = 0; i < 100; i++) if (heat[j * 100 + i]! > 0 && !walkableAt(model.geo, i * 10 + 5, j * 10 + 5, 12)) off++;
     expect(off).toBe(0);
     expect(Math.max(...heat)).toBeGreaterThan(0.3);
+  });
+
+  it('our T halves: their CT setups cover both sites, intel of a stack points at the other site', () => {
+    const ct = model.ct!;
+    expect(ct.intelFit).toBe('holds');
+    const prior = planPrior(ct, buyProbs({ lo: 2800, hi: 5000 }, { saved: true }));
+    const s = siteForecast(ct, prior);
+    expect(s.A + s.B).toBeCloseTo(1, 6);
+    expect(Math.abs(s.A - 0.5)).toBeLessThan(0.2); // no strong lean before any intel
+    const heat = heatGrid(ct, prior, 15, { size: 100 });
+    expect(Math.max(...heat)).toBeGreaterThan(0.3);
+    // Four defenders seen on B: A becomes the lighter site, and the reverse.
+    expect(siteForecast(ct, planPosterior(ct, prior, [{ zone: 'bsite', count: 4, t: 20 }])).A).toBeGreaterThan(0.6);
+    expect(siteForecast(ct, planPosterior(ct, prior, [{ zone: 'asite', count: 4, t: 20 }])).B).toBeGreaterThan(0.6);
   });
 
   it('engine calls pick the anti-eco setup on an eco and give all five slots a job', () => {
