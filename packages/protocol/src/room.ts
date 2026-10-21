@@ -4,6 +4,7 @@
 
 import { z } from 'zod';
 import type { LiveSnapshot } from './index.ts';
+import type { DebriefView } from './debrief.ts';
 import type { ScoutView } from './scout.ts';
 import type { CoachView } from './coach.ts';
 
@@ -77,6 +78,8 @@ export interface ScreenState {
   scout?: ScoutView;
   /** The live coach: chat, call log, budget (from the host). */
   coach?: CoachView;
+  /** The post-match debrief (from the host in a room, or this PC). */
+  debrief?: DebriefView;
   link?: { status: LinkStatus; since: number; detail?: string };
 }
 
@@ -111,6 +114,8 @@ export type HostMessage =
   | { t: 'state'; room: RoomView; live: LiveSnapshot; epoch?: number }
   /** Sent on join and whenever scouting changes (too big to ride along with every state). */
   | { t: 'scout'; scout: ScoutView }
+  /** Sent on join and whenever the debrief changes (a match ends, a demo or Claude's notes arrive). */
+  | { t: 'debrief'; debrief: DebriefView }
   /** Sent on join and whenever the coach changes (chat, call log, budget). */
   | { t: 'coach'; coach: CoachView }
   /** The answer to this member's own ask: refused (quota, permission) or accepted. */
@@ -120,7 +125,7 @@ export type HostMessage =
   | { t: 'removed'; reason: string }
   | { t: 'ended' };
 
-const HOST_TYPES = new Set(['welcome', 'state', 'scout', 'coach', 'askResult', 'intelResult', 'removed', 'ended']);
+const HOST_TYPES = new Set(['debrief', 'welcome', 'state', 'scout', 'coach', 'askResult', 'intelResult', 'removed', 'ended']);
 export function isHostMessage(m: unknown): m is HostMessage {
   return !!m && typeof m === 'object' && HOST_TYPES.has((m as { t?: unknown }).t as string);
 }

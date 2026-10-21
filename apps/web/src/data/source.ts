@@ -22,7 +22,7 @@ export interface SnapshotSource {
   checkIn?(slot: string, state: 'spot' | 'rotate', site?: 'A' | 'B'): { ok: boolean; error?: string };
 }
 
-/** A source with no data: the browser without a host (room joining arrives in M2). */
+/** A source with no data: the browser without a host. */
 export function noneSource(): SnapshotSource {
   const snap: LiveSnapshot = {
     v: 1, seq: 1, at: Date.now(), scoreboard: [], ticker: [],

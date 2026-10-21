@@ -6,7 +6,7 @@ import { spectatorGuard, toGameState, type GsiPayload } from '@csbot/gsi';
 import {
   DEFAULT_PERMISSIONS, parseMemberMessage, ROOM_PROTOCOL,
   type DeviceKind, type HostMessage, type JoinRequest, type LiveSnapshot, type MemberMessage, type PlayerRow,
-  type CoachAsker, type CoachView, type RoomMember, type RoomPermissions, type RoomView, type ScoutView, type ScreenState,
+  type CoachAsker, type CoachView, type DebriefView, type RoomMember, type RoomPermissions, type RoomView, type ScoutView, type ScreenState,
 } from '@csbot/protocol';
 import { mergeRows, personalize } from './compose.ts';
 import { composeSquad, type CheckIn, type SlotInfo } from './squad.ts';
@@ -98,6 +98,7 @@ export class RoomHost {
   private live: LiveSnapshot = EMPTY_LIVE;
   private scout?: ScoutView;
   private coach?: CoachView;
+  private debrief?: DebriefView;
   private listeners = new Set<(s: ScreenState) => void>();
   private timer?: ReturnType<typeof setTimeout>;
   private lastBroadcast = 0;
@@ -153,6 +154,13 @@ export class RoomHost {
     this.schedule(true);
   }
 
+  /** New debrief (a match ended, a demo or Claude's notes arrived): every member gets it now. */
+  setDebrief(d: DebriefView): void {
+    this.debrief = d;
+    for (const m of this.members.values()) if (m.peer) this.send(m.peer, { t: 'debrief', debrief: d });
+    this.schedule(true);
+  }
+
   /** New scouting: every member gets it now; joiners get it on approval. */
   setScout(s: ScoutView): void {
     this.scout = s;
@@ -172,6 +180,7 @@ export class RoomHost {
     this.send(req.peer, { t: 'welcome', v: ROOM_PROTOCOL, status: 'approved' });
     if (this.scout) this.send(req.peer, { t: 'scout', scout: this.scout });
     if (this.coach) this.send(req.peer, { t: 'coach', coach: this.coach });
+    if (this.debrief) this.send(req.peer, { t: 'debrief', debrief: this.debrief });
     this.schedule(true);
   }
 
@@ -232,7 +241,7 @@ export class RoomHost {
 
   /** The admin's own screen. */
   screen(): ScreenState {
-    return { live: this.personalLive(HOST_ID), room: this.view(HOST_ID), ...(this.scout ? { scout: this.scout } : {}), ...(this.coach ? { coach: this.coach } : {}) };
+    return { live: this.personalLive(HOST_ID), room: this.view(HOST_ID), ...(this.scout ? { scout: this.scout } : {}), ...(this.coach ? { coach: this.coach } : {}), ...(this.debrief ? { debrief: this.debrief } : {}) };
   }
 
   subscribe(cb: (s: ScreenState) => void): () => void {
@@ -314,6 +323,7 @@ export class RoomHost {
       this.send(peer.id, { t: 'welcome', v: ROOM_PROTOCOL, status: 'approved' });
       if (this.scout) this.send(peer.id, { t: 'scout', scout: this.scout });
       if (this.coach) this.send(peer.id, { t: 'coach', coach: this.coach });
+      if (this.debrief) this.send(peer.id, { t: 'debrief', debrief: this.debrief });
       this.schedule(true);
       return;
     }
@@ -437,7 +447,7 @@ export class RoomHost {
       this.send(m.peer, { t: 'state', room: this.view(m.id), live: this.personalLive(m.id, rows, base) });
     }
     if (this.listeners.size) {
-      const s: ScreenState = { live: this.personalLive(HOST_ID, rows, base), room: this.view(HOST_ID), ...(this.scout ? { scout: this.scout } : {}), ...(this.coach ? { coach: this.coach } : {}) };
+      const s: ScreenState = { live: this.personalLive(HOST_ID, rows, base), room: this.view(HOST_ID), ...(this.scout ? { scout: this.scout } : {}), ...(this.coach ? { coach: this.coach } : {}), ...(this.debrief ? { debrief: this.debrief } : {}) };
       for (const cb of this.listeners) cb(s);
     }
   }

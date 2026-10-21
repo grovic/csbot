@@ -68,7 +68,7 @@ function SourceCell({ r }: { r: PlayerRow }) {
 function EnemyPlayers({ scout }: { scout: ScoutView }) {
   return (
     <div className="tw">
-      <table className="t enemy-tbl" data-testid="enemy-players">
+      <div className="scroll-x"><table className="t enemy-tbl" data-testid="enemy-players">
         <thead><tr><th>Player</th><th>Role</th><th className="r">Level · ELO</th><th className="r">K/D</th><th>Threat</th></tr></thead>
         <tbody>
           {scout.them.players.map(p => (
@@ -81,7 +81,7 @@ function EnemyPlayers({ scout }: { scout: ScoutView }) {
             </tr>
           ))}
         </tbody>
-      </table>
+      </table></div>
     </div>
   );
 }
@@ -110,7 +110,7 @@ export function Scoreboard({ snap, inRoom = false, scout }: { snap: LiveSnapshot
         <div>
           <div className="team-h">{ours && <span className={'side-tag ' + ours.toLowerCase()}>{ours}</span>}Your team<span className="n">{m.score.us}</span></div>
           <div className="tw">
-            <table className="t" data-testid="our-team">
+            <div className="scroll-x"><table className="t" data-testid="our-team">
               <thead><tr><th>Player</th><th className="r">Money</th><th className="r">K</th><th className="r">A</th><th className="r">D</th><th className="r">ADR</th><th className="r">MVP</th><th>Data</th></tr></thead>
               <tbody>
                 {snap.scoreboard.map(r => (
@@ -126,7 +126,7 @@ export function Scoreboard({ snap, inRoom = false, scout }: { snap: LiveSnapshot
                     : 'Teammates appear when you watch them after dying, or live when they join your room with the desktop app.'}</td></tr>
                 )}
               </tbody>
-            </table>
+            </table></div>
           </div>
         </div>
         <div>

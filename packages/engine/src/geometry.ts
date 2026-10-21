@@ -252,3 +252,16 @@ export function zoneSides(geo: MapGeo): Readonly<Record<string, Site | 'mid'>> {
   sides.set(geo, out);
   return out;
 }
+
+/** World units (from a demo) to map units, on the right level (Nuke's lower floor is drawn apart). */
+export function worldToMap(geo: MapGeo, x: number, y: number, z = 0): Point {
+  const w = geo.world;
+  const lv = w.levels.length > 1 && w.levels[1]!.below !== undefined && z < w.levels[1]!.below ? w.levels[1]! : w.levels[0]!;
+  return [(x + lv.dx) * w.s + w.ox, w.oy - (y + lv.dy) * w.s];
+}
+
+/** Map units back to world units on the main level (fictional fixtures, tests). */
+export function mapToWorld(geo: MapGeo, mx: number, my: number): { x: number; y: number; z: number } {
+  const w = geo.world;
+  return { x: (mx - w.ox) / w.s, y: (w.oy - my) / w.s, z: 0 };
+}

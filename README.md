@@ -16,7 +16,7 @@ Teammates who only want to watch and log intel don't need it: they open the room
 
 ## Status
 
-**M1 (core host), M2 (rooms), M3 (Scout), M4a (live intel), M4b (real maps), M4c (T-side forecast), M4d (T playbook), M4e (squad markers) and M5 (live coach) are built.**
+**M1 (core host), M2 (rooms), M3 (Scout), M4a (live intel), M4b (real maps), M4c (T-side forecast), M4d (T playbook), M4e (squad markers), M5 (live coach) and M6 (debrief) are built.**
 - **M1:** the Electron host reads GSI, runs the economy engine, and shows the Live page.
 - **M2:** the admin creates a room in the desktop app and shares an invite link. Teammates open it in a browser, or paste it into their own csbot, and see the same calls with their own job. Rooms are peer-to-peer: no account, no server.
 
@@ -28,6 +28,11 @@ Teammates who only want to watch and log intel don't need it: they open the room
 
 - **M4c:** on your T halves, the map shows where their CTs likely hold and which site is likely light. Logging "4 on B" turns the call to "A likely light · go A".
 
+- **M6:** the Debrief page.
+  - From every match csbot is open for: the result, your rating, rounds won by side and by buy, the enemy money estimate per round, every round's reads and calls, and progress across matches.
+  - Claude writes "work on next".
+  - Add the match demo (from CS2's replays folder, or drop the file) to see how often the buy read and the site read were right, their real money, and where you died.
+
 - **M8 (part):** if the host's PC drops, a desktop member takes over the room with one click. Members follow by themselves, and the old host rejoins as a member when it comes back. Rooms expire a day after their last match.
 
 - **M4e:** squad markers in a room: each player's marker is planned, on spot, rotating to a site with a countdown, or dead. Players check in with buttons under the map, or Num5 / Num4 / Num6 on the desktop app. Positions are only what players report; the game never sends teammates' positions.
@@ -36,7 +41,7 @@ Teammates who only want to watch and log intel don't need it: they open the room
 
 - **M5:** the host's own Claude Code writes the team call at every freeze time and after a plant, about 3 s after the engine's instant call. The squad asks it questions from the Coach page (per-member quota, per-match budget). Voice callouts read your job. Tournament mode turns it all off.
 
-Calibrating the forecast with demos (rest of M4) and the debrief (M6) come next ([roadmap](docs/PROPOSAL.md#12-roadmap-v1-in-milestones)).
+The extras (M7) and the last hardening (M8) come next ([roadmap](docs/PROPOSAL.md#12-roadmap-v1-in-milestones)). Calibrating the forecast needs the squad's own demos.
 
 | Piece | Where | Run it |
 |---|---|---|
@@ -46,6 +51,8 @@ Calibrating the forecast with demos (rest of M4) and the debrief (M6) come next 
 | Replay a recording or the synthetic match into a host | `tools/gsi-replayer` | see its README |
 | Record GSI without the app | `tools/gsi-recorder` | see its README |
 | Rooms: host, client, invite links, peer-to-peer transport | `packages/room` | `pnpm test` |
+| Debrief: match records, stats, Claude's notes | `packages/debrief` | `pnpm test` |
+| Demo reading (CS2 .dem → real money, plants, deaths) | `packages/demo` | `node packages/demo/src/cli.ts <file.dem>` |
 | Map geometry from the CS2 map files (zones, outlines, walking graph); per-map plays live in `packages/engine/src/maps/plays` | `tools/map-build` | see its README |
 | Scouting: FACEIT/Steam clients, sample match, scouting math, AI report contract | `packages/scout` | `pnpm test` |
 | Live coach: prompts, output schema, parsing, budget and quotas | `packages/coach` | `pnpm test` |

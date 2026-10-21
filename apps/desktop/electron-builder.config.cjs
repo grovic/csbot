@@ -23,6 +23,8 @@ module.exports = {
   // main.cjs is a full bundle: the app needs no node_modules (electron-builder would otherwise fall back
   // to the workspace's and pack sources and dev files).
   files: ['**/*', '!**/*.map', '!node_modules{,/**/*}'],
+  // The demo parser's native module (staged under native/) must stay a real file on disk.
+  asarUnpack: ['native/**/*'],
   win: {
     target: [{ target: 'nsis', arch: ['x64'] }],
     icon: 'assets/icon.ico',

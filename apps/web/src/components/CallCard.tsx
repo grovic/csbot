@@ -55,7 +55,7 @@ export function CallCard({ snap, room, coach }: { snap: LiveSnapshot; room?: Roo
       <div className="call" data-testid="call" data-kind="gameover">
         <div className="kick">Final · {m.history.length} rounds</div>
         <div className="head" data-testid="call-head">{r} {m.score.us}–{m.score.them}</div>
-        <div className="sub">The debrief (buy-read accuracy, money per round, what to work on) arrives in M6.</div>
+        <div className="sub">The debrief has the result, your rating and what to work on: <a href="#/debrief">open the Debrief</a>.</div>
       </div>
     );
   }

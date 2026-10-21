@@ -263,7 +263,7 @@ function EnemyDetail({ p, map }: { p: ScoutPlayer; map?: string }) {
       <div>
         <div className="card-h" style={{ marginBottom: 6 }}><h3>By map</h3><span className="muted small">FACEIT 5v5</span></div>
         {maps.length ? (
-          <div className="tw"><table className="t">
+          <div className="tw scroll-x"><table className="t">
             <thead><tr><th>Map</th><th className="r">Matches</th><th className="r">Win</th><th className="r">K/D</th></tr></thead>
             <tbody>{maps.map(([m, x]) => (
               <tr key={m} className={m === map ? 'me-row' : ''}><td>{mapName(m)}</td><td className="r">{x.matches}</td><td className="r">{Math.round(x.winRate)}%</td><td className="r">{kd(x.kd)}</td></tr>
@@ -329,7 +329,7 @@ function OurCard({ p, me }: { p: ScoutPlayer; me: boolean }) {
         </div>
       </div>
       <div style={{ marginTop: 8 }}><span className={'rolebadge ' + room}>{room === 'random' ? 'RANDOM · NOT IN ROOM' : room.toUpperCase()}</span></div>
-      <div className="sug"><span className="sl">Role</span>{roleText(p) ?? 'from demos (M4)'}</div>
+      <div className="sug"><span className="sl">Role</span>{roleText(p) ?? 'not enough data yet'}</div>
       <div className="sug"><span className="sl">Form</span>{p.stats.recent ? <Form recent={p.stats.recent} /> : '–'}</div>
       {!!p.flags.length && <div className="flags" style={{ marginTop: 6 }}>{p.flags.map(f => <span key={f} className="flag">{f}</span>)}</div>}
     </div>
