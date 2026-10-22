@@ -56,3 +56,21 @@ test("saving the team's playbook changes the call now, and it's kept on disk", a
   expect(r.error).toMatch(/five positions/);
   expect((await last(host))?.call?.head).toBe('Our team call');
 });
+
+test("the practice config goes into CS2's cfg folder (a fake install here), from the saved lineups", async () => {
+  // No CS2 yet: refused.
+  const none = await host.page.evaluate(() => window.csbot!.installPractice!('de_mirage'));
+  expect(none).toMatchObject({ ok: false, error: expect.stringMatching(/CS2 not found/) });
+  // A fake CS2 install inside the test's own Steam folder (never the real game folder).
+  const cfgDir = path.join(host.dir, 'Steam', 'steamapps', 'common', 'Counter-Strike Global Offensive', 'game', 'csgo', 'cfg');
+  fs.mkdirSync(cfgDir, { recursive: true });
+  const team: TeamPlan = { playbooks: {}, antistrats: [], lineups: { de_mirage: [{ id: 'ours', name: 'Our window smoke', kind: 'smoke', side: 'T', from: [840, 270], to: [470, 410], how: 'Jumpthrow', exact: { pos: [1216.03, -211.97, -159.97], ang: [-48, -144.5] } }] } };
+  expect(await host.page.evaluate(t => window.csbot!.setTeam!(t), team)).toEqual({ ok: true });
+  const r = await host.page.evaluate(() => window.csbot!.installPractice!('de_mirage'));
+  expect(r.ok).toBe(true);
+  expect(r.path).toBe(path.join(cfgDir, 'csbot_de_mirage.cfg'));
+  const cfg = fs.readFileSync(r.path!, 'utf8');
+  expect(cfg).toContain('alias lineup1 "setpos 1216.03 -211.97 -159.97; setang -48 -144.5 0; give weapon_smokegrenade');
+  expect(cfg.match(/^alias lineup\d+ /gm)).toHaveLength(1);
+  expect(await host.page.evaluate(() => window.csbot!.installPractice!('de_nowhere'))).toEqual({ ok: false, error: 'Unknown map.' });
+});

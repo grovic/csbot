@@ -51,9 +51,33 @@ export interface AntiStrat {
   updatedAt: number;
 }
 
+export type LineupKind = 'smoke' | 'molotov' | 'flash' | 'he';
+
+/** A utility lineup: where it's thrown from and where it lands (map units), and how. */
+export interface Lineup {
+  id: string;
+  name: string;
+  kind: LineupKind;
+  side: 'CT' | 'T';
+  from: TeamPoint;
+  to: TeamPoint;
+  /** The technique: "Jumpthrow", "Run + jumpthrow", "Stand, right click"… */
+  how?: string;
+  notes?: string;
+  /**
+   * The exact spot from your own practice server (setpos x y z and setang pitch yaw), for the practice
+   * config. Without it the config puts you near the throw spot, facing the landing spot.
+   */
+  exact?: { pos: readonly [number, number, number]; ang: readonly [number, number] };
+  /** The setups (ids) that use it: their calls list it. */
+  setups?: readonly string[];
+}
+
 export interface TeamPlan {
   /** Only the maps the team changed; the rest use csbot's playbook. */
   playbooks: Readonly<Record<string, TeamPlaybook>>;
+  /** Utility lineups, for the maps the team changed; the rest use csbot's starter list. */
+  lineups?: Readonly<Record<string, readonly Lineup[]>>;
   antistrats: readonly AntiStrat[];
   /** The anti-strat in use (its id), if any. */
   active?: string;
@@ -159,6 +183,41 @@ function antistrat(v: unknown): AntiStrat | undefined {
   return { id, name, maps, updatedAt: num(o.updatedAt, 0, 1e14) ?? 0 };
 }
 
+const KINDS: readonly LineupKind[] = ['smoke', 'molotov', 'flash', 'he'];
+const pt = (v: unknown): TeamPoint | undefined => {
+  const a = Array.isArray(v) ? v : [];
+  const x = num(a[0], 0, 1000), y = num(a[1], 0, 1000);
+  return x !== undefined && y !== undefined ? [Math.round(x), Math.round(y)] : undefined;
+};
+
+function lineup(v: unknown): Lineup | undefined {
+  const o = obj(v);
+  const id = str(o?.id, 32), name = str(o?.name, 48), from = pt(o?.from), to = pt(o?.to);
+  if (!o || !id || !ID.test(id) || !name || !from || !to || !KINDS.includes(o.kind as LineupKind) || (o.side !== 'CT' && o.side !== 'T')) return undefined;
+  const how = str(o.how, 40), notes = str(o.notes, 300);
+  const ex = obj(o.exact), pos = Array.isArray(ex?.pos) ? ex.pos : [], ang = Array.isArray(ex?.ang) ? ex.ang : [];
+  const p = [num(pos[0], -20000, 20000), num(pos[1], -20000, 20000), num(pos[2], -20000, 20000)];
+  const a = [num(ang[0], -90, 90), num(ang[1], -360, 360)];
+  const exact = p.every(x => x !== undefined) && a.every(x => x !== undefined)
+    ? { pos: p.map(x => Math.round(x! * 100) / 100) as unknown as readonly [number, number, number], ang: a.map(x => Math.round(x! * 100) / 100) as unknown as readonly [number, number] }
+    : undefined;
+  const setups = arr(o.setups, 12).flatMap(s => { const t = str(s, 32); return t && ID.test(t) ? [t] : []; });
+  return {
+    id, name, kind: o.kind as LineupKind, side: o.side, from, to,
+    ...(how ? { how } : {}), ...(notes ? { notes } : {}), ...(exact ? { exact } : {}), ...(setups.length ? { setups: [...new Set(setups)] } : {}),
+  };
+}
+
+/** "setpos 1 2 3;setang 4 5 6" (from the console of your own practice server) → an exact spot. */
+export function parseSetpos(text: string): Lineup['exact'] | undefined {
+  const n = String.raw`(-?\d+(?:\.\d+)?)`;
+  const pos = new RegExp(String.raw`setpos(?:_exact)?\s+` + `${n}\\s+${n}\\s+${n}`, 'i').exec(text);
+  const ang = new RegExp(String.raw`setang(?:_exact)?\s+` + `${n}\\s+${n}`, 'i').exec(text);
+  if (!pos || !ang) return undefined;
+  const l = lineup({ id: 'x', name: 'x', kind: 'smoke', side: 'T', from: [0, 0], to: [0, 0], exact: { pos: [Number(pos[1]), Number(pos[2]), Number(pos[3])], ang: [Number(ang[1]), Number(ang[2])] } });
+  return l?.exact;
+}
+
 /** A team plan from anywhere (disk, the room): anything malformed is dropped, sizes are capped. */
 export function sanitizeTeam(raw: unknown): TeamPlan {
   const o = obj(raw);
@@ -172,5 +231,11 @@ export function sanitizeTeam(raw: unknown): TeamPlan {
   const ids = new Set<string>();
   const antistrats = arr(o.antistrats, 40).flatMap(a => { const x = antistrat(a); return x && !ids.has(x.id) ? (ids.add(x.id), [x]) : []; });
   const active = typeof o.active === 'string' && ids.has(o.active) ? o.active : undefined;
-  return { playbooks, antistrats, ...(active ? { active } : {}) };
+  const lineups: Record<string, Lineup[]> = {};
+  for (const [map, list] of Object.entries(obj(o.lineups) ?? {}).slice(0, 12)) {
+    if (!MAP.test(map)) continue;
+    const seen = new Set<string>();
+    lineups[map] = arr(list, 80).flatMap(x => { const l = lineup(x); return l && !seen.has(l.id) ? (seen.add(l.id), [l]) : []; });
+  }
+  return { playbooks, antistrats, ...(active ? { active } : {}), ...(Object.keys(lineups).length ? { lineups } : {}) };
 }

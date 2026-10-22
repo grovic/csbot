@@ -1,4 +1,4 @@
-import { MAPS } from '@csbot/engine';
+import { lineupsFor, MAPS } from '@csbot/engine';
 import type { CoachView, LiveSnapshot, RoomView } from '@csbot/protocol';
 import { useEffect, useRef, useState } from 'react';
 import { claudeCallFor, secs } from '../data/coachInfo.ts';
@@ -71,6 +71,8 @@ export function CallCard({ snap, room, coach }: { snap: LiveSnapshot; room?: Roo
   const left = m?.clock.phase === 'live' ? m.clock.endsIn : undefined;
   const kick = { pre: `Team call · round ${c.round}`, mid: `Update · ${left !== undefined ? clockStr(left) : `round ${c.round}`}`, post: `Post-plant · round ${c.round}`, over: `Round ${c.round} result` }[c.kind];
   const fmap = snap.forecast && MAPS[snap.forecast.map] ? snap.forecast.map : undefined;
+  // The utility the call's setup uses (the team's lineups, else csbot's starter list).
+  const util = c.kind === 'pre' || c.kind === 'mid' ? lineupsFor(m?.map, c.setup) : [];
   const plans = fmap ? Object.entries(snap.forecast!.plans).sort((a, b) => b[1] - a[1]).slice(0, 3) : [];
   return (
     <div className="call" ref={ref} data-testid="call" data-kind={c.kind}>
@@ -81,6 +83,9 @@ export function CallCard({ snap, room, coach }: { snap: LiveSnapshot; room?: Roo
         <div className="youline" data-testid="youline"><span className="yb">YOU</span><span data-testid="call-you">{c.you}</span></div>
       )}
       {c.steps.length > 0 && <ul className="steps">{c.steps.slice(0, 3).map(s => <li key={s}>{s}</li>)}</ul>}
+      {util.length > 0 && (
+        <div className="utilline" data-testid="call-utility"><span className="ub">UTILITY</span>{util.slice(0, 5).map(l => <span key={l.id} className="nade-chip"><i className={'nade-dot ' + l.kind} />{l.name}</span>)}</div>
+      )}
       <div className="meta">
         <span data-testid="call-source" data-source={c.source}>{c.source === 'engine' ? 'local engine' : claudeMeta(coach, c.round)}</span>
         {(c.why.length > 0 || plans.length > 0) && (

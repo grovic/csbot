@@ -20,7 +20,7 @@ import { loadWindowState, restorableBounds, saveWindowState } from './window-sta
 import { claudeCommand, detectClaude, runAnalyst, runClaudeJson } from './scout/claude.ts';
 import { DebriefService } from './debrief/service.ts';
 import { loadTeam, saveTeam } from './team.ts';
-import { applyTeam } from '@csbot/engine';
+import { applyTeam, GEOS, LINEUPS, practiceConfig, practiceFileName } from '@csbot/engine';
 import { parseDemoFile } from './debrief/demo.ts';
 import { FileStore } from './scout/file-cache.ts';
 import { KEY_SERVICES, Secrets, type KeyService } from './scout/secrets.ts';
@@ -376,6 +376,22 @@ function run(): void {
     ipcMain.handle('csbot:getInfo', e => {
       guard(e);
       return host ? { ...host.info(), update: updater.status, ...(hotkeys ? { intelHotkeys: hotkeys.status() } : {}), ...(voice ? { voice: voice.status() } : {}) } : undefined;
+    });
+    // Practice config (M7): the map's lineups (the team's, else csbot's) as a .cfg in CS2's cfg folder,
+    // on the user's click. Generated here from the saved plan, never from text the page sends.
+    ipcMain.handle('csbot:installPractice', (e, map: unknown) => {
+      guard(e);
+      if (typeof map !== 'string' || !GEOS[map]) return { ok: false, error: 'Unknown map.' };
+      const cs2 = host?.redetectCs2();
+      if (!cs2) return { ok: false, error: 'CS2 not found. Is Counter-Strike 2 installed through Steam on this PC?' };
+      try {
+        const file = path.join(cs2.cfgDir, practiceFileName(map));
+        fs.writeFileSync(file, practiceConfig(map, LINEUPS[map] ?? []), 'utf8');
+        log(`wrote ${file}`);
+        return { ok: true, path: file };
+      } catch (err) {
+        return { ok: false, error: (err as Error).message };
+      }
     });
     ipcMain.handle('csbot:installCfg', (e): CfgInstallResult => {
       guard(e);

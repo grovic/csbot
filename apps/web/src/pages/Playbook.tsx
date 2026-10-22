@@ -3,7 +3,7 @@
 // saved right away, and every screen's engine runs on it: calls, jobs, planned spots, plan odds.
 
 import {
-  builtinModel, builtinPlaybook, GEOS, MAP_POOL, planPrior, siteForecast, teamModel, walkableAt, type BuyProbs,
+  builtinLineups, builtinModel, builtinPlaybook, GEOS, MAP_POOL, planPrior, siteForecast, teamModel, walkableAt, type BuyProbs,
 } from '@csbot/engine';
 import {
   WEIGHTS, type AntiStrat, type AntiStratMap, type BuyType, type TeamPlan, type TeamPlaybook, type TeamSetup, type TeamSlot,
@@ -12,6 +12,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { viewOf } from '../components/MapPanel.tsx';
 import { teamOf, scoutOf, type Session, type SessionView } from '../data/session.ts';
 import { mapName } from '../format.ts';
+import { Lineups } from './Lineups.tsx';
 
 const BUYS: readonly BuyType[] = ['eco', 'force', 'half', 'full'];
 const BUY_NAME: Record<BuyType, string> = { eco: 'eco', force: 'force', half: 'half buy', full: 'full buy' };
@@ -55,7 +56,7 @@ export function PlaybookPage({ view, session }: { view: SessionView; session: Se
   const { plan, change, state } = useAutosave(session, shown);
   const match = view.screen?.live.match;
   const [map, setMap] = useState(() => (match?.map && GEOS[match.map] ? match.map : 'de_mirage'));
-  const [tab, setTab] = useState<'plays' | 'anti'>('plays');
+  const [tab, setTab] = useState<'plays' | 'lineups' | 'anti'>('plays');
   const pb = playbookOf(plan, map);
   const own = !!plan.playbooks[map];
   return (
@@ -66,6 +67,7 @@ export function PlaybookPage({ view, session }: { view: SessionView; session: Se
         </div>
         <div className="seg" role="tablist" aria-label="View">
           <button type="button" className={tab === 'plays' ? 'on' : ''} onClick={() => setTab('plays')} data-testid="pb-tab-plays">Our plays</button>
+          <button type="button" className={tab === 'lineups' ? 'on' : ''} onClick={() => setTab('lineups')} data-testid="pb-tab-lineups">Lineups</button>
           <button type="button" className={tab === 'anti' ? 'on' : ''} onClick={() => setTab('anti')} data-testid="pb-tab-anti">Anti-strat{plan.active ? ' •' : ''}</button>
         </div>
         <span className={'pb-save ' + state.s} data-testid="pb-save" data-state={state.s}>
@@ -77,6 +79,10 @@ export function PlaybookPage({ view, session }: { view: SessionView; session: Se
           ? <Plays key={map} map={map} pb={pb} own={own} editable={editable} ourSide={match?.map === map ? match.ourSide : undefined}
               onChange={(next, now) => change({ ...plan, playbooks: { ...plan.playbooks, [map]: next } }, now)}
               onReset={() => { const { [map]: _gone, ...rest } = plan.playbooks; change({ ...plan, playbooks: rest }, true); }} />
+          : tab === 'lineups'
+          ? <Lineups key={map} map={map} lineups={plan.lineups?.[map] ?? builtinLineups(map)} own={!!plan.lineups?.[map]} pb={pb} editable={editable} session={session}
+              onChange={(next, now) => change({ ...plan, lineups: { ...plan.lineups, [map]: next } }, now)}
+              onReset={() => { const { [map]: _gone, ...rest } = plan.lineups ?? {}; const { lineups: _l, ...base } = plan; change(Object.keys(rest).length ? { ...base, lineups: rest } : base, true); }} />
           : <AntiStrats map={map} plan={plan} pb={pb} editable={editable} suggested={scoutOf(view).status === 'ready' ? scoutOf(view).them.name : undefined} onChange={change} />}
       {view.role === 'demo' && <p className="note">Browser demo: your changes stay in this browser and drive the demo match. In the desktop app the room admin's playbook goes to every member.</p>}
     </div>

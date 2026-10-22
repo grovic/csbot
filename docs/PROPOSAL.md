@@ -674,6 +674,11 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
          - a preview of how their site odds move
        - The anti-strat applies only while it's "in use". It scales csbot's own plan odds, so they stay estimates.
        - Saving updates the current freeze-time call right away.
+     - **Lineup library and practice config** (Playbook → Lineups):
+       - Each map starts with csbot's list of well-known smokes, molotovs and flashes for both sides. Each is a throw spot and a landing spot on the map, plus a technique, linked to the setups that use it. The call card lists the utility of the call's setup.
+       - The team edits the list: drag either end, rename, pick the grenade and the setups, add or delete lineups. An exact spot can be pasted from their own practice server: they type `getpos` there themselves, and csbot never reads the console.
+       - **Practice config:** a `csbot_<map>.cfg` for a private server. It sets up grenade practice (sv_cheats, infinite grenades, trajectory preview, buy anywhere) and adds one `lineupN` command per lineup. The command teleports you to the throw spot facing the landing spot, with the grenade in hand. Without an exact spot, the teleport uses the callout's floor height (now part of the map build) and says "near".
+       - In the browser it's a download. The desktop app can also put it in CS2's cfg folder when you click.
 8. **M8 · Hardening:** host handover, signing, auto-update, performance, closed beta with a few squads → **V1 release**.
    - *Done:*
      - The installer and auto-update: an unsigned per-user NSIS installer on GitHub Releases. v0.5.0 is published; pushing a `v*` tag releases.

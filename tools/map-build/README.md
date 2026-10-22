@@ -36,7 +36,8 @@ build never runs during a match.
 ## What it makes
 
 - **Zones**: callout volumes, some merged into one intel zone (see `src/config.ts`). Each nav area
-  takes the callout that holds its centre.
+  takes the callout that holds its centre. Each zone also gets its usual floor height (`z`, the
+  median of its visible nav areas), which the practice config uses to teleport near a throw spot.
 - **Floor and zone outlines**: the nav areas drawn into a 500×500 raster, traced and simplified into
   SVG paths. Map units are 0..1000 with north up. Nuke's lower level is drawn below the main one.
 - **Lookup grid**: the zone in each cell of a 250×250 grid, used for clicks and the heat mask.

@@ -4,14 +4,23 @@
 // planned spots and the forecast agree everywhere. The tracker reads the registry at every update,
 // so a change applies right away.
 
-import type { AntiStratMap, BuyType, TeamPlan, TeamPlaybook } from '@csbot/protocol';
+import type { AntiStratMap, BuyType, Lineup, TeamPlan, TeamPlaybook } from '@csbot/protocol';
 import { BUY_TYPES } from './economy.ts';
 import type { MapModel } from './forecast.ts';
-import { GEOS, MAPS, PLAYBOOKS } from './maps/index.ts';
+import { GEOS, LINEUPS, MAPS, PLAYBOOKS } from './maps/index.ts';
 import { SLOT_IDS, type Playbook } from './playbook.ts';
 
 const BUILTIN_MAPS: Readonly<Record<string, MapModel>> = { ...MAPS };
 const BUILTIN_PLAYBOOKS: Readonly<Record<string, Playbook>> = { ...PLAYBOOKS };
+const BUILTIN_LINEUPS: Readonly<Record<string, readonly Lineup[]>> = { ...LINEUPS };
+
+/** csbot's starter lineups for a map. */
+export const builtinLineups = (map: string): readonly Lineup[] => BUILTIN_LINEUPS[map] ?? [];
+
+/** The lineups a map uses: the team's (once they changed any) or csbot's starter list. */
+export function teamLineups(team: TeamPlan | undefined, map: string): readonly Lineup[] {
+  return team?.lineups?.[map] ?? BUILTIN_LINEUPS[map] ?? [];
+}
 
 /** csbot's own playbook for a map, whatever the team changed. */
 export const builtinPlaybook = (map: string): Playbook | undefined => BUILTIN_PLAYBOOKS[map];
@@ -97,4 +106,6 @@ export function applyTeam(team: TeamPlan | undefined): void {
   const pbs = PLAYBOOKS as Record<string, Playbook>;
   for (const id of Object.keys(BUILTIN_MAPS)) maps[id] = teamModel(team, id)!;
   for (const id of Object.keys(BUILTIN_PLAYBOOKS)) pbs[id] = teamPlaybook(team, id)!;
+  const lus = LINEUPS as Record<string, readonly Lineup[]>;
+  for (const id of Object.keys(BUILTIN_LINEUPS)) lus[id] = teamLineups(team, id);
 }

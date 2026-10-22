@@ -6,3 +6,4 @@ export * from './maps/index.ts';
 export * from './match.ts';
 export * from './maps/validate.ts';
 export * from './team.ts';
+export * from './practice.ts';

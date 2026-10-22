@@ -51,6 +51,7 @@ const bridge: CsbotBridge = {
     return () => { ipcRenderer.removeListener('csbot:team', handler); };
   },
   setTeam: t => ipcRenderer.invoke('csbot:setTeam', t) as Promise<{ ok: boolean; error?: string }>,
+  installPractice: map => ipcRenderer.invoke('csbot:installPractice', map) as Promise<{ ok: boolean; path?: string; error?: string }>,
   selectMatch: id => ipcRenderer.invoke('csbot:selectMatch', id) as Promise<void>,
   getReplay: id => ipcRenderer.invoke('csbot:getReplay', id) as Promise<DemoReplay | undefined>,
   ingestDemo: file => ipcRenderer.invoke('csbot:ingestDemo', file) as Promise<{ ok: boolean; error?: string }>,
