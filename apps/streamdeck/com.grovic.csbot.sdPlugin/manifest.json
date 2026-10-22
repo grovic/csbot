@@ -1,0 +1,95 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "UUID": "com.grovic.csbot",
+  "Name": "csbot",
+  "Version": "0.18.0.0",
+  "Author": "grovic",
+  "Description": "Keys for csbot, the CS2 squad companion: log intel, check in, push to talk, and see the team call. Needs the csbot desktop app with Stream Deck turned on in its Settings.",
+  "URL": "https://github.com/grovic/csbot",
+  "Category": "csbot",
+  "CategoryIcon": "imgs/category",
+  "Icon": "imgs/plugin",
+  "CodePath": "bin/plugin.js",
+  "SDKVersion": 2,
+  "Software": {
+    "MinimumVersion": "6.5"
+  },
+  "OS": [
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    }
+  ],
+  "Nodejs": {
+    "Version": "20",
+    "Debug": "disabled"
+  },
+  "Actions": [
+    {
+      "UUID": "com.grovic.csbot.intel",
+      "Name": "Intel",
+      "Tooltip": "Enemies seen in a lane of the current map (A side, mid or B side), or the lane clear.",
+      "Icon": "imgs/intel",
+      "PropertyInspectorPath": "ui/intel.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/intel-key",
+          "TitleAlignment": "middle",
+          "FontSize": 13
+        }
+      ]
+    },
+    {
+      "UUID": "com.grovic.csbot.checkin",
+      "Name": "Check in",
+      "Tooltip": "Your squad marker: on my spot, or rotating to A or B.",
+      "Icon": "imgs/checkin",
+      "PropertyInspectorPath": "ui/checkin.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/checkin-key",
+          "TitleAlignment": "middle",
+          "FontSize": 13
+        }
+      ]
+    },
+    {
+      "UUID": "com.grovic.csbot.talk",
+      "Name": "Push to talk",
+      "Tooltip": "csbot listens for one sentence: intel, a check-in or a question for the coach (turn push-to-talk on in csbot).",
+      "Icon": "imgs/talk",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/talk-key",
+          "TitleAlignment": "bottom",
+          "FontSize": 12
+        }
+      ]
+    },
+    {
+      "UUID": "com.grovic.csbot.call",
+      "Name": "Team call",
+      "Tooltip": "Shows the enemy buy read and the team call.",
+      "Icon": "imgs/call",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/call-key",
+          "TitleAlignment": "middle",
+          "FontSize": 11
+        }
+      ]
+    }
+  ]
+}

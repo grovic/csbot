@@ -24,3 +24,5 @@ secrets.json
 tools/brand/contact-sheet.png
 tools/brand/preview.png
 *.dem
+# The Stream Deck plugin bundle (built by apps/streamdeck/build.mjs)
+apps/streamdeck/com.grovic.csbot.sdPlugin/bin/

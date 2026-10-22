@@ -686,6 +686,13 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
        - The coach is told it's Wingman.
        - Wingman maps csbot has no geometry for (Vertigo, Overpass…) show no map. Intel and markers work on the maps it has.
        - The browser demo plays one with `?mode=wingman`.
+     - **Stream Deck plugin** (`apps/streamdeck`, attached to every release as `com.grovic.csbot.streamDeckPlugin`). It has four keys:
+       - Intel: a lane of the current map, A side, mid or B side, with a count or "clear". The key shows the zone's name.
+       - Check in
+       - Push to talk
+       - Team call: the buy read and the call
+       - It talks to the desktop app's local control API. That API is off by default and listens on 127.0.0.1 only, with a new key each time it's turned on, written to `control.json` in csbot's data folder. It refuses browsers (any Origin header) and other host names.
+       - Keys go the same way as a click, so a member's intel reaches the room's host. The toast confirms each one.
 8. **M8 · Hardening:** host handover, signing, auto-update, performance, closed beta with a few squads → **V1 release**.
    - *Done:*
      - The installer and auto-update: an unsigned per-user NSIS installer on GitHub Releases. v0.5.0 is published; pushing a `v*` tag releases.

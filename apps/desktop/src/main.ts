@@ -4,13 +4,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, globalShortcut, ipcMain, Menu, safeStorage, screen, session, shell, type IpcMainInvokeEvent } from 'electron';
-import type { CfgInstallResult, CoachAsker, CoachConfig, CoachView, DebriefView, ScoutView, TeamPlan } from '@csbot/protocol';
+import type { CfgInstallResult, CoachAsker, CoachConfig, CoachView, DebriefView, ScoutView, TeamPlan, VoiceCommand, VoiceEvent } from '@csbot/protocol';
 import { COACH_SCHEMA, COACH_SYSTEM } from '@csbot/coach';
 import { CoachService } from './coach/service.ts';
 import { ClaudeCoachSession } from './coach/session.ts';
 import { detectCs2, installCfg } from './cs2.ts';
 import { Host, sessionFileName } from './host.ts';
-import { fakeShortcuts, IntelHotkeys } from './hotkeys.ts';
+import crypto from 'node:crypto';
+import { fakeShortcuts, HOTKEY_ZONES, IntelHotkeys } from './hotkeys.ts';
+import { startControl, type ControlCommand, type ControlServer } from './control.ts';
+import { describeCommand } from './voice/grammar.ts';
 import { PushToTalk } from './voice/ptt.ts';
 import { FakeRecognizer, SpeechHelper } from './voice/recognizer.ts';
 import { loadSettings, readEnv, saveSettings, type Settings } from './settings.ts';
@@ -45,6 +48,7 @@ function run(): void {
   let coach: CoachService | null = null;
   let hotkeys: IntelHotkeys | null = null;
   let voice: PushToTalk | null = null;
+  let control: ControlServer | null = null;
   /** Names of the members in this host's room (set by the renderer that runs the room). */
   let roomRoster: string[] = [];
   let scoutCache: FileStore | null = null;
@@ -91,6 +95,7 @@ function run(): void {
     coach?.stop();
     hotkeys?.dispose();
     voice?.dispose();
+    void control?.close();
     if (!host) return;
     e.preventDefault();
     const h = host;
@@ -240,6 +245,57 @@ function run(): void {
     if (env.fakeHotkeys) (globalThis as { csbotPressVoice?: () => void }).csbotPressVoice = () => { for (const cb of fakeVoiceKeys.registered.values()) cb(); };
     host.onSnapshot(s => voice?.setMap(s.match?.map));
     if (settings.voice?.enabled) void voice.setEnabled(true, settings.voice.key).then(r => { if (!r.ok) log(`push-to-talk: ${r.error}`); });
+    // Stream Deck (M7): the local control API. Its keys go the same way as a click (through the
+    // renderer, so a member's intel reaches the room's host), and the toast confirms them.
+    const LANES = ['a', 'mid', 'b'] as const;
+    const controlState = () => {
+      const s = host?.latest(), m = s?.match, map = m?.map;
+      const lanes = map && HOTKEY_ZONES[map] ? Object.fromEntries(LANES.map((l, i) => { const id = HOTKEY_ZONES[map]![i]!; return [l, GEOS[map]?.zones.find(z => z.id === id)?.name ?? id]; })) : undefined;
+      return {
+        ...(map ? { map, mapName: GEOS[map]?.name ?? map } : {}),
+        ...(m ? { mode: m.mode, phase: m.clock.phase, round: m.round, side: m.ourSide } : {}),
+        ...(s?.call ? { call: { head: s.call.head, ...(s.call.you ? { you: s.call.you } : {}) } } : {}),
+        ...(s?.enemy ? { enemy: { read: s.enemy.read } } : {}),
+        ...(lanes ? { lanes } : {}),
+      };
+    };
+    const controlCommand = (c: ControlCommand): { ok: boolean; error?: string } => {
+      if (c.kind === 'talk') {
+        if (!voice?.status().enabled) return { ok: false, error: 'Push-to-talk is off in csbot Settings.' };
+        void voice.press();
+        return { ok: true };
+      }
+      if (!win || win.isDestroyed()) return { ok: false, error: 'csbot has no window.' };
+      const map = host?.latest().match?.map;
+      let cmd: VoiceCommand;
+      if (c.kind === 'intel') {
+        const zones = map ? HOTKEY_ZONES[map] : undefined;
+        if (!zones) return { ok: false, error: 'No match on a map csbot knows yet.' };
+        cmd = { kind: 'intel', zone: zones[LANES.indexOf(c.lane)]!, count: c.count };
+      } else cmd = c.state === 'spot' ? { kind: 'checkin', state: 'spot' } : { kind: 'checkin', state: 'rotate', ...(c.site ? { site: c.site } : {}) };
+      win.webContents.send('csbot:voice', { state: 'heard', command: cmd, said: describeCommand(cmd, map) } satisfies VoiceEvent);
+      return { ok: true };
+    };
+    const setStreamDeck = async (on: boolean): Promise<{ ok: boolean; error?: string }> => {
+      if (control) { await control.close(); control = null; }
+      if (!on) return { ok: true };
+      try {
+        // A new key each time it starts; the plugin reads it from control.json.
+        control = await startControl({ dir: userData, token: crypto.randomBytes(24).toString('base64url'), state: controlState, command: controlCommand });
+        return { ok: true };
+      } catch (e) { return { ok: false, error: `Couldn't start the Stream Deck API: ${(e as Error).message}` }; }
+    };
+    if (settings.streamDeck) void setStreamDeck(true).then(r => { if (!r.ok) log(r.error ?? 'stream deck'); });
+    ipcMain.handle('csbot:setStreamDeck', async (e, on: unknown) => {
+      guard(e);
+      if (typeof on !== 'boolean') return { ok: false, error: 'Invalid request.' };
+      const r = await setStreamDeck(on);
+      const { streamDeck: _old, ...rest } = settings;
+      settings = on && r.ok ? { ...rest, streamDeck: true } : rest;
+      saveSettings(userData, settings);
+      return r;
+    });
+
     ipcMain.handle('csbot:setVoice', async (e, o: unknown) => {
       guard(e);
       const req = (o && typeof o === 'object' ? o : {}) as { enabled?: unknown; key?: unknown };
@@ -375,7 +431,7 @@ function run(): void {
     ipcMain.handle('csbot:latest', e => { guard(e); return host?.latest(); });
     ipcMain.handle('csbot:getInfo', e => {
       guard(e);
-      return host ? { ...host.info(), update: updater.status, ...(hotkeys ? { intelHotkeys: hotkeys.status() } : {}), ...(voice ? { voice: voice.status() } : {}) } : undefined;
+      return host ? { ...host.info(), update: updater.status, ...(hotkeys ? { intelHotkeys: hotkeys.status() } : {}), ...(voice ? { voice: voice.status() } : {}), streamDeck: { enabled: !!control } } : undefined;
     });
     // Practice config (M7): the map's lineups (the team's, else csbot's) as a .cfg in CS2's cfg folder,
     // on the user's click. Generated here from the saved plan, never from text the page sends.

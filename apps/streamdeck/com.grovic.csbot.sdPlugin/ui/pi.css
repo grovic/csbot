@@ -1,0 +1,4 @@
+body { margin: 0; padding: 8px 12px; background: #2d2d2d; color: #d8d8d8; font: 9pt "Segoe UI", sans-serif; }
+label { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0; }
+select { flex: 0 0 62%; background: #3d3d3d; color: #d8d8d8; border: 0; border-radius: 3px; padding: 4px 6px; font: inherit; }
+p { color: #969696; margin: 10px 0 0; line-height: 1.4; }
