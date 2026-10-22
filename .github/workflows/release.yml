@@ -28,6 +28,8 @@ jobs:
           v=$(node -p "require('./apps/desktop/package.json').version")
           [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME but apps/desktop is $v"; exit 1; }
       - run: pnpm --filter @csbot/web build
+      # The Stream Deck plugin (com.grovic.csbot.streamDeckPlugin), attached to the same release.
+      - run: pnpm --filter @csbot/streamdeck build
       - run: node apps/desktop/scripts/stage.mjs
       - name: Build the installer
         working-directory: apps/desktop
@@ -43,4 +45,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           v=${GITHUB_REF_NAME#v}
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --title "$v" --generate-notes             "csbot-Setup-$v.exe" "csbot-Setup-$v.exe.blockmap" latest.yml
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --title "$v" --generate-notes             "csbot-Setup-$v.exe" "csbot-Setup-$v.exe.blockmap" latest.yml ../../streamdeck/dist/com.grovic.csbot.streamDeckPlugin

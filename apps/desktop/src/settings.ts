@@ -22,6 +22,8 @@ export interface Settings {
   intelHotkeys?: boolean;
   /** Push-to-talk (M7). Off unless turned on; the key it uses. */
   voice?: { enabled: boolean; key: string };
+  /** The local control API for the Stream Deck plugin (M7). Off unless turned on. */
+  streamDeck?: boolean;
   /** This PC's player, remembered from CS2's own data (matches demos to "us" when CS2 is closed). */
   steamId?: string;
 }
@@ -63,6 +65,7 @@ export function loadSettings(dir: string): Settings {
     ...(typeof raw.faceitNickname === 'string' && raw.faceitNickname.trim() ? { faceitNickname: raw.faceitNickname.trim().slice(0, 32) } : {}),
     ...(raw.coach !== undefined ? { coach: coachConfigFrom(raw.coach) } : {}),
     ...(raw.intelHotkeys === true ? { intelHotkeys: true } : {}),
+    ...(raw.streamDeck === true ? { streamDeck: true } : {}),
     ...(raw.voice && typeof raw.voice === 'object' && typeof raw.voice.key === 'string' ? { voice: { enabled: raw.voice.enabled === true, key: raw.voice.key.slice(0, 8) } } : {}),
     ...(typeof raw.steamId === 'string' && /^7656\d{13}$/.test(raw.steamId) ? { steamId: raw.steamId } : {}),
   };

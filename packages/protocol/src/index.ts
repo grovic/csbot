@@ -225,6 +225,8 @@ export interface HostInfo {
   intelHotkeys?: { enabled: boolean; keys: { key: string; zone: string; zoneName: string; kind: 'sighting' | 'clear' | 'checkin' }[]; error?: string };
   /** Push-to-talk (M7): off by default; the key, the keys it can use, and things to say. */
   voice?: { enabled: boolean; key: string; keys: string[]; examples: string[]; error?: string };
+  /** The local control API for the Stream Deck plugin (M7): off by default. */
+  streamDeck?: { enabled: boolean; error?: string };
   /** Auto-update (installed copies only). */
   update?: { version: string; state: 'off' | 'checking' | 'up-to-date' | 'downloading' | 'ready' | 'error'; available?: string; error?: string };
 }
@@ -302,6 +304,8 @@ export interface CsbotBridge {
   setIntelHotkeys?(enabled: boolean): Promise<{ ok: boolean; error?: string }>;
   /** Turn push-to-talk on or off, or change its key (see HostInfo.voice). */
   setVoice?(o: { enabled: boolean; key?: string }): Promise<{ ok: boolean; error?: string }>;
+  /** Turn the local control API (Stream Deck plugin) on or off. */
+  setStreamDeck?(on: boolean): Promise<{ ok: boolean; error?: string }>;
   /**
    * Room roster with slots, so the coach can name players in calls ("rdx rotates to B") and knows
    * who's a random. Superset of setRoomRoster's names.

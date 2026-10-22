@@ -184,6 +184,32 @@ function VoiceCard({ bridge, map }: { bridge: CsbotBridge; map?: string }) {
   );
 }
 
+/** The Stream Deck plugin talks to csbot through a local API on this PC: off by default. */
+function StreamDeckCard({ bridge }: { bridge: CsbotBridge }) {
+  const [on, setOn] = useState<boolean>();
+  const [err, setErr] = useState<string>();
+  const refresh = useCallback(() => bridge.getInfo().then(i => setOn(!!i?.streamDeck?.enabled), () => undefined), [bridge]);
+  useEffect(() => { void refresh(); }, [refresh]);
+  const toggle = async (v: boolean) => {
+    setErr(undefined); setOn(v);
+    const r = await bridge.setStreamDeck!(v).catch((e: Error) => ({ ok: false, error: e.message }));
+    if (!r.ok) setErr(r.error ?? "Couldn't change it.");
+    await refresh();
+  };
+  return (
+    <div className="card" data-testid="sd-card">
+      <div className="card-h"><h3>Stream Deck</h3><span className="muted small">plugin · this PC</span></div>
+      <label className="toggle-row">
+        <input type="checkbox" checked={!!on} disabled={on === undefined} onChange={e => void toggle(e.target.checked)} data-testid="sd-toggle" />
+        <span><b>{on ? 'On' : 'Off'}</b> · Lets csbot's Stream Deck plugin log intel, check you in, start push-to-talk and show the team call on your keys.</span>
+      </label>
+      {err && <div className="result err" data-testid="sd-error">{err}</div>}
+      <p style={{ margin: '8px 0 0' }}><a className="btn" href="https://github.com/grovic/csbot/releases/latest/download/com.grovic.csbot.streamDeckPlugin" target="_blank" rel="noreferrer" data-testid="sd-download">Get the plugin</a> <span className="muted small">Open the file to add it to the Stream Deck app.</span></p>
+      <p className="note">The plugin and csbot talk only on this PC (127.0.0.1), with a key csbot makes each time this is turned on. Keys act on csbot only, never on the game.</p>
+    </div>
+  );
+}
+
 function BrowserCard({ member }: { member: boolean }) {
   return (
     <div className="card" data-testid="browser-card">
@@ -324,6 +350,7 @@ export function Settings({ snap, kind, scout, session }: { snap?: LiveSnapshot; 
       {bridge ? <HostCard bridge={bridge} /> : <BrowserCard member={kind === 'member'} />}
       <GsiStatus snap={snap} />
       {bridge?.setIntelHotkeys && session.isHostSide && <div style={{ gridColumn: '1/-1' }}><HotkeysCard bridge={bridge} /></div>}
+      {bridge?.setStreamDeck && <div style={{ gridColumn: '1/-1' }}><StreamDeckCard bridge={bridge} /></div>}
       {bridge?.setVoice && <div style={{ gridColumn: '1/-1' }}><VoiceCard bridge={bridge} {...(snap?.match?.map ? { map: snap.match.map } : {})} /></div>}
       <div style={{ gridColumn: '1/-1' }}><DataSources scout={scout} session={session} host={session.canScout} /></div>
       <div className="card" style={{ gridColumn: '1/-1' }}>

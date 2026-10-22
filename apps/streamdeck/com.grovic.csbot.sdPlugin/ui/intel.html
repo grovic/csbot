@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="pi.css">
+  <script src="pi.js"></script>
+</head>
+<body>
+  <label>Lane
+    <select data-key="lane">
+      <option value="a">A side (A main, long…)</option>
+      <option value="mid">Mid</option>
+      <option value="b">B side (B apps, banana…)</option>
+    </select>
+  </label>
+  <label>Enemies
+    <select data-key="count" data-type="number">
+      <option value="1">1 seen</option>
+      <option value="2">2 seen</option>
+      <option value="3">3 seen</option>
+      <option value="4">4 seen</option>
+      <option value="5">5 seen</option>
+      <option value="0">Clear</option>
+    </select>
+  </label>
+  <p>The lane follows the map: csbot names the zone on the key. Needs csbot with Stream Deck on in its Settings.</p>
+</body>
+</html>
