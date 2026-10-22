@@ -7,7 +7,7 @@ import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { Worker } from 'node:worker_threads';
 import zlib from 'node:zlib';
-import type { DemoTruth } from '@csbot/protocol';
+import type { DemoReplay, DemoTruth } from '@csbot/protocol';
 
 /** The worker bundle sits next to main.cjs (dist/demo-worker.cjs); tests point at the built one. */
 const workerFile = () => process.env.CSBOT_DEMO_WORKER ?? path.join(__dirname, 'demo-worker.cjs');
@@ -21,21 +21,21 @@ async function decompressed(file: string): Promise<{ file: string; cleanup: () =
   return { file: out, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
 
-export async function parseDemoFile(file: string, timeoutMs = 180_000): Promise<DemoTruth> {
+export async function parseDemoFile(file: string, timeoutMs = 180_000): Promise<{ truth: DemoTruth; replay?: DemoReplay }> {
   const d = await decompressed(file);
   try {
-    const truth = await new Promise<DemoTruth>((resolve, reject) => {
+    const { truth, replay } = await new Promise<{ truth: DemoTruth; replay?: DemoReplay }>((resolve, reject) => {
       const w = new Worker(workerFile(), { workerData: { file: d.file } });
       const timer = setTimeout(() => { void w.terminate(); reject(new Error('reading the demo took too long')); }, timeoutMs);
-      w.once('message', (m: { ok: boolean; truth?: DemoTruth; error?: string }) => {
+      w.once('message', (m: { ok: boolean; truth?: DemoTruth; replay?: DemoReplay; error?: string }) => {
         clearTimeout(timer);
         void w.terminate();
-        if (m.ok && m.truth) resolve(m.truth); else reject(new Error(m.error ?? 'unknown error'));
+        if (m.ok && m.truth) resolve({ truth: m.truth, ...(m.replay ? { replay: m.replay } : {}) }); else reject(new Error(m.error ?? 'unknown error'));
       });
       w.once('error', e => { clearTimeout(timer); reject(e); });
     });
     // Keep the original file name (not the temp copy) in the record.
-    return { ...truth, source: { ...truth.source, file: path.basename(file), bytes: fs.statSync(file).size } };
+    return { truth: { ...truth, source: { ...truth.source, file: path.basename(file), bytes: fs.statSync(file).size } }, ...(replay ? { replay } : {}) };
   } finally {
     d.cleanup();
   }

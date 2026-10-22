@@ -177,6 +177,11 @@ export function RoomPage({ view, session }: { view: SessionView; session: Sessio
               })}
             </tbody>
           </table></div>
+          {room.randoms?.length ? (
+            <p className="note" data-testid="randoms">
+              <b>Gather mode:</b> {room.randoms.map(r => `${r.name} (${room.slots.find(s => s.id === r.slot)?.label ?? r.slot})`).join(', ')} {room.randoms.length > 1 ? 'are randoms' : 'is a random'} from the match. csbot gives them their usual spot; relay their part in voice.
+            </p>
+          ) : null}
         </div>
       </div>
 

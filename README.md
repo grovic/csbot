@@ -16,7 +16,7 @@ Teammates who only want to watch and log intel don't need it: they open the room
 
 ## Status
 
-**M1 (core host), M2 (rooms), M3 (Scout), M4a (live intel), M4b (real maps), M4c (T-side forecast), M4d (T playbook), M4e (squad markers), M5 (live coach) and M6 (debrief) are built.**
+**M1 (core host), M2 (rooms), M3 (Scout), M4a (live intel), M4b (real maps), M4c (T-side forecast), M4d (T playbook), M4e (squad markers), M5 (live coach) and M6 (debrief) are built, and M7 (extras) is under way.**
 - **M1:** the Electron host reads GSI, runs the economy engine, and shows the Live page.
 - **M2:** the admin creates a room in the desktop app and shares an invite link. Teammates open it in a browser, or paste it into their own csbot, and see the same calls with their own job. Rooms are peer-to-peer: no account, no server.
 
@@ -33,6 +33,10 @@ Teammates who only want to watch and log intel don't need it: they open the room
   - Claude writes "work on next".
   - Add the match demo (from CS2's replays folder, or drop the file) to see how often the buy read and the site read were right, their real money, and where you died.
 
+- **M7 (part):**
+  - Gather mode: with fewer than five of you in the room, the match's randoms take the free slots (the AWPer gets the AWP slot).
+  - 2D round replay from the match demo on the Debrief page: movement, kills, smokes, molotovs and the plant, at 1×, 2× or 4×.
+
 - **M8 (part):** if the host's PC drops, a desktop member takes over the room with one click. Members follow by themselves, and the old host rejoins as a member when it comes back. Rooms expire a day after their last match.
 
 - **M4e:** squad markers in a room: each player's marker is planned, on spot, rotating to a site with a countdown, or dead. Players check in with buttons under the map, or Num5 / Num4 / Num6 on the desktop app. Positions are only what players report; the game never sends teammates' positions.
@@ -41,7 +45,7 @@ Teammates who only want to watch and log intel don't need it: they open the room
 
 - **M5:** the host's own Claude Code writes the team call at every freeze time and after a plant, about 3 s after the engine's instant call. The squad asks it questions from the Coach page (per-member quota, per-match budget). Voice callouts read your job. Tournament mode turns it all off.
 
-The extras (M7) and the last hardening (M8) come next ([roadmap](docs/PROPOSAL.md#12-roadmap-v1-in-milestones)). Calibrating the forecast needs the squad's own demos.
+The rest of the extras (M7) and the last hardening (M8) come next ([roadmap](docs/PROPOSAL.md#12-roadmap-v1-in-milestones)). Calibrating the forecast needs the squad's own demos.
 
 | Piece | Where | Run it |
 |---|---|---|

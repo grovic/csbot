@@ -12,6 +12,8 @@ export interface CheckIn { state: 'spot' | 'rotate'; site?: Site; at: number }
 export interface SlotInfo {
   /** The member holding the slot (absent = nobody in the room plays it). */
   name?: string;
+  /** A random from the match plays it (gather mode): named, but not in the room. */
+  random?: boolean;
   /** From that player's own GSI, when they share it. */
   alive?: boolean;
   checkIn?: CheckIn;
@@ -33,7 +35,7 @@ export function composeSquad(live: LiveSnapshot, bySlot: ReadonlyMap<string, Slo
   return spots.map((sp): SquadMarker => {
     const info = bySlot.get(sp.player);
     const base = {
-      slot: sp.player, name: info?.name ?? labels.get(sp.player) ?? sp.player, ...(info?.name ? {} : { open: true }),
+      slot: sp.player, name: info?.name ?? labels.get(sp.player) ?? sp.player, ...(info?.name && !info.random ? {} : { open: true }),
       at: [sp.at[0], sp.at[1]] as const, label: sp.label,
     };
     if (live_ && info?.alive === false) return { ...base, state: 'dead' };

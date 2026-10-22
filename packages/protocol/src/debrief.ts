@@ -109,6 +109,34 @@ export interface DebriefView {
   matches: MatchSummary[];
   /** Demo ingest state for the record. */
   demo?: { status: 'none' | 'parsing' | 'ready' | 'error'; detail?: string; replaysDir?: string };
+  /** The record has a 2D replay on this PC (from its demo). */
+  replay?: boolean;
 }
 
 export const EMPTY_DEBRIEF: DebriefView = { matches: [] };
+
+// ---------------------------------------------------------------- 2D replay (from the demo)
+
+/** One round's movement, sampled `hz` times a second from freeze end until a few seconds after it ends. */
+export interface ReplayRound {
+  round: number;
+  hz: number;
+  /** Seconds of play covered (frames = duration × hz + 1). */
+  duration: number;
+  players: { steamid: string; name: string; side: import('./index.ts').Side }[];
+  /**
+   * One entry per frame: per player (in `players` order) x, y, z (world units, rounded) and hp (0 = dead),
+   * flattened: [x0, y0, z0, hp0, x1, y1, z1, hp1, …].
+   */
+  frames: number[][];
+  /** Grenades as they went off: t (seconds since freeze end), kind, where, and how long the effect lasts. */
+  nades: { t: number; kind: 'smoke' | 'molotov' | 'flash' | 'he' | 'decoy'; x: number; y: number; z: number; duration?: number }[];
+  /** Kills and the plant, for the timeline. */
+  kills: { t: number; victim: string; killer?: string; weapon?: string }[];
+  plant?: { t: number; site?: 'A' | 'B'; x: number; y: number; z: number };
+}
+
+export interface DemoReplay {
+  map: string;
+  rounds: ReplayRound[];
+}

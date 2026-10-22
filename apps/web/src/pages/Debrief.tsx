@@ -1,8 +1,9 @@
 // Debrief (M6): the match csbot recorded, what the demo says really happened, and what to work on.
 import { GEOS, worldToMap } from '@csbot/engine';
 import { debriefStats, type DebriefStats } from '@csbot/debrief';
-import type { BuyKind, DebriefView, MatchRecord, MatchSummary } from '@csbot/protocol';
-import { useState } from 'react';
+import type { BuyKind, DebriefView, DemoReplay, MatchRecord, MatchSummary } from '@csbot/protocol';
+import { useEffect, useState } from 'react';
+import { Replay } from '../components/Replay.tsx';
 import { debriefOf, type Session, type SessionView } from '../data/session.ts';
 import { fmt$, mapName, pct } from '../format.ts';
 
@@ -237,6 +238,25 @@ function Progress({ matches, session, current, canPick }: { matches: MatchSummar
   );
 }
 
+/** The round replay, loaded when asked for (a whole match is a few MB). */
+function ReplayCard({ rec, session, available, fictional }: { rec: MatchRecord; session: Session; available: boolean; fictional: boolean }) {
+  const [replay, setReplay] = useState<DemoReplay | null>();
+  const [open, setOpen] = useState(false);
+  useEffect(() => { setReplay(undefined); setOpen(false); }, [rec.id]);
+  useEffect(() => { if (open && replay === undefined) void session.getReplay(rec.id).then(r => setReplay(r ?? null)); }, [open, replay, rec.id, session]);
+  if (!available) return null;
+  return (
+    <div className="card" data-testid="replay-card">
+      <div className="card-h"><h3>Round replay</h3><span className="muted small">from the demo · after the match only</span></div>
+      {!open ? (
+        <p style={{ margin: '6px 0' }}><button className="btn" type="button" onClick={() => setOpen(true)} data-testid="replay-open">Open the 2D replay</button></p>
+      ) : replay === undefined ? <p className="muted">Loading…</p> : replay === null ? <p className="muted">No replay kept for this match.</p> : (
+        <Replay replay={replay} {...(rec.me ? { me: rec.me.steamid } : {})} {...(fictional ? { label: 'Fictional movement made from csbot’s own plans and setups.' } : {})} />
+      )}
+    </div>
+  );
+}
+
 export function Debrief({ view, session }: { view: SessionView; session: Session }) {
   const d = debriefOf(view);
   const rec = d.record;
@@ -266,6 +286,7 @@ export function Debrief({ view, session }: { view: SessionView; session: Session
         <Deaths rec={rec} st={st} />
         <DemoCard view={d} session={session} rec={rec} />
       </div>
+      <div className="mt"><ReplayCard rec={rec} session={session} available={demo || !!d.replay} fictional={demo} /></div>
       <div className="mt"><RoundsTable rec={rec} /></div>
       <div className="mt"><Progress matches={d.matches} session={session} current={rec.id} canPick={session.canDebrief} /></div>
     </section>

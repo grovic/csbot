@@ -10,6 +10,7 @@ import {
 } from '@csbot/protocol';
 import { mergeRows, personalize } from './compose.ts';
 import { composeSquad, type CheckIn, type SlotInfo } from './squad.ts';
+import type { RandomSlot } from './gather.ts';
 import type { Transport } from './transport.ts';
 
 export const HOST_ID = 'host';
@@ -107,6 +108,8 @@ export class RoomHost {
   guardDropped = 0;
   /** Squad check-ins this round, by slot. */
   private checkins = new Map<string, CheckIn>();
+  /** Gather mode: randoms in the slots nobody in the room plays. */
+  private randoms: RandomSlot[] = [];
   private checkRound = 0;
 
   constructor(o: RoomHostOptions) {
@@ -158,6 +161,14 @@ export class RoomHost {
   setDebrief(d: DebriefView): void {
     this.debrief = d;
     for (const m of this.members.values()) if (m.peer) this.send(m.peer, { t: 'debrief', debrief: d });
+    this.schedule(true);
+  }
+
+  /** Gather mode: the match's randoms and the slots they take (computed from scouting by the session). */
+  setRandoms(r: readonly RandomSlot[]): void {
+    const next = r.map(x => ({ slot: x.slot, name: x.name.slice(0, 32) }));
+    if (JSON.stringify(next) === JSON.stringify(this.randoms)) return;
+    this.randoms = next;
     this.schedule(true);
   }
 
@@ -265,6 +276,7 @@ export class RoomHost {
       pending: forId === HOST_ID ? [...this.pending.values()].map(({ peer: _p, ...r }) => r) : [],
       permissions: { ...this.saved.permissions }, tournament: this.saved.tournament,
       slots: slotsFor(this.live.match?.map, this.live.match?.ourSide).map(s => ({ ...s })), you: forId, createdAt: this.saved.createdAt,
+      ...(this.randoms.length ? { randoms: this.randoms.map(r => ({ ...r })) } : {}),
       epoch: this.saved.epoch ?? 0, expiresAt: roomExpiresAt(this.saved), ...(this.o.clientId ? { hostClientId: this.o.clientId } : {}),
     };
   }
@@ -434,6 +446,7 @@ export class RoomHost {
       const me = fresh ? m.tracker!.snapshot(now).me : undefined;
       bySlot.set(m.slot, { name: m.name, ...(me ? { alive: me.alive } : {}) });
     }
+    for (const r of this.randoms) if (!bySlot.has(r.slot)) bySlot.set(r.slot, { name: r.name, random: true });
     for (const [slot, c] of this.checkins) { const i = bySlot.get(slot); if (i) i.checkIn = c; }
     return composeSquad(this.live, bySlot);
   }

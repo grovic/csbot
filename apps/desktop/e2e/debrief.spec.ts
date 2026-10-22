@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
 import { FIRST_HALF, syntheticMatch } from '@csbot/gsi';
+import { parseDemo } from '@csbot/demo';
 import { appDir, launchApp, postGsi, screens, shot, waitFor, type LaunchedApp } from './helpers.ts';
 
 test.describe.configure({ mode: 'serial' });
@@ -46,4 +47,44 @@ test('a real demo is read by the native parser inside Electron', async () => {
   expect(r.ok).toBe(false);
   expect(r.error).toMatch(/^No mirage match in csbot's records fits this demo/);
   await expect(host.page.getByTestId('demo-error')).toContainText('No mirage match');
+});
+
+test("your own demo: a match csbot never saw is rebuilt, with its 2D replay", async () => {
+  test.setTimeout(90_000);
+  const demo = path.resolve(appDir, '..', '..', 'packages', 'demo', 'testdata', 'test_demo.dem');
+  test.skip(!fs.existsSync(demo), 'packages/demo/testdata/test_demo.dem not downloaded');
+  // Play as one of the demo's players (the Steam ID csbot remembers from your GSI).
+  const steamId = parseDemo(demo).players.find(p => /^7656\d{13}$/.test(p.steamid))!.steamid;
+  const app = await launchApp({}, { settings: { steamId } });
+  try {
+    const p = app.page;
+    expect(await p.evaluate(f => window.csbot!.ingestDemo!(f), demo)).toEqual({ ok: true });
+    const kept = fs.readdirSync(path.join(app.dir, 'userData', 'matches'));
+    expect(kept.some(f => f.endsWith('.replay.json.gz'))).toBe(true);
+    await p.getByRole('navigation', { name: 'Pages' }).getByRole('link', { name: 'Debrief' }).click();
+    await p.getByTestId('replay-open').click();
+    const replay = p.getByTestId('replay');
+    await expect(replay.locator('.pl circle')).toHaveCount(10, { timeout: 15_000 });
+    expect(await p.getByTestId('replay-round').count()).toBeGreaterThan(5);
+    await p.getByTestId('replay-round').nth(1).click();
+    await p.getByTestId('replay-time').fill('38');
+    await expect(replay.locator('.nade.smoke').first()).toBeVisible();
+    await expect(p.getByTestId('replay-feed').locator('li').first()).toBeVisible();
+    // Hidden windows can't take element screenshots: capture the window, cropped to the card.
+    const box = await p.getByTestId('replay-card').evaluate(el => {
+      document.querySelector<HTMLElement>('.hdr')!.style.position = 'static';
+      el.scrollIntoView({ block: 'start' });
+      const r = el.getBoundingClientRect();
+      return { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(Math.min(r.height, window.innerHeight - r.y)) };
+    });
+    // A hidden window paints lazily: the first capture wakes it, the second is current.
+    const png = await app.app.evaluate(async ({ BrowserWindow }, rect) => {
+      const wc = BrowserWindow.getAllWindows()[0]!.webContents;
+      await wc.capturePage(rect);
+      wc.invalidate();
+      await new Promise(r => setTimeout(r, 600));
+      return (await wc.capturePage(rect)).toPNG().toString('base64');
+    }, box);
+    fs.writeFileSync(path.join(screens, 'desktop-replay.png'), Buffer.from(png, 'base64'));
+  } finally { await app.close(); }
 });

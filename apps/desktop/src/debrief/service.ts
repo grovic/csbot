@@ -3,8 +3,9 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { debriefStats, MatchRecorder, parseWorkOn, recordFromTruth, WORKON_SCHEMA, WORKON_SYSTEM, workOnInput } from '@csbot/debrief';
-import type { DebriefView, DemoTruth, LiveSnapshot, MatchRecord, MatchSummary } from '@csbot/protocol';
+import type { DebriefView, DemoReplay, DemoTruth, LiveSnapshot, MatchRecord, MatchSummary } from '@csbot/protocol';
 
 export interface ClaudeJson { (o: { system: string; schema: object; input: string }): Promise<{ output: unknown; model: string }> }
 
@@ -13,7 +14,7 @@ export interface DebriefServiceOptions {
   dir: string;
   onChange: (v: DebriefView) => void;
   runClaude?: ClaudeJson;
-  parseDemo?: (file: string) => Promise<DemoTruth>;
+  parseDemo?: (file: string) => Promise<DemoTruth | { truth: DemoTruth; replay?: DemoReplay }>;
   /** CS2's replays folder, where downloaded match demos land. */
   replaysDir?: string;
   /** This PC's player (Steam ID), so a demo of a match csbot wasn't open for still has an "us". */
@@ -64,7 +65,7 @@ export class DebriefService {
       const rating = debriefStats(r).rating;
       return { id: r.id, map: r.map, startedAt: r.startedAt, finished: r.finished, score: { ...r.score }, ...(rating !== undefined ? { rating } : {}), hasDemo: !!r.truth };
     });
-    return { ...(record ? { record } : {}), matches, demo: { ...this.demo } };
+    return { ...(record ? { record } : {}), matches, demo: { ...this.demo }, ...(record && this.hasReplay(record.id) ? { replay: true } : {}) };
   }
 
   select(id: string): void {
@@ -82,7 +83,9 @@ export class DebriefService {
     this.demo = { ...this.demo, status: 'parsing', detail: path.basename(file) };
     this.emit();
     try {
-      const truth = await this.o.parseDemo(file);
+      const parsed = await this.o.parseDemo(file);
+      const truth = 'truth' in parsed ? parsed.truth : parsed;
+      const replay = 'truth' in parsed ? parsed.replay : undefined;
       let rec = this.matchFor(truth);
       if (rec) rec.truth = truth;
       else {
@@ -94,6 +97,9 @@ export class DebriefService {
           this.demo = { ...this.demo, status: 'error', detail: `No ${truth.map.replace(/^de_/, '')} match in csbot's records fits this demo, and ${me ? "you're not in it" : "csbot doesn't know your Steam ID yet (it learns it from CS2)"}.` };
           return { ok: false, error: this.demo.detail! };
         }
+      }
+      if (replay && SAFE_ID.test(rec.id)) {
+        try { fs.writeFileSync(this.replayFile(rec.id), zlib.gzipSync(JSON.stringify(replay))); } catch (e) { this.o.log?.(`debrief: couldn't save the replay: ${(e as Error).message}`); }
       }
       this.store(rec);
       this.selected = rec.id;
@@ -123,6 +129,15 @@ export class DebriefService {
     }
   }
 
+  /** The 2D replay kept next to a record (gzipped JSON), if its demo was read with one. */
+  replay(id: string): DemoReplay | undefined {
+    if (!SAFE_ID.test(id) || !this.hasReplay(id)) return undefined;
+    try { return JSON.parse(zlib.gunzipSync(fs.readFileSync(this.replayFile(id))).toString('utf8')) as DemoReplay; } catch { return undefined; }
+  }
+
+  private replayFile(id: string): string { return path.join(this.o.dir, `${id}.replay.json.gz`); }
+  private hasReplay(id: string): boolean { return SAFE_ID.test(id) && fs.existsSync(this.replayFile(id)); }
+
   private matchFor(truth: DemoTruth): MatchRecord | undefined {
     const candidates = [...this.records.values()]
       .filter(r => r.map === truth.map && r.rounds.length > 0)
@@ -138,7 +153,7 @@ export class DebriefService {
     // Keep the newest records only.
     const keep = this.o.keep ?? 300;
     const all = [...this.records.values()].sort((a, b) => b.startedAt - a.startedAt);
-    for (const old of all.slice(keep)) { this.records.delete(old.id); fs.rmSync(path.join(this.o.dir, old.id + '.json'), { force: true }); }
+    for (const old of all.slice(keep)) { this.records.delete(old.id); fs.rmSync(path.join(this.o.dir, old.id + '.json'), { force: true }); fs.rmSync(this.replayFile(old.id), { force: true }); }
     if (!SAFE_ID.test(copy.id)) return;
     const file = path.join(this.o.dir, copy.id + '.json');
     try {

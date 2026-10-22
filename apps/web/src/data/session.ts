@@ -7,12 +7,12 @@
 // UI components only read `SessionView`; everything they render comes from a ScreenState.
 
 import {
-  DEFAULT_INVITE_BASE, HOST_ID, inviteUrl, newClientId, newRoomCode, newRoomKey, newSavedRoom, parseInvite, roomExpiresAt, takeoverRoom,
+  DEFAULT_INVITE_BASE, gatherSlots, HOST_ID, inviteUrl, newClientId, newRoomCode, newRoomKey, newSavedRoom, parseInvite, roomExpiresAt, takeoverRoom,
   RoomClient, RoomHost, type Invite, type SavedRoom,
 } from '@csbot/room';
 import { trysteroTransport } from '@csbot/room/trystero';
 import {
-  EMPTY_COACH, EMPTY_DEBRIEF, EMPTY_SCOUT, type CoachConfig, type CoachView, type CsbotBridge, type DebriefView, type LinkStatus, type LiveSnapshot, type RoomPermissions,
+  EMPTY_COACH, EMPTY_DEBRIEF, EMPTY_SCOUT, type CoachConfig, type CoachView, type CsbotBridge, type DebriefView, type DemoReplay, type LinkStatus, type LiveSnapshot, type RoomPermissions,
   type ScoutView, type ScreenState,
 } from '@csbot/protocol';
 import { demoCoach } from './demoCoach.ts';
@@ -233,6 +233,11 @@ export class Session {
     return !!this.bridge?.onDebrief && (this.view.role === 'solo' || this.view.role === 'host');
   }
   selectMatch(id: string): void { if (this.canDebrief) void this.bridge!.selectMatch?.(id); }
+  /** A kept match's 2D replay: from this PC's desktop app, or the demo's fictional one. */
+  async getReplay(id: string): Promise<DemoReplay | undefined> {
+    if (this.view.role === 'demo') return (await import('./demoReplay.ts')).demoReplay(debriefOf(this.view).record);
+    return this.canDebrief ? this.bridge?.getReplay?.(id) : undefined;
+  }
   async ingestDemo(file?: string): Promise<string | undefined> {
     if (!this.canDebrief || !this.bridge?.ingestDemo) return 'Adding demos needs the csbot desktop app.';
     const r = await this.bridge.ingestDemo(file);
@@ -456,7 +461,15 @@ export class Session {
       const names = (screen.room?.members ?? []).filter(m => m.role !== 'admin').map(m => m.name);
       const key = JSON.stringify(names);
       if (key !== roster) { roster = key; b.setRoomRoster?.(names.map(name => ({ name }))); }
-      const withSlots = (screen.room?.members ?? []).map(m => ({ name: m.name, ...(m.slot ? { slot: m.slot } : {}), random: false }));
+      // Gather mode: the match's randoms (from scouting) take the slots nobody in the room plays.
+      const members = screen.room?.members ?? [];
+      const scouted = this.view.scout?.status === 'ready' ? this.view.scout.us.players.filter(p => p.room === 'random') : [];
+      const randoms = gatherSlots(screen.room?.slots ?? [], new Set(members.filter(m => m.slot).map(m => m.slot!)), scouted.map(p => ({ name: p.nickname, ...(p.role ? { role: p.role.label } : {}) })));
+      host.setRandoms(randoms);
+      const withSlots = [
+        ...members.map(m => ({ name: m.name, ...(m.slot ? { slot: m.slot } : {}), random: false })),
+        ...randoms.map(r => ({ name: r.name, slot: r.slot, random: true })),
+      ];
       const tournament = !!screen.room?.tournament;
       const sKey = JSON.stringify([withSlots, tournament]);
       if (sKey !== slots) { slots = sKey; b.setRoomSlots?.(withSlots, { tournament }); }
