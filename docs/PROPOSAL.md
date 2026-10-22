@@ -198,6 +198,8 @@ The host compares room members with the FACEIT roster:
 - **Fewer than 5:** gather mode. Each random gets the spot they play most (from FACEIT and demos). Calls avoid relying on randoms for key utility, and the IGL relays their part in voice.
 - **Randoms' money and stats** come from the last time someone in the room spectated them.
 
+*Built (M7):* when the scouted roster has randoms, they take the slots nobody in the room plays. A random scouted as an AWPer gets the AWP slot and an entry gets the entry slot; the rest fill what's left, the AWP slot last. Their slots show as open on the map (nobody checks in for them), and the calls name them so the IGL can relay their part.
+
 ### 3.7 Squad positions on the map
 
 Every source of teammate positions we considered:
@@ -654,6 +656,9 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
    - Room members get the host's debrief.
    - *Not built:* "calls followed" (it needs player positions at set times, which demos have) and a FACEIT demo download (Downloads API access).
 7. **M7 · Extras:** 2D replay, lineup library, anti-strat builder, Stream Deck, push-to-talk, practice export, Wingman, Premier roster (if M0 passed).
+   - *Built:*
+     - **Gather mode** (section 3.6).
+     - **2D round replay** on the Debrief page, from the match demo. Everyone's movement at 4 frames a second, kills, smokes, molotovs, flashes and the plant, on csbot's own map outline. It plays at 1×, 2× or 4× and scrubs with a slider. The replay is kept gzipped next to the match record, on that PC only. The browser demo shows a fictional one, labeled as such.
 8. **M8 · Hardening:** host handover, signing, auto-update, performance, closed beta with a few squads → **V1 release**.
    - *Done:*
      - The installer and auto-update: an unsigned per-user NSIS installer on GitHub Releases. v0.5.0 is published; pushing a `v*` tag releases.

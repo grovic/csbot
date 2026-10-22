@@ -465,3 +465,27 @@ describe('robustness', () => {
     expect(renames).toBeGreaterThan(0);
   });
 });
+
+describe('gather mode', () => {
+  it('gives randoms the slots nobody in the room plays, by their usual role', async () => {
+    const { gatherSlots } = await import('../src/index.ts');
+    const slots = [{ id: 'a', label: 'A' }, { id: 'short', label: 'Short' }, { id: 'b', label: 'B' }, { id: 'rotator', label: 'Rot' }, { id: 'awp', label: 'AWP' }];
+    expect(gatherSlots(slots, new Set(['a', 'b']), [{ name: 'r1' }, { name: 'sniper', role: 'AWP' }, { name: 'r3' }]))
+      .toEqual([{ slot: 'awp', name: 'sniper' }, { slot: 'short', name: 'r1' }, { slot: 'rotator', name: 'r3' }]);
+    // No AWP random: the AWP slot is filled last.
+    expect(gatherSlots(slots, new Set(['a']), [{ name: 'x' }, { name: 'y' }]).map(r => r.slot)).toEqual(['short', 'b']);
+    expect(gatherSlots(slots, new Set(['a', 'short', 'b', 'rotator', 'awp']), [{ name: 'x' }])).toEqual([]);
+  });
+
+  it('names randoms on the map and in the room view', async () => {
+    const { host, flush } = await setup();
+    host.setLive(hostLiveAtFreeze2());
+    host.setSlot(HOST_ID, 'a');
+    host.setRandoms([{ slot: 'awp', name: 'sniper' }]);
+    await flush();
+    const s = host.screen();
+    expect(s.room!.randoms).toEqual([{ slot: 'awp', name: 'sniper' }]);
+    expect(s.live.squad!.find(m => m.slot === 'awp')).toMatchObject({ name: 'sniper', open: true, state: 'planned' });
+    expect(s.live.squad!.find(m => m.slot === 'a')).toMatchObject({ name: 'rdx' });
+  });
+});

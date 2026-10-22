@@ -31,8 +31,12 @@ export interface Runtime { gsiUrl: string; token: string; pid: number }
 export interface LaunchedApp { app: ElectronApplication; page: Page; dir: string; runtime: Runtime; close: () => Promise<void> }
 
 /** Launch the built desktop app hidden, with its own temp user data and a random GSI port. */
-export async function launchApp(extraEnv: Record<string, string> = {}): Promise<LaunchedApp> {
+export async function launchApp(extraEnv: Record<string, string> = {}, seed: { settings?: Record<string, unknown> } = {}): Promise<LaunchedApp> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'csbot-e2e-'));
+  if (seed.settings) {
+    fs.mkdirSync(path.join(dir, 'userData'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'userData', 'settings.json'), JSON.stringify(seed.settings));
+  }
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined && k !== 'ELECTRON_RUN_AS_NODE') env[k] = v;
   // A fake Steam root with no CS2 in it: detection never looks at the real game folder.

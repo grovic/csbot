@@ -262,6 +262,7 @@ function run(): void {
     ipcMain.handle('csbot:scoutLatest', e => { guard(e); return scout?.current; });
     ipcMain.handle('csbot:debriefLatest', e => { guard(e); return debrief?.view(); });
     ipcMain.handle('csbot:selectMatch', (e, id: unknown) => { guard(e); if (typeof id === 'string') debrief?.select(id); });
+    ipcMain.handle('csbot:getReplay', (e, id: unknown) => { guard(e); return typeof id === 'string' ? debrief?.replay(id) : undefined; });
     ipcMain.handle('csbot:writeWorkOn', (e, id: unknown) => {
       guard(e);
       if (typeof id !== 'string') return { ok: false, error: 'Invalid request.' };

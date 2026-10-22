@@ -128,7 +128,7 @@ export function siteResolver(plants: readonly RawEvent[]): (plant: RawEvent) => 
 
 // ---------------------------------------------------------------- rounds
 
-const byTick = (a: RawEvent, b: RawEvent) => a.tick - b.tick;
+export const byTick = (a: RawEvent, b: RawEvent) => a.tick - b.tick;
 
 /**
  * Real rounds only: after the last begin_new_match (warmup and restarts before it are dropped), never
@@ -174,6 +174,12 @@ export function segmentRounds(events: readonly RawEvent[]): RoundWindow[] {
   }
   for (let i = 0; i < kept.length - 1; i++) kept[i]!.nextTick = kept[i + 1]!.startTick;
   return kept;
+}
+
+/** The round's plant: the first bomb_planted while it was live (a plant after the round end is not its plant). */
+export function roundPlant(plants: readonly RawEvent[], w: RoundWindow): RawEvent | undefined {
+  if (w.liveTick === undefined) return undefined;
+  return plants.find(e => e.event_name === 'bomb_planted' && e.tick >= w.liveTick! && e.tick <= w.endTick && e.is_warmup_period !== true);
 }
 
 /** The ticks to ask parseTicks for: a short window ending at each round's bought tick. */
@@ -237,8 +243,7 @@ export function buildTruth(input: BuildInput): DemoTruth {
 
     const round: DemoRound = { round: w.round, winner: w.winner, ...(w.reason ? { reason: w.reason } : {}), players, deaths: [] };
 
-    const plant = w.liveTick === undefined ? undefined
-      : plants.find(e => e.tick >= w.liveTick! && e.tick <= w.endTick && e.is_warmup_period !== true);
+    const plant = roundPlant(plants, w);
     if (plant) {
       const site = siteOf(plant);
       if (site) round.plantSite = site;

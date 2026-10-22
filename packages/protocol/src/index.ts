@@ -1,6 +1,6 @@
 import type { ScoutView } from './scout.ts';
 import type { CoachAsker, CoachConfig, CoachView } from './coach.ts';
-import type { DebriefView } from './debrief.ts';
+import type { DebriefView, DemoReplay } from './debrief.ts';
 
 // Wire types shared by the host, the desktop renderer and (from M2) room members.
 // The host builds a LiveSnapshot from its GSI feed; every screen renders only from snapshots.
@@ -252,6 +252,8 @@ export interface CsbotBridge {
   onDebrief?(cb: (d: DebriefView) => void): () => void;
   /** Review another kept match. */
   selectMatch?(id: string): Promise<void>;
+  /** The 2D replay of a kept match (parsed from its demo), if there is one. */
+  getReplay?(id: string): Promise<DemoReplay | undefined>;
   /** Add a match demo: a file path (drag and drop) or none to pick one. Attaches the truth to its match. */
   ingestDemo?(file?: string): Promise<{ ok: boolean; error?: string }>;
   /** Ask the user's Claude Code for the "work on next" of a kept match. */

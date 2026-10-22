@@ -6,3 +6,4 @@ export * from './compose.ts';
 export * from './host.ts';
 export * from './client.ts';
 export * from './squad.ts';
+export * from './gather.ts';

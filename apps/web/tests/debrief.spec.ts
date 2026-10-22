@@ -32,3 +32,28 @@ test('demo debrief follows the demo map', async ({ page }) => {
   await page.goto('./?map=de_dust2#/debrief');
   await expect(page.getByTestId('debrief-result')).toContainText('Dust II');
 });
+
+test('demo debrief: the 2D round replay plays, scrubs and shows kills', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  await page.goto('./#/debrief');
+  await page.getByTestId('replay-open').click();
+  const replay = page.getByTestId('replay');
+  await expect(replay).toBeVisible();
+  expect(await page.getByTestId('replay-round').count()).toBeGreaterThan(15);
+  await expect(replay.locator('.pl circle')).toHaveCount(10);
+  // Scrub past the first kills: dead players turn into crosses, the kill feed fills.
+  await page.getByTestId('replay-time').fill('40');
+  await expect(replay.locator('.pl.dead')).not.toHaveCount(0);
+  await expect(page.getByTestId('replay-feed').locator('li').first()).toBeVisible();
+  await expect(page.getByTestId('replay-clock')).toHaveText('0:40');
+  // Another round, then play for a moment: the clock moves.
+  await page.getByTestId('replay-round').nth(3).click();
+  await expect(page.getByTestId('replay-clock')).toHaveText('0:00');
+  await page.getByTestId('replay-play').click();
+  await expect(page.getByTestId('replay-clock')).not.toHaveText('0:00');
+  await page.getByTestId('replay-time').fill('12');
+  await page.getByTestId('replay-card').screenshot({ path: path.join(SCREENS, 'replay.png'), style: '.hdr{position:static}' });
+  expect(errors).toEqual([]);
+});

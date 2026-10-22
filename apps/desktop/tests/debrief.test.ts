@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { MatchTracker } from '@csbot/engine';
 import { FULL_MATCH, syntheticMatch, toGameState } from '@csbot/gsi';
-import type { DebriefView, DemoTruth } from '@csbot/protocol';
+import type { DebriefView, DemoReplay, DemoTruth } from '@csbot/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 import { DebriefService } from '../src/debrief/service.ts';
 
@@ -58,7 +58,28 @@ describe('debrief service', () => {
       expect(svc.view().record?.truth?.map).toBe('de_mirage');
       expect(svc.view().matches[0]!.hasDemo).toBe(true);
       expect(svc.view().demo?.status).toBe('ready');
+      expect(svc.view().replay).toBeUndefined();
     } finally { fs.rmSync(file, { force: true }); }
+  });
+
+  it("keeps the demo's 2D replay gzipped next to the record and serves it back", async () => {
+    const { svc, dir } = service();
+    play(svc);
+    const rec = svc.view().record!;
+    const truth: DemoTruth = { source: { file: 'x.dem', parsedAt: 0, bytes: 1 }, map: 'de_mirage', players: [], rounds: rec.rounds.map(r => ({ round: r.round, winner: r.side, players: [], deaths: [] })) };
+    const replay: DemoReplay = { map: 'de_mirage', rounds: [{ round: 1, hz: 4, duration: 1, players: [{ steamid: 'a', name: 'rdx', side: 'CT' }], frames: [[0, 0, 0, 100], [10, 0, 0, 100], [20, 0, 0, 0]], nades: [], kills: [] }] };
+    const svc2 = new DebriefService({ dir, onChange: () => {}, parseDemo: async () => ({ truth, replay }) });
+    const file = path.join(os.tmpdir(), `csbot-fake-${Date.now()}.dem`);
+    fs.writeFileSync(file, 'x');
+    try {
+      expect(await svc2.ingest(file)).toEqual({ ok: true });
+      expect(fs.existsSync(path.join(dir, `${rec.id}.replay.json.gz`))).toBe(true);
+      expect(svc2.view().replay).toBe(true);
+      expect(svc2.replay(rec.id)).toEqual(replay);
+      expect(svc2.replay('../etc')).toBeUndefined();
+      expect(svc2.replay('nope')).toBeUndefined();
+    } finally { fs.rmSync(file, { force: true }); }
+    expect(svc.replay(rec.id)).toEqual(replay); // any service on the folder reads it
   });
 
   it("asks Claude for the work-on-next notes and keeps them", async () => {
@@ -92,7 +113,7 @@ describe('reading the test demo (when present)', () => {
     process.env.CSBOT_DEMO_WORKER = worker;
     const { parseDemoFile } = await import('../src/debrief/demo.ts');
     const t0 = Date.now();
-    const truth = await parseDemoFile(demo);
+    const { truth } = await parseDemoFile(demo);
     expect(Date.now() - t0).toBeLessThan(15_000);
     expect(truth.map).toBe('de_mirage');
     expect(truth.rounds.length).toBeGreaterThan(5);

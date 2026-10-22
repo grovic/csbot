@@ -59,6 +59,8 @@ export interface RoomView {
   /** Which member this view is for. */
   you: string;
   createdAt: number;
+  /** Gather mode: the match's randoms in the slots nobody in the room plays (from scouting). */
+  randoms?: { slot: string; name: string }[];
   /** Hosting generation: 0 for the room's creator, +1 at each handover. Members follow the newest. */
   epoch?: number;
   /** The host device's client id, so a takeover can let the old host back in without asking. */

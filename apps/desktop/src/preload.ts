@@ -2,7 +2,7 @@
 // modules are available here, so this file imports nothing at runtime except 'electron'.
 
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron';
-import type { CfgInstallResult, CoachView, CsbotBridge, DebriefView, HostInfo, LiveSnapshot, ScoutView } from '@csbot/protocol';
+import type { CfgInstallResult, CoachView, CsbotBridge, DebriefView, DemoReplay, HostInfo, LiveSnapshot, ScoutView } from '@csbot/protocol';
 
 const bridge: CsbotBridge = {
   onSnapshot(cb) {
@@ -39,6 +39,7 @@ const bridge: CsbotBridge = {
     return () => { ipcRenderer.removeListener('csbot:debrief', handler); };
   },
   selectMatch: id => ipcRenderer.invoke('csbot:selectMatch', id) as Promise<void>,
+  getReplay: id => ipcRenderer.invoke('csbot:getReplay', id) as Promise<DemoReplay | undefined>,
   ingestDemo: file => ipcRenderer.invoke('csbot:ingestDemo', file) as Promise<{ ok: boolean; error?: string }>,
   writeWorkOn: id => ipcRenderer.invoke('csbot:writeWorkOn', id) as Promise<{ ok: boolean; error?: string }>,
   openReplays: () => ipcRenderer.invoke('csbot:openReplays') as Promise<void>,
