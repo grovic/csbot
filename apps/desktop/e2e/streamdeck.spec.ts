@@ -65,6 +65,16 @@ test("the plugin's keys: the call on a key, intel like a click, push-to-talk ref
   expect((await api('POST', '/v1/command', { kind: 'nope' })).status).toBe(400);
 });
 
+test("numpad hotkey intel goes the same way as a click (so a member's reaches the room host)", async () => {
+  expect(await host.page.evaluate(() => window.csbot!.setIntelHotkeys!(true))).toMatchObject({ ok: true });
+  // Num7 is the A approach on Mirage (A Ramp); two presses = two enemies, logged after a short pause.
+  for (let i = 0; i < 2; i++) await host.app.evaluate(() => { (globalThis as { csbotPressKey?: (a: string) => void }).csbotPressKey!('num7'); });
+  await expect(host.page.getByTestId('voice-toast')).toContainText('2 A Ramp', { timeout: 10_000 });
+  const snap = await waitFor(async () => host.page.evaluate(() => { const c = (window as unknown as { __snaps: LiveSnapshot[] }).__snaps; const x = c[c.length - 1]; return x?.intel?.some(i => i.zone === 'aramp') ? x : undefined; }));
+  expect(snap.intel!.find(i => i.zone === 'aramp')).toMatchObject({ count: 2 });
+  await host.page.evaluate(() => window.csbot!.setIntelHotkeys!(false));
+});
+
 test('off again: the API and control.json are gone', async () => {
   const c = JSON.parse(fs.readFileSync(controlFile(), 'utf8')) as { url: string };
   await host.page.getByTestId('sd-toggle').uncheck();

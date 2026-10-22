@@ -227,6 +227,8 @@ export interface HostInfo {
   voice?: { enabled: boolean; key: string; keys: string[]; examples: string[]; error?: string };
   /** The local control API for the Stream Deck plugin (M7): off by default. */
   streamDeck?: { enabled: boolean; error?: string };
+  /** Low-memory mode (no graphics card): the setting, and whether this run uses it (it needs a restart). */
+  lowMemory?: { enabled: boolean; active: boolean };
   /** Auto-update (installed copies only). */
   update?: { version: string; state: 'off' | 'checking' | 'up-to-date' | 'downloading' | 'ready' | 'error'; available?: string; error?: string };
 }
@@ -306,6 +308,10 @@ export interface CsbotBridge {
   setVoice?(o: { enabled: boolean; key?: string }): Promise<{ ok: boolean; error?: string }>;
   /** Turn the local control API (Stream Deck plugin) on or off. */
   setStreamDeck?(on: boolean): Promise<{ ok: boolean; error?: string }>;
+  /** Turn low-memory mode on or off (applies after a restart). */
+  setLowMemory?(on: boolean): Promise<{ ok: boolean; error?: string }>;
+  /** Restart the desktop app. */
+  restart?(): Promise<void>;
   /**
    * Room roster with slots, so the coach can name players in calls ("rdx rotates to B") and knows
    * who's a random. Superset of setRoomRoster's names.

@@ -1,4 +1,5 @@
 // Spike 8: CPU and memory of the desktop app while it hosts a match.
+// CSBOT_GPU=on measures drawing with the graphics card (low-memory mode off); the default is the app's.
 // Launches the built app hidden (CSBOT_HIDDEN=1), lets it idle, then replays a synthetic match through
 // tools/gsi-replayer at real-time cadence and samples app.getAppMetrics() every second.
 //
@@ -117,11 +118,20 @@ function stats(from, to) {
   };
 }
 const idle = stats(tIdle + 3000, tReplay), replay = stats(tReplay + 2000, tEnd);
+/** Private memory by process type, averaged per minute of hosting: shows growth over a long run. */
+const timeline = [];
+for (let t0 = tReplay; t0 < tEnd; t0 += 60_000) {
+  const win = samples.filter(s => s.t >= t0 && s.t < t0 + 60_000);
+  if (!win.length) continue;
+  const by = {};
+  for (const s of win) for (const p of s.procs) by[p.type] = (by[p.type] ?? 0) + (p.priv ?? 0) / 1024 / win.length;
+  timeline.push({ minute: Math.round((t0 - tReplay) / 60_000), privMB: Object.fromEntries(Object.entries(by).map(([k, v]) => [k, Math.round(v)])) });
+}
 const f = n => n.toFixed(1);
 const result = {
   at: new Date().toISOString(), electron: execFileSync(electronPath, ['--version'], { env, encoding: 'utf8' }).trim(), cores, os: `${os.type()} ${os.release()}`,
   options: { idleS, durS, speed: a.speed, tick: a.tick }, payloadsReceived: received, payloadRate: received / durS,
-  idle, replay, leftoverProcesses: alive,
+  idle, replay, timeline, leftoverProcesses: alive,
 };
 const row = (label, k, unit) => `${label.padEnd(26)}${f(idle[k]).padStart(8)} ${unit}${f(replay[k]).padStart(20)} ${unit}`;
 console.log(`
@@ -144,6 +154,7 @@ V1 exit criteria (< 400 MB, < 3% CPU, while hosting):
   memory: private ${f(replay.privPeakMB)} MB ${replay.privPeakMB < 400 ? 'PASS' : 'FAIL'} · working set ${f(replay.wsPeakMB)} MB ${replay.wsPeakMB < 400 ? 'PASS' : 'FAIL'}
   CPU:    ${f(replay.cpuMachinePct)} % machine-wide ${replay.cpuMachinePct < 3 ? 'PASS' : 'FAIL'}
 leftover Electron processes: ${alive.length ? alive.join(', ') : 'none'}`);
+if (timeline.length > 2) console.log('\nprivate MB per minute (GPU / Tab / Browser): ' + timeline.map(m => `${m.minute}:${m.privMB.GPU ?? 0}/${m.privMB.Tab ?? 0}/${m.privMB.Browser ?? 0}`).join(' '));
 if (repOut.trim()) console.log('replayer: ' + repOut.trim().split('\n').slice(-2).join(' | '));
 const out = a.out ?? path.join(here, 'results.json');
 fs.writeFileSync(out, JSON.stringify(result, null, 2) + '\n');

@@ -87,6 +87,8 @@ const bridge: CsbotBridge = {
   setIntelHotkeys: enabled => ipcRenderer.invoke('csbot:setIntelHotkeys', enabled) as Promise<{ ok: boolean; error?: string }>,
   setVoice: o => ipcRenderer.invoke('csbot:setVoice', o) as Promise<{ ok: boolean; error?: string }>,
   setStreamDeck: on => ipcRenderer.invoke('csbot:setStreamDeck', on) as Promise<{ ok: boolean; error?: string }>,
+  setLowMemory: on => ipcRenderer.invoke('csbot:setLowMemory', on) as Promise<{ ok: boolean; error?: string }>,
+  restart: () => ipcRenderer.invoke('csbot:restart') as Promise<void>,
 };
 
 contextBridge.exposeInMainWorld('csbot', bridge);

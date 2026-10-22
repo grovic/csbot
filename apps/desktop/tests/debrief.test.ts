@@ -104,6 +104,27 @@ describe('debrief service', () => {
   });
 });
 
+describe('the demo reader runs in its own process', () => {
+  it('a crash is retried once (and a second crash is an error, not a crashed app)', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'csbot-reader-'));
+    dirs.push(dir);
+    const demo = path.join(dir, 'm.dem');
+    fs.writeFileSync(demo, 'x');
+    process.env.CSBOT_DEMO_WORKER = path.resolve(__dirname, 'fixtures-flaky-reader.cjs');
+    process.env.FLAKY_MARKER = path.join(dir, 'marker');
+    try {
+      const { parseDemoFile } = await import('../src/debrief/demo.ts');
+      const r = await parseDemoFile(demo);
+      expect(r.truth.map).toBe('de_mirage');
+      expect(fs.existsSync(process.env.FLAKY_MARKER)).toBe(true); // it did crash first
+      // Always crashing: a clean error.
+      process.env.CSBOT_DEMO_WORKER = path.join(dir, 'crash.cjs');
+      fs.writeFileSync(process.env.CSBOT_DEMO_WORKER, 'process.exit(3);');
+      await expect(parseDemoFile(demo)).rejects.toThrow('the demo reader crashed twice');
+    } finally { delete process.env.CSBOT_DEMO_WORKER; delete process.env.FLAKY_MARKER; }
+  });
+});
+
 describe('reading the test demo (when present)', () => {
   const demo = path.resolve(__dirname, '../../../packages/demo/testdata/test_demo.dem');
   const worker = path.resolve(__dirname, '../dist/demo-worker.cjs');

@@ -1,0 +1,362 @@
+{
+  "at": "2026-10-22T03:42:18.996Z",
+  "electron": "v45.0.0",
+  "cores": 16,
+  "os": "Windows_NT 10.0.26300",
+  "options": {
+    "idleS": 15,
+    "durS": 1800,
+    "speed": "1",
+    "tick": "0.25"
+  },
+  "payloadsReceived": 3322,
+  "payloadRate": 1.8455555555555556,
+  "idle": {
+    "samples": 12,
+    "wsAvgMB": 353.1591796875,
+    "wsPeakMB": 354.79296875,
+    "privAvgMB": 125.40983072916667,
+    "privPeakMB": 127.0078125,
+    "cpuOneCorePct": 1.4918104998202082,
+    "cpuMachinePct": 0.09323815623876301,
+    "cpuPeakOneCorePct": 2.100396825396803,
+    "cpuPeakMachinePct": 0.13127480158730018,
+    "byType": {
+      "Browser": {
+        "wsAvgMB": 121.6630859375,
+        "privAvgMB": 51.678059895833336,
+        "cpuSec": 0.02944799999999992
+      },
+      "GPU": {
+        "wsAvgMB": 76.033203125,
+        "privAvgMB": 20.773111979166668,
+        "cpuSec": 0.07514200000000001
+      },
+      "Utility": {
+        "wsAvgMB": 58.686197916666664,
+        "privAvgMB": 12.572265625,
+        "cpuSec": 0.009017999999999998
+      },
+      "Tab": {
+        "wsAvgMB": 96.77669270833333,
+        "privAvgMB": 40.386393229166664,
+        "cpuSec": 0.052341000000000026
+      }
+    }
+  },
+  "replay": {
+    "samples": 1783,
+    "wsAvgMB": 392.4690764336792,
+    "wsPeakMB": 408.34375,
+    "privAvgMB": 166.7946907424285,
+    "privPeakMB": 176.24609375,
+    "cpuOneCorePct": 2.938373139298047,
+    "cpuMachinePct": 0.18364832120612795,
+    "cpuPeakOneCorePct": 57.83690568978949,
+    "cpuPeakMachinePct": 3.614806605611843,
+    "byType": {
+      "Browser": {
+        "wsAvgMB": 122.3093254872406,
+        "privAvgMB": 79.34886996985418,
+        "cpuSec": 8.503702999999998
+      },
+      "GPU": {
+        "wsAvgMB": 76.55665924705552,
+        "privAvgMB": 20.894717470555243,
+        "cpuSec": 9.819809
+      },
+      "Utility": {
+        "wsAvgMB": 58.63210486189007,
+        "privAvgMB": 12.211691145541222,
+        "cpuSec": 0.041409000000000015
+      },
+      "Tab": {
+        "wsAvgMB": 134.970986837493,
+        "privAvgMB": 54.33941215647785,
+        "cpuSec": 34.407143999999995
+      }
+    }
+  },
+  "timeline": [
+    {
+      "minute": 0,
+      "privMB": {
+        "Browser": 81,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 51
+      }
+    },
+    {
+      "minute": 1,
+      "privMB": {
+        "Browser": 79,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 49
+      }
+    },
+    {
+      "minute": 2,
+      "privMB": {
+        "Browser": 79,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 51
+      }
+    },
+    {
+      "minute": 3,
+      "privMB": {
+        "Browser": 79,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 52
+      }
+    },
+    {
+      "minute": 4,
+      "privMB": {
+        "Browser": 79,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 53
+      }
+    },
+    {
+      "minute": 5,
+      "privMB": {
+        "Browser": 79,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 52
+      }
+    },
+    {
+      "minute": 6,
+      "privMB": {
+        "Browser": 79,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 50
+      }
+    },
+    {
+      "minute": 7,
+      "privMB": {
+        "Browser": 79,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 50
+      }
+    },
+    {
+      "minute": 8,
+      "privMB": {
+        "Browser": 79,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 52
+      }
+    },
+    {
+      "minute": 9,
+      "privMB": {
+        "Browser": 79,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 52
+      }
+    },
+    {
+      "minute": 10,
+      "privMB": {
+        "Browser": 79,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 54
+      }
+    },
+    {
+      "minute": 11,
+      "privMB": {
+        "Browser": 79,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 52
+      }
+    },
+    {
+      "minute": 12,
+      "privMB": {
+        "Browser": 79,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 52
+      }
+    },
+    {
+      "minute": 13,
+      "privMB": {
+        "Browser": 79,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 54
+      }
+    },
+    {
+      "minute": 14,
+      "privMB": {
+        "Browser": 79,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 54
+      }
+    },
+    {
+      "minute": 15,
+      "privMB": {
+        "Browser": 79,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 55
+      }
+    },
+    {
+      "minute": 16,
+      "privMB": {
+        "Browser": 79,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 54
+      }
+    },
+    {
+      "minute": 17,
+      "privMB": {
+        "Browser": 79,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 55
+      }
+    },
+    {
+      "minute": 18,
+      "privMB": {
+        "Browser": 79,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 55
+      }
+    },
+    {
+      "minute": 19,
+      "privMB": {
+        "Browser": 79,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 58
+      }
+    },
+    {
+      "minute": 20,
+      "privMB": {
+        "Browser": 79,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 56
+      }
+    },
+    {
+      "minute": 21,
+      "privMB": {
+        "Browser": 79,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 55
+      }
+    },
+    {
+      "minute": 22,
+      "privMB": {
+        "Browser": 79,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 57
+      }
+    },
+    {
+      "minute": 23,
+      "privMB": {
+        "Browser": 79,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 58
+      }
+    },
+    {
+      "minute": 24,
+      "privMB": {
+        "Browser": 80,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 58
+      }
+    },
+    {
+      "minute": 25,
+      "privMB": {
+        "Browser": 80,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 60
+      }
+    },
+    {
+      "minute": 26,
+      "privMB": {
+        "Browser": 80,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 58
+      }
+    },
+    {
+      "minute": 27,
+      "privMB": {
+        "Browser": 80,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 58
+      }
+    },
+    {
+      "minute": 28,
+      "privMB": {
+        "Browser": 80,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 58
+      }
+    },
+    {
+      "minute": 29,
+      "privMB": {
+        "Browser": 80,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 59
+      }
+    },
+    {
+      "minute": 30,
+      "privMB": {
+        "Browser": 81,
+        "GPU": 21,
+        "Utility": 12,
+        "Tab": 59
+      }
+    }
+  ],
+  "leftoverProcesses": []
+}

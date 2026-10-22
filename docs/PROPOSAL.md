@@ -1,6 +1,6 @@
 # csbot: V1 proposal
 
-> Status: M1–M5 are built, with real maps for the whole pool (section 12 has the details). The clickable design demo (`docs/prototype/index.html`, screenshots in `docs/prototype/screens/`) is the original design reference; its map is a hand-drawn sketch, while the app uses the real maps.
+> Status: M1–M7 are built, and M8 is built except code signing, with real maps for the whole pool (section 12 has the details). What's left for V1 needs real matches and demos (section 12, V1 exit criteria). The clickable design demo (`docs/prototype/index.html`, screenshots in `docs/prototype/screens/`) is the original design reference; its map is a hand-drawn sketch, while the app uses the real maps.
 > Every player, stat, and demo in the prototype is fictional.
 
 csbot is a second-screen companion for Counter-Strike 2, built for squads (5-stacks and gathers).
@@ -693,12 +693,25 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
        - Team call: the buy read and the call
        - It talks to the desktop app's local control API. That API is off by default and listens on 127.0.0.1 only, with a new key each time it's turned on, written to `control.json` in csbot's data folder. It refuses browsers (any Origin header) and other host names.
        - Keys go the same way as a click, so a member's intel reaches the room's host. The toast confirms each one.
+   - *Not built:* the Premier roster. Spike 3 needs one `status` output from a real match.
 8. **M8 · Hardening:** host handover, signing, auto-update, performance, closed beta with a few squads → **V1 release**.
    - *Done:*
      - The installer and auto-update: an unsigned per-user NSIS installer on GitHub Releases. v0.5.0 is published; pushing a `v*` tag releases.
      - A secret scan in CI.
    - *Done:* host handover and room expiry (section 3.8).
-   - *Pending:* code signing (Azure Trusted Signing) and performance work.
+   - *Performance pass (2026-10-22):*
+     - A 30-minute soak (`tools/spikes/electron-footprint`, hidden window, replayed match) found that drawing with the graphics card makes memory grow. The GPU process went from about 190 to 270 MB, and the total peaked at 412 MB, over the 400 MB budget. It grows on the Live page only: on Settings the GPU process stays flat around 105 MB.
+     - What was tried:
+       - Canvases drawn on the CPU: worse.
+       - Chromium's GPU memory caps: no change.
+       - The heat map turned off: still grows.
+       - The map drawing on its own layer: it starts lower and grows half as fast. This change is kept.
+     - **Low-memory mode is now the default** (Settings; it applies after a restart). csbot draws without the graphics card. Over the 30-minute soak it averaged 167 MB of private memory (peak 176) at 0.2% CPU, and the GPU process stayed flat at 21 MB. The page's own memory crept up about 8 MB over the half hour. The CPU is the same as with the graphics card. Turning it off draws with the graphics card again.
+     - The web app's first download went from 929 KB to about 715 KB. The secondary pages load when first opened. The room protocol no longer needs zod, which now loads only with the demo's scouting sample.
+     - Room reconnect after the host comes back is now tested against the 5 s criterion, over the tests' local signaling relay.
+     - **The demo reader runs in its own process** (Electron's utility process). In a worker thread, the native parser crashed now and then under load, about 3 runs in 10 of the parallel test suite, and a crash there takes the whole app down. Now a crash only fails that try, which is retried once. 0 crashes in 10 runs after the change; checked in the packaged app too.
+     - Numpad hotkey intel now goes through the page like a click. A member's hotkey intel used to land in their own PC's tracker; now it reaches the room's host.
+   - *Pending:* code signing (Azure Trusted Signing), and measurements that need the owner: a visible window during a real match, and the reconnect over real networks.
 
 **V1 exit criteria:**
 - buy-read accuracy ≥ 80% and money-band coverage ≥ 85% on 50 held-out demos

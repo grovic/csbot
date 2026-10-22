@@ -16,7 +16,7 @@ Teammates who only want to watch and log intel don't need it: they open the room
 
 ## Status
 
-**M1 (core host), M2 (rooms), M3 (Scout), M4a (live intel), M4b (real maps), M4c (T-side forecast), M4d (T playbook), M4e (squad markers), M5 (live coach) and M6 (debrief) are built, and M7 (extras) is under way.**
+**M1 (core host), M2 (rooms), M3 (Scout), M4a (live intel), M4b (real maps), M4c (T-side forecast), M4d (T playbook), M4e (squad markers), M5 (live coach), M6 (debrief) and M7 (extras) are built. M8 (hardening) is built except code signing.**
 - **M1:** the Electron host reads GSI, runs the economy engine, and shows the Live page.
 - **M2:** the admin creates a room in the desktop app and shares an invite link. Teammates open it in a browser, or paste it into their own csbot, and see the same calls with their own job. Rooms are peer-to-peer: no account, no server.
 
@@ -33,7 +33,7 @@ Teammates who only want to watch and log intel don't need it: they open the room
   - Claude writes "work on next".
   - Add the match demo (from CS2's replays folder, or drop the file) to see how often the buy read and the site read were right, their real money, and where you died.
 
-- **M7 (part):**
+- **M7:**
   - Gather mode: with fewer than five of you in the room, the match's randoms take the free slots (the AWPer gets the AWP slot).
   - 2D round replay from the match demo on the Debrief page: movement, kills, smokes, molotovs and the plant, at 1×, 2× or 4×.
   - Playbook page: your own setups, calls, jobs and spots per map (drag them on the map), and anti-strats for an opponent: which plans they run more or never, your answer to each of their buys, and notes for the coach. The room admin's playbook goes to every member.
@@ -42,7 +42,11 @@ Teammates who only want to watch and log intel don't need it: they open the room
   - Stream Deck plugin: intel, check-in, push-to-talk and team-call keys. Turn on Stream Deck in csbot's Settings, then open `com.grovic.csbot.streamDeckPlugin` from the release ([details](apps/streamdeck/README.md)).
   - Push-to-talk on the desktop app (off by default, Settings): press Num0 and say "three B apps", "palace clear", "rotating A" or "coach, should we save?". Windows recognizes the speech on your PC, offline.
 
-- **M8 (part):** if the host's PC drops, a desktop member takes over the room with one click. Members follow by themselves, and the old host rejoins as a member when it comes back. Rooms expire a day after their last match.
+- **M8:**
+  - If the host's PC drops, a desktop member takes over the room with one click. Members follow by themselves, and the old host rejoins as a member when it comes back. Rooms expire a day after their last match.
+  - Performance: about 160 MB and 0.2% CPU while hosting, flat over a 30-minute match. That's low-memory mode, on by default; csbot draws without the graphics card. The web app's first download is smaller.
+  - Auto-updating installer.
+  - Code signing isn't done: the installer is unsigned during the beta.
 
 - **M4e:** squad markers in a room: each player's marker is planned, on spot, rotating to a site with a countdown, or dead. Players check in with buttons under the map, or Num5 / Num4 / Num6 on the desktop app. Positions are only what players report; the game never sends teammates' positions.
 
@@ -50,7 +54,7 @@ Teammates who only want to watch and log intel don't need it: they open the room
 
 - **M5:** the host's own Claude Code writes the team call at every freeze time and after a plant, about 3 s after the engine's instant call. The squad asks it questions from the Coach page (per-member quota, per-match budget). Voice callouts read your job. Tournament mode turns it all off.
 
-The rest of the extras (M7) and the last hardening (M8) come next ([roadmap](docs/PROPOSAL.md#12-roadmap-v1-in-milestones)). Calibrating the forecast needs the squad's own demos.
+What's left for V1 needs real matches: accuracy on the squad's own demos, and footprint and reconnects measured during real games. Code signing is a decision for the owner ([roadmap](docs/PROPOSAL.md#12-roadmap-v1-in-milestones)).
 
 | Piece | Where | Run it |
 |---|---|---|
