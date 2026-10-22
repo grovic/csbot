@@ -143,6 +143,47 @@ function HotkeysCard({ bridge }: { bridge: CsbotBridge }) {
   );
 }
 
+/** Push-to-talk (desktop): off by default. Press the key, say one thing; Windows recognizes it offline. */
+function VoiceCard({ bridge, map }: { bridge: CsbotBridge; map?: string }) {
+  const [st, setSt] = useState<HostInfo['voice']>();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string>();
+  const refresh = useCallback(() => bridge.getInfo().then(i => setSt(i?.voice), () => undefined), [bridge]);
+  // The phrases follow the map: refresh when it changes (the grammar reloads in the main process first).
+  useEffect(() => { void refresh(); const t = setTimeout(() => void refresh(), 400); return () => clearTimeout(t); }, [refresh, map]);
+  const apply = async (enabled: boolean, key?: string) => {
+    setBusy(true); setErr(undefined);
+    setSt(x => (x ? { ...x, enabled, ...(key ? { key } : {}) } : x)); // show the change now; the refresh confirms it
+    try {
+      const r = await bridge.setVoice!({ enabled, ...(key ? { key } : {}) });
+      if (!r.ok) setErr(r.error ?? "Couldn't change push-to-talk.");
+    } catch (e) { setErr(String((e as Error)?.message ?? e)); }
+    await refresh();
+    setBusy(false);
+  };
+  const on = !!st?.enabled;
+  return (
+    <div className="card" data-testid="ptt-card">
+      <div className="card-h"><h3>Push-to-talk</h3><span className="muted small">voice · this PC · English</span></div>
+      <label className="toggle-row">
+        <input type="checkbox" checked={on} disabled={busy || !st} onChange={e => void apply(e.target.checked, st?.key)} data-testid="ptt-toggle" />
+        <span><b>{on ? 'On' : 'Off'}</b> · Press the key, then say one thing: intel, a check-in, or a question for the coach. You hear a tone when it listens and another when it understood.</span>
+      </label>
+      {st && (
+        <div className="krow" style={{ marginTop: 8 }}>
+          <span className="muted small" style={{ alignSelf: 'center' }}>Key</span>
+          <select className="inp" style={{ width: 'auto' }} value={st.key} disabled={busy} onChange={e => void apply(on, e.target.value)} data-testid="ptt-key">
+            {st.keys.map(k => <option key={k} value={k}>{k}</option>)}
+          </select>
+        </div>
+      )}
+      {(err || st?.error) && <div className="result err" data-testid="ptt-error">{err ?? st?.error}</div>}
+      {st && <ul className="voice-say" data-testid="ptt-examples">{st.examples.map(x => <li key={x}>“{x}”</li>)}</ul>}
+      <p className="note">Windows recognizes speech on this PC, offline, and only after you press the key: one sentence, nothing recorded. Questions start with “coach”. csbot never sends keys or input to the game.</p>
+    </div>
+  );
+}
+
 function BrowserCard({ member }: { member: boolean }) {
   return (
     <div className="card" data-testid="browser-card">
@@ -283,6 +324,7 @@ export function Settings({ snap, kind, scout, session }: { snap?: LiveSnapshot; 
       {bridge ? <HostCard bridge={bridge} /> : <BrowserCard member={kind === 'member'} />}
       <GsiStatus snap={snap} />
       {bridge?.setIntelHotkeys && session.isHostSide && <div style={{ gridColumn: '1/-1' }}><HotkeysCard bridge={bridge} /></div>}
+      {bridge?.setVoice && <div style={{ gridColumn: '1/-1' }}><VoiceCard bridge={bridge} {...(snap?.match?.map ? { map: snap.match.map } : {})} /></div>}
       <div style={{ gridColumn: '1/-1' }}><DataSources scout={scout} session={session} host={session.canScout} /></div>
       <div className="card" style={{ gridColumn: '1/-1' }}>
         <div className="card-h"><h3>Fair play</h3></div>

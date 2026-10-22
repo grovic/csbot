@@ -57,3 +57,36 @@ export function useVoiceCallouts(view: SessionView): void {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, enabled]);
 }
+
+let audio: AudioContext | undefined;
+/** A short tone: up when push-to-talk starts listening, two up when it understood, down when not. */
+function tone(kind: 'listening' | 'heard' | 'none' | 'error'): void {
+  try {
+    audio ??= new AudioContext();
+    const notes = kind === 'listening' ? [880] : kind === 'heard' ? [660, 990] : [330, 247];
+    notes.forEach((f, i) => {
+      const o = audio!.createOscillator(), g = audio!.createGain();
+      const t0 = audio!.currentTime + i * 0.09;
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.12, t0 + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
+      o.connect(g).connect(audio!.destination);
+      o.start(t0);
+      o.stop(t0 + 0.09);
+    });
+  } catch { /* no audio output */ }
+}
+
+/** Push-to-talk feedback you can hear in game: a tone per step, and the command read back when voice callouts are on. */
+export function usePushToTalkCues(view: SessionView): void {
+  const enabled = useVoiceOn();
+  const v = view.voice;
+  useEffect(() => {
+    if (!v) return;
+    tone(v.state);
+    if (enabled && v.state === 'heard' && v.said) speak(v.said);
+    // One cue per event.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [v?.at, v?.state]);
+}

@@ -2,7 +2,7 @@
 // modules are available here, so this file imports nothing at runtime except 'electron'.
 
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron';
-import type { CfgInstallResult, CoachView, CsbotBridge, DebriefView, DemoReplay, HostInfo, LiveSnapshot, ScoutView } from '@csbot/protocol';
+import type { CfgInstallResult, CoachView, CsbotBridge, DebriefView, DemoReplay, HostInfo, LiveSnapshot, ScoutView, VoiceEvent } from '@csbot/protocol';
 
 const bridge: CsbotBridge = {
   onSnapshot(cb) {
@@ -25,6 +25,11 @@ const bridge: CsbotBridge = {
     const handler = (_e: IpcRendererEvent, state: 'spot' | 'rotate', site?: 'A' | 'B') => cb(state, site);
     ipcRenderer.on('csbot:checkin', handler);
     return () => { ipcRenderer.removeListener('csbot:checkin', handler); };
+  },
+  onVoice(cb) {
+    const handler = (_e: IpcRendererEvent, ev: VoiceEvent) => cb(ev);
+    ipcRenderer.on('csbot:voice', handler);
+    return () => { ipcRenderer.removeListener('csbot:voice', handler); };
   },
   onGsi(cb) {
     const handler = (_e: IpcRendererEvent, p: Record<string, unknown>) => cb(p);
@@ -71,6 +76,7 @@ const bridge: CsbotBridge = {
   setRoomSlots: (members, opts) => { ipcRenderer.send('csbot:setRoomSlots', members, opts); },
   logIntel: (zone, count, from) => ipcRenderer.invoke('csbot:logIntel', zone, count, from) as Promise<{ ok: boolean; error?: string }>,
   setIntelHotkeys: enabled => ipcRenderer.invoke('csbot:setIntelHotkeys', enabled) as Promise<{ ok: boolean; error?: string }>,
+  setVoice: o => ipcRenderer.invoke('csbot:setVoice', o) as Promise<{ ok: boolean; error?: string }>,
 };
 
 contextBridge.exposeInMainWorld('csbot', bridge);

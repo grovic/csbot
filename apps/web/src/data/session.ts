@@ -12,7 +12,7 @@ import {
 } from '@csbot/room';
 import { trysteroTransport } from '@csbot/room/trystero';
 import {
-  EMPTY_COACH, EMPTY_DEBRIEF, EMPTY_SCOUT, type CoachConfig, type CoachView, type CsbotBridge, type DebriefView, type DemoReplay, type LinkStatus, type LiveSnapshot, type RoomPermissions,
+  EMPTY_COACH, EMPTY_DEBRIEF, EMPTY_SCOUT, type CoachConfig, type CoachView, type CsbotBridge, type DebriefView, type DemoReplay, type VoiceEvent, type LinkStatus, type LiveSnapshot, type RoomPermissions,
   type ScoutView, type ScreenState,
 } from '@csbot/protocol';
 import { demoCoach } from './demoCoach.ts';
@@ -49,6 +49,8 @@ export interface SessionView {
   netError?: string;
   /** A one-off message about the room (it expired, hosting moved). */
   notice?: string;
+  /** Desktop push-to-talk: what it's doing or just did (the toast). */
+  voice?: { state: VoiceEvent['state']; text?: string; said?: string; error?: string; at: number };
   /**
    * Scouting from this PC's own source (demo, or the desktop host). In a room members get it in
    * `screen.scout` instead; read both through `scoutOf(view)`.
@@ -127,6 +129,9 @@ export class Session {
     this.start();
     // Desktop: squad check-in hotkeys (Num4/5/6) arrive from the main process.
     this.bridge?.onCheckIn?.((state, site) => { void this.checkIn(state, site); });
+    // Desktop: push-to-talk. A heard command goes the same way as a click, so a member's intel and
+    // questions reach the room's host.
+    this.bridge?.onVoice?.(ev => { void this.onVoice(ev); });
     // Opening an invite link in a tab that already runs csbot only changes the hash: start joining.
     if (!this.bridge) {
       win.addEventListener('hashchange', () => {
@@ -332,6 +337,21 @@ export class Session {
     } catch (e) {
       return String((e as Error)?.message ?? e);
     }
+  }
+
+  /** Act on what push-to-talk heard; the toast shows the result (or why it was refused). */
+  async onVoice(ev: VoiceEvent): Promise<void> {
+    const at = Date.now();
+    const base = { ...(ev.text ? { text: ev.text } : {}), ...(ev.said ? { said: ev.said } : {}) };
+    if (ev.state !== 'heard' || !ev.command) {
+      this.set({ voice: { state: ev.state, ...base, ...(ev.error ? { error: ev.error } : {}), at } });
+      return;
+    }
+    const c = ev.command;
+    const err = c.kind === 'intel' ? await this.logIntel(c.zone, c.count)
+      : c.kind === 'checkin' ? await this.checkIn(c.state, c.site)
+      : await this.askCoach(c.text);
+    this.set({ voice: { state: err ? 'error' : 'heard', ...base, ...(err ? { error: err } : {}), at } });
   }
 
   async setCoachConfig(patch: Partial<CoachConfig>): Promise<void> {

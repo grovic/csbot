@@ -222,6 +222,8 @@ export interface HostInfo {
    * Pressing a sighting key n times within 1.5 s logs n enemies; a clear key logs the zone clear.
    */
   intelHotkeys?: { enabled: boolean; keys: { key: string; zone: string; zoneName: string; kind: 'sighting' | 'clear' | 'checkin' }[]; error?: string };
+  /** Push-to-talk (M7): off by default; the key, the keys it can use, and things to say. */
+  voice?: { enabled: boolean; key: string; keys: string[]; examples: string[]; error?: string };
   /** Auto-update (installed copies only). */
   update?: { version: string; state: 'off' | 'checking' | 'up-to-date' | 'downloading' | 'ready' | 'error'; available?: string; error?: string };
 }
@@ -246,6 +248,8 @@ export interface CsbotBridge {
   onGsi?(cb: (payload: Record<string, unknown>) => void): () => void;
   /** Squad check-ins from this PC's hotkeys (Num4/5/6): the renderer sends them to the room. */
   onCheckIn?(cb: (state: 'spot' | 'rotate', site?: 'A' | 'B') => void): () => void;
+  /** Desktop: push-to-talk (listening, what was heard). The renderer acts on a heard command. */
+  onVoice?(cb: (e: VoiceEvent) => void): () => void;
   /** Scouting for the current match (M3). Called with the latest view right away. */
   onScout?(cb: (s: ScoutView) => void): () => void;
   /** The debrief: the match being reviewed and every match kept on this PC. */
@@ -289,6 +293,8 @@ export interface CsbotBridge {
   logIntel?(zone: string, count: number, from?: { id: string; name: string }): Promise<{ ok: boolean; error?: string }>;
   /** Turn the numpad intel hotkeys on or off (see HostInfo.intelHotkeys). */
   setIntelHotkeys?(enabled: boolean): Promise<{ ok: boolean; error?: string }>;
+  /** Turn push-to-talk on or off, or change its key (see HostInfo.voice). */
+  setVoice?(o: { enabled: boolean; key?: string }): Promise<{ ok: boolean; error?: string }>;
   /**
    * Room roster with slots, so the coach can name players in calls ("rdx rotates to B") and knows
    * who's a random. Superset of setRoomRoster's names.
@@ -301,3 +307,20 @@ export * from './room.ts';
 export * from './scout.ts';
 export * from './coach.ts';
 export * from './debrief.ts';
+
+/** What push-to-talk understood. */
+export type VoiceCommand =
+  | { kind: 'intel'; zone: string; count: number }
+  | { kind: 'checkin'; state: 'spot' | 'rotate'; site?: 'A' | 'B' }
+  | { kind: 'question'; text: string };
+
+/** Push-to-talk, step by step: listening, then heard (with the command), nothing understood, or an error. */
+export interface VoiceEvent {
+  state: 'listening' | 'heard' | 'none' | 'error';
+  /** What the recognizer heard. */
+  text?: string;
+  command?: VoiceCommand;
+  /** The command read back ("3 B Apps"). */
+  said?: string;
+  error?: string;
+}

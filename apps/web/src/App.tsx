@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Header } from './components/Header.tsx';
 import { LinkStatusView, isBlocking } from './components/LinkStatus.tsx';
 import { coachOf, scoutOf, Session } from './data/session.ts';
@@ -10,7 +10,24 @@ import { Debrief } from './pages/Debrief.tsx';
 import { RoomPage } from './pages/Room.tsx';
 import { Scout } from './pages/Scout.tsx';
 import { Settings } from './pages/Settings.tsx';
-import { useVoiceCallouts } from './voice.ts';
+import { usePushToTalkCues, useVoiceCallouts } from './voice.ts';
+import type { SessionView } from './data/session.ts';
+
+/** Push-to-talk's toast: listening, what it understood, or why not. Fades 4 s after the last step. */
+function VoiceToast({ v }: { v: SessionView['voice'] }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!v || v.state === 'listening') return;
+    const t = setTimeout(() => tick(x => x + 1), Math.max(0, v.at + 4000 - Date.now()));
+    return () => clearTimeout(t);
+  }, [v]);
+  if (!v || (v.state !== 'listening' && Date.now() - v.at > 4000)) return null;
+  const text = v.state === 'listening' ? 'Listening…'
+    : v.state === 'heard' ? v.said ?? v.text
+    : v.state === 'none' ? (v.text ? `Didn't catch that: “${v.text}”` : "Didn't hear anything")
+    : v.error ?? 'Push-to-talk failed';
+  return <div className={'voice-toast ' + v.state} role="status" data-testid="voice-toast" data-state={v.state}><span className="mic" aria-hidden="true" />{text}{v.state === 'error' && v.said ? <span className="muted"> · {v.said}</span> : null}</div>;
+}
 
 export function App() {
   const session = useMemo(() => new Session(), []);
@@ -19,6 +36,7 @@ export function App() {
   const live = v.screen?.live;
   const blocking = isBlocking(v);
   useVoiceCallouts(v);
+  usePushToTalkCues(v);
 
   let page: React.ReactNode = null;
   if (v.join) page = <Join view={v} session={session} />;
@@ -42,6 +60,7 @@ export function App() {
         {v.role === 'member' && !v.join && <LinkStatusView view={v} session={session} />}
         {page}
       </main>
+      <VoiceToast v={v.voice} />
     </div>
   );
 }
