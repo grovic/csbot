@@ -348,6 +348,27 @@ export class Session {
   }
 
   async scoutSample(): Promise<void> { if (this.canScout) await this.bridge!.scoutSample!(); }
+
+  /** This screen can read a pasted Premier `status` (the desktop app solo or hosting). */
+  get canScoutStatus(): boolean { return this.canScout && !!this.bridge?.scoutStatus; }
+
+  /** Premier and other Valve matches: scout the players in a pasted console `status`. Returns an error to show. */
+  async scoutStatus(text: string): Promise<string | undefined> {
+    if (!this.canScoutStatus) return 'Scouting runs in the csbot desktop app.';
+    try {
+      const r = await this.bridge!.scoutStatus!(text);
+      return r.ok ? undefined : r.error ?? 'Could not read those players.';
+    } catch (e) {
+      return String((e as Error)?.message ?? e);
+    }
+  }
+
+  /** Premier: put a player on our team or theirs (null: back to unsorted). */
+  async setPremierSide(steamid: string, side: 'us' | 'them' | null): Promise<string | undefined> {
+    if (!this.canScoutStatus || !this.bridge?.setPremierSide) return undefined;
+    const r = await this.bridge.setPremierSide(steamid, side);
+    return r.ok ? undefined : r.error ?? 'Could not move that player.';
+  }
   /** csbot picked the wrong team: scout the match again from the other side. */
   async swapScoutSides(): Promise<string | undefined> {
     if (!this.canScout || !this.bridge?.scoutSwap) return undefined;

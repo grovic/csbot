@@ -3,8 +3,9 @@
 // Pure Node (no Electron import): unit-tested with sample clients and a fake analyst.
 
 import {
-  ApiError, faceitClient, parseFaceitMatch, recentFromHistory, SAMPLE_MATCH_ID, sampleFaceit, sampleSteam, sampleSteamId, scoutFaceitMatch, steamClient, withReport,
-  type CacheStore, type FaceitApi, type SteamApi,
+  ApiError, faceitClient, fetchPremier, parseFaceitMatch, parseStatus, premierMatchId, premierSides, premierView, recentFromHistory, SAMPLE_MATCH_ID, sampleFaceit, sampleSteam,
+  sampleSteamId, scoutFaceitMatch, steamClient, withReport,
+  type CacheStore, type FaceitApi, type PremierData, type PremierSide, type SteamApi,
 } from '@csbot/scout';
 import { EMPTY_SCOUT, type DataSourceState, type RecentMatch, type ScoutReport, type ScoutView } from '@csbot/protocol';
 import type { AnalystResult } from './claude.ts';
@@ -25,6 +26,8 @@ export interface ScoutServiceOptions {
   ourSteamId?: () => string | undefined;
   /** Room members by Steam ID or nickname (case-insensitive) → their room role (others on our side are randoms). */
   roomSteamIds?: () => Record<string, 'admin' | 'member'> | undefined;
+  /** Steam IDs csbot has seen on our team this match (this PC's GSI, teammates watched after dying, room members' GSI). */
+  ourTeam?: () => string[];
   makeFaceit?: (key: string) => FaceitApi;
   makeSteam?: (key: string) => SteamApi;
   now?: () => number;
@@ -45,6 +48,10 @@ export const ERRORS = {
   server: 'FACEIT had a problem answering. Try again in a moment.',
   noClaude: "Claude Code isn't installed on this PC, so there's no AI report. Every number above still comes from the data.",
   budget: 'The AI report has already run 3 times for this match.',
+  badStatus: "No players found. In CS2's console, type status, then copy everything it prints and paste it here.",
+  noStatus: 'Paste a status first.',
+  unknownPlayer: "That player isn't in this match.",
+  noData: 'Nothing to brief from yet: with a FACEIT or Steam key (Settings → Data sources), csbot looks the players up first.',
 } as const;
 
 type Listener = (v: ScoutView) => void;
@@ -71,6 +78,8 @@ export class ScoutService {
   private autoScouted = new Set<string>();
   /** Matches where the host swapped the sides (their side was guessed wrong). */
   private swapped = new Set<string>();
+  /** Premier: the pasted status's players with their data, and the host's own sorting (no refetch to re-sort). */
+  private premier?: { id: string; data: PremierData; manual: Record<string, PremierSide> };
 
   constructor(o: ScoutServiceOptions) {
     this.o = { now: Date.now, autoReport: true, manualRuns: 2, ...o };
@@ -149,9 +158,58 @@ export class ScoutService {
     await this.scout(SAMPLE_MATCH_ID, 'sample', sampleFaceit(), sampleSteam(), sampleSteamId('rdx'), room);
   }
 
+  /**
+   * Premier and other Valve matches: the players from the console's `status`, pasted by the host (csbot
+   * never reads the console). Steam profiles and FACEIT accounts by Steam ID when keys are saved. Our side
+   * is what csbot knows; the host sorts the rest (setPremierSide).
+   */
+  async scoutStatus(text: string): Promise<{ ok: boolean; error?: string }> {
+    const roster = parseStatus(text ?? '');
+    if (roster.players.length < 2) return { ok: false, error: ERRORS.badStatus };
+    const fk = this.o.keys.get('faceit'), sk = this.o.keys.get('steam');
+    const faceit = fk ? (this.o.makeFaceit ?? (k => faceitClient({ apiKey: k, ...(this.o.cache ? { cache: this.o.cache } : {}) })))(fk) : undefined;
+    const steam = sk ? (this.o.makeSteam ?? (k => steamClient({ apiKey: k, ...(this.o.cache ? { cache: this.o.cache } : {}) })))(sk) : undefined;
+    const gen = ++this.gen;
+    const id = premierMatchId(roster.players);
+    this.set({ ...structuredClone(EMPTY_SCOUT), status: 'loading', platform: 'premier', matchId: id, sources: this.sources('premier') });
+    const data = await fetchPremier({ ...(faceit ? { faceit } : {}), ...(steam ? { steam } : {}) }, roster.players, roster.map);
+    if (gen !== this.gen) return { ok: true };
+    // The same lobby pasted again keeps the host's sorting.
+    this.premier = { id, data, manual: this.premier?.id === id ? this.premier.manual : {} };
+    this.showPremier(gen);
+    return { ok: true };
+  }
+
+  /** Premier: the host puts a player on a team (null: back to unsorted). */
+  setPremierSide(steamid: string, side: PremierSide | null): { ok: boolean; error?: string } {
+    const p = this.premier;
+    if (!p || this.view.platform !== 'premier' || this.view.matchId !== p.id) return { ok: false, error: ERRORS.noStatus };
+    if (!p.data.players.some(x => x.status.steamid === steamid)) return { ok: false, error: ERRORS.unknownPlayer };
+    if (side) p.manual[steamid] = side; else delete p.manual[steamid];
+    this.showPremier(this.gen);
+    return { ok: true };
+  }
+
+  private showPremier(gen: number): void {
+    const p = this.premier!;
+    const roles = this.roomRoles();
+    const me = this.o.ourSteamId?.();
+    const ours = new Set([...(this.o.ourTeam?.() ?? []), ...(me ? [me] : []), ...Object.keys(roles).map(k => k.toLowerCase())]);
+    const v = premierView(p.data, premierSides(p.data.players, ours, p.manual), { matchId: p.id, claude: this.claude, now: this.o.now(), room: roles });
+    const fresh: ScoutView = { ...v, sources: { ...this.sources('premier'), ...(p.data.sources.steam === 'error' ? { steam: 'error' as const } : {}) } };
+    const kept = this.reports.get(reportKey(fresh));
+    if (kept) { this.set(withReport(fresh, kept)); return; }
+    // Re-sorted while its briefing is being written (same teams): keep showing that.
+    if (this.view.report.status === 'running' && this.view.matchId === fresh.matchId && reportKey(this.view) === reportKey(fresh)) { this.set({ ...fresh, report: this.view.report }); return; }
+    this.set(fresh);
+    // The briefing needs the teams (it runs once nobody is left to sort) and some data on the players.
+    if (!fresh.unsorted && this.o.autoReport && premierHasData(fresh)) void this.report(gen, true);
+  }
+
   /** The room changed: relabel our side (admin / member / random) without refetching anything. */
   relabelRoom(): void {
     if (this.view.status !== 'ready' || this.view.platform === 'sample') return;
+    if (this.view.platform === 'premier') { if (this.premier?.id === this.view.matchId) this.showPremier(this.gen); return; }
     const room = new Map(Object.entries(this.roomRoles()).map(([k, v]) => [k.toLowerCase(), v]));
     const players = this.view.us.players.map(p => ({ ...p, room: (p.steamid ? room.get(p.steamid) : undefined) ?? room.get(p.nickname.toLowerCase()) ?? 'random' as const }));
     this.set({ ...this.view, us: { ...this.view.us, players } });
@@ -262,6 +320,8 @@ export class ScoutService {
   private async report(gen: number, auto: boolean): Promise<{ ok: boolean; error?: string }> {
     const v = this.view;
     if (v.status !== 'ready' || !v.matchId) return { ok: false, error: 'Scout a match first.' };
+    // Premier without keys: names only. Claude would have nothing but names to write from.
+    if (v.platform === 'premier' && !premierHasData(v)) { if (!auto) this.set({ ...v, report: { ...v.report, error: ERRORS.noData } }); return { ok: false, error: ERRORS.noData }; }
     if (this.claude !== 'live' || !this.o.analyst) {
       this.set({ ...v, report: { status: 'off', error: ERRORS.noClaude } });
       return { ok: false, error: ERRORS.noClaude };
@@ -332,6 +392,9 @@ const keepText = (r: ScoutReport): Partial<ScoutReport> => {
   const { status: _s, error: _e, ...rest } = r;
   return rest;
 };
+
+/** Premier: anything looked up beyond the names in status (a FACEIT account or a Steam profile). */
+const premierHasData = (v: ScoutView) => [...v.us.players, ...v.them.players].some(p => p.elo !== undefined || p.steam !== undefined || p.stats.matches !== undefined);
 
 /** A briefing belongs to one match seen from one side. */
 const reportKey = (v: ScoutView) => `${v.matchId}|${v.us.players.map(p => p.id).sort().join(',')}`;

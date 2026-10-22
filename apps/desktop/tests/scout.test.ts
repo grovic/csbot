@@ -298,6 +298,77 @@ describe('your FACEIT account and recent matches', () => {
   });
 });
 
+describe('Premier: players from a pasted status', () => {
+  /** A status listing the sample's ten players (fictional), SteamID3 form, with a bot. */
+  const STATUS = ['map     : de_mirage', '---------players--------', '  id     time ping loss      state   rate adr name',
+    ...['Holo', 'sk1p', 'vex', 'Drift', 'Okami', 'kairo', 'zeph', 'rdx', 'nyx', 'mbt'].map((n, i) => `  ${i + 2}    10:0${i}   30    0     active 786432 [U:1:${BigInt(sampleSteamId(n)!) - 76561197960265728n}] '${n}'`),
+    '  12    10:00    0    0     active      0 BOT \'Bot Ringo\'', '#end'].join('\n');
+  const premier = (o: { ourTeam?: string[]; room?: Record<string, 'admin' | 'member'> } = {}) => {
+    const analyst = fakeAnalyst();
+    const s = new ScoutService({
+      keys: keys({ faceit: 'k', steam: 'k' }), analyst, makeFaceit: () => sampleFaceit(), makeSteam: () => sampleSteam(),
+      ourSteamId: () => sampleSteamId('rdx'), ourTeam: () => o.ourTeam ?? [], roomSteamIds: () => o.room ?? {},
+    });
+    return { s, analyst };
+  };
+
+  it('looks every player up; our side from what csbot knows, the host sorts the rest', async () => {
+    const { s, analyst } = premier({ room: { kairo: 'member' }, ourTeam: [sampleSteamId('nyx')!] });
+    await s.init();
+    expect(await s.scoutStatus(STATUS)).toEqual({ ok: true });
+    let v = s.current;
+    expect(v).toMatchObject({ status: 'ready', platform: 'premier', map: 'de_mirage' });
+    expect(v.us.players.map(p => p.nickname).sort()).toEqual(['kairo', 'nyx', 'rdx']);
+    expect(v.unsorted!.map(p => p.nickname).sort()).toEqual(['Drift', 'Holo', 'Okami', 'mbt', 'sk1p', 'vex', 'zeph']);
+    expect(v.us.players.find(p => p.nickname === 'kairo')!.room).toBe('member');
+    // FACEIT by Steam ID and Steam data for each one.
+    const holo = v.unsorted!.find(p => p.nickname === 'Holo')!;
+    expect(holo).toMatchObject({ elo: 2640, level: 10, steam: { cs2Hours: 4120 } });
+    expect(analyst.calls).toBe(0); // no briefing until the teams are known
+    s.setPremierSide(sampleSteamId('mbt')!, 'us');
+    expect(s.setPremierSide(sampleSteamId('zeph')!, 'us')).toEqual({ ok: true });
+    v = s.current;
+    // Five on our side: the other five are the opponents, sorted by threat.
+    expect(v.unsorted).toBeUndefined();
+    expect(v.them.players.map(p => p.nickname)[0]).toBe('Holo');
+    expect(v.them.players).toHaveLength(5);
+    expect(v.winChance).toBeDefined();
+    await until(() => s.current.report.status === 'ready');
+    expect(analyst.calls).toBe(1);
+    // A mistake: back to unsorted.
+    s.setPremierSide(sampleSteamId('zeph')!, null);
+    expect(s.current.unsorted!.length).toBe(6);
+  });
+
+  it('works without keys (names from status only, no briefing), and refuses a paste with no players', async () => {
+    const analyst = fakeAnalyst();
+    const s = new ScoutService({ keys: keys(), analyst, ourSteamId: () => sampleSteamId('rdx') });
+    await s.init();
+    expect(await s.scoutStatus('hello')).toEqual({ ok: false, error: ERRORS.badStatus });
+    expect(await s.scoutStatus(STATUS)).toEqual({ ok: true });
+    expect(s.current).toMatchObject({ platform: 'premier', sources: { faceit: 'missing-key', steam: 'missing-key' } });
+    expect(s.current.us.players.map(p => p.nickname)).toEqual(['rdx']);
+    expect(s.setPremierSide('76561190000000000', 'us')).toEqual({ ok: false, error: ERRORS.unknownPlayer });
+    // Sorted, but names are all csbot has: Claude isn't asked to write from nothing.
+    for (const n of ['kairo', 'zeph', 'nyx', 'mbt']) s.setPremierSide(sampleSteamId(n)!, 'us');
+    expect(s.current.them.players).toHaveLength(5);
+    await new Promise(r => setTimeout(r, 30));
+    expect(analyst.calls).toBe(0);
+    expect(await s.runReport()).toEqual({ ok: false, error: ERRORS.noData });
+  });
+
+  it('teammates seen while spectating join our side as csbot learns them', async () => {
+    let ours: string[] = [];
+    const s = new ScoutService({ keys: keys({ steam: 'k' }), makeSteam: () => sampleSteam(), ourSteamId: () => sampleSteamId('rdx'), ourTeam: () => ours });
+    await s.scoutStatus(STATUS);
+    expect(s.current.us.players).toHaveLength(1);
+    ours = ['kairo', 'zeph', 'nyx', 'mbt'].map(n => sampleSteamId(n)!);
+    s.relabelRoom();
+    expect(s.current.us.players).toHaveLength(5);
+    expect(s.current.them.players).toHaveLength(5);
+  });
+});
+
 describe('saved keys at startup', () => {
   it('marks a refused key without touching a good one', async () => {
     const refusing: FaceitApi = { ...sampleFaceit(), ping: async () => { throw new ApiError('FACEIT', 401, 'nope'); } };

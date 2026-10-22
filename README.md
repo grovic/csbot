@@ -51,6 +51,7 @@ Teammates who only want to watch and log intel don't need it: they open the room
 - **M9:**
   - The next round's call shows as soon as a round ends, and the host's Claude Code starts on it then, so its call is usually on screen before freeze time.
   - Measurement runs (the playtest build starts with `--metrics`) log memory, CPU, round ends and when each screen in the room shows each call. `tools/real-match` turns a run into the V1 numbers.
+  - Premier scouting: type `status` in CS2's console and paste what it prints on the Scout page. csbot looks the players up (Steam, and FACEIT by Steam ID) and you mark who's on your team; once a team has five, the rest are the opponents.
 
 - **M4e:** squad markers in a room: each player's marker is planned, on spot, rotating to a site with a countdown, or dead. Players check in with buttons under the map, or Num5 / Num4 / Num6 on the desktop app. Positions are only what players report; the game never sends teammates' positions.
 

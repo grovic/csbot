@@ -52,6 +52,15 @@ describe('the match log (measurement runs only)', () => {
     expect(read(file)[1]).toMatchObject({ ev: 'coach', trigger: 'freeze', status: 'ok', ms: 3000, model: 'claude-sonnet', costUsd: 0.01 });
   });
 
+  it('keeps a pasted status next to the run, numbered', () => {
+    const dir = tmp();
+    const log = new MatchLog(path.join(dir, 'run.events.ndjson'), () => 1);
+    log.keep('status', 'first');
+    log.keep('status', 'second');
+    expect(fs.readFileSync(path.join(dir, 'run.status-2.txt'), 'utf8')).toBe('second');
+    expect(read(path.join(dir, 'run.events.ndjson')).map(e => e.n)).toEqual([1, 2]);
+  });
+
   it("takes the renderer's traces from known fields only", () => {
     expect(parseTrace({ ev: 'shown', id: 'client-kairo', name: 'kairo', device: 'web', key: '4:pre:claude', extra: 'x' })).toEqual({ ev: 'shown', id: 'client-kairo', name: 'kairo', device: 'web', key: '4:pre:claude' });
     expect(parseTrace({ ev: 'offline', id: 'host', name: 'x'.repeat(50), device: 'desktop' })).toEqual({ ev: 'offline', id: 'host', name: 'x'.repeat(32), device: 'desktop' });

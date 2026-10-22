@@ -511,7 +511,7 @@ Target: **the call is on every screen ≤ 8 s after the round ends (p95)**. The 
 - Anti-strat builder for a specific opponent; the team playbook shared by the room
 - Progress tracking across matches (per player and per team), Wingman support, practice-config export (lineups for a private server)
 - Phone as second screen: free with the web app
-- Premier roster from the console log, if the spike succeeds
+- Premier roster from a pasted console `status` (csbot never reads the console)
 - Portrait (1080×1920) layout
 
 ---
@@ -596,7 +596,7 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
    - *Status:* done (2026-10-21, competitive de_dust2, 596 payloads). No position while alive (0/299) or while watching a teammate (0/180), and no `allplayers`. Squad markers stay planned spots, check-ins and rotations (section 3.7).
 2. ~~**GSI to a remote HTTPS URL.**~~ Dropped: with no relay, there's nothing for a web member's CS2 to post to. Members share GSI through the desktop app.
 3. **Premier roster** from `status` / `-condebug`.
-   - *Status:* needs one `status` in a real match. The only `console.log` on the PC is from a map-editor session.
+   - *Status:* built as a paste (M9, 2026-10-22). csbot never reads the console or its log: the host types `status` in CS2's console and pastes what it prints on the Scout page. csbot reads the Steam IDs in any of the forms CS2 has printed (`[U:1:n]`, `STEAM_x:y:z`, 64-bit) and the quoted names. Still to check on one real Premier match: what today's CS2 prints. Measurement runs keep the pasted text next to the run's files to check it.
 4. **FACEIT:** live match detection, plus applying for the Downloads API now (FACEIT quotes ~30 days).
    - *Status:* needs the owner's FACEIT developer account.
 5. **Claude Code:** warm stream-json latency p50/p95, MCP from `claude -p`, usage per match on Pro vs Max.
@@ -695,7 +695,7 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
        - Team call: the buy read and the call
        - It talks to the desktop app's local control API. That API is off by default and listens on 127.0.0.1 only, with a new key each time it's turned on, written to `control.json` in csbot's data folder. It refuses browsers (any Origin header) and other host names.
        - Keys go the same way as a click, so a member's intel reaches the room's host. The toast confirms each one.
-   - *Not built:* the Premier roster. Spike 3 needs one `status` output from a real match.
+   - The Premier roster came in M9 (a pasted `status`).
 8. **M8 · Hardening:** host handover, signing, auto-update, performance, closed beta with a few squads → **V1 release**.
    - *Done:*
      - The installer and auto-update: an unsigned per-user NSIS installer on GitHub Releases. v0.5.0 is published; pushing a `v*` tag releases.
@@ -720,7 +720,7 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
      - **The next round's call at round end**, with Claude asked then (section 6.4). The call card says "Next round", and the enemy buy and likely-hit tiles show the next round's estimate. Tournament mode hides it like the rest of the forecast.
      - **Measurement runs.** The playtest shortcut starts csbot with `--metrics`. Besides the per-second process metrics, it then logs the match's events: phase changes (a round ends when "over" starts), each new call on the host, Claude's time per call, the host's recent FACEIT matches, and the window's state. Each screen in the room reports each new call it shows (the room message `shown`), and the host notes members coming and going. All of it stays on the PC, next to the metrics in `%APPDATA%\csbot\metrics`.
      - **`tools/real-match`** turns one run into the V1 numbers: private memory and CPU while the match is on (and how long the window was on screen), the time from round end to the next round's call on every screen (the engine's and Claude's, p50/p95), Claude's own time and plan usage, room reconnects, and whether FACEIT listed the match while it was played.
-   - *Next:* the Premier roster from a pasted `status` (spike 3).
+     - **Premier roster from a pasted `status`** (spike 3). Each player's Steam profile and FACEIT account by Steam ID, when they have one and keys are saved. Valve's matchmaking doesn't say who's on which team. Our side starts with what csbot knows (this PC, teammates watched after dying, room members by name), and the host marks the others; once a team has five, the rest go to the other side. The briefing runs once the teams are sorted, and only when csbot found data on the players: names alone aren't enough to write from.
 
 **V1 exit criteria:**
 - buy-read accuracy ≥ 80% and money-band coverage ≥ 85% on 50 held-out demos
@@ -736,7 +736,7 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
 |---|---|
 | Valve changes GSI fields | Recorder corpus + contract tests. Fields and rules live in data files. |
 | No positions while alive *and* none while dead (**confirmed** by the probe, 2026-10-21) | Squad markers rely on planned spots, check-ins, and rotation timing. Exact positions come in the post-match replay. |
-| No Premier roster source | FACEIT-first. Premier uses the room members + post-match learning. |
+| No Premier roster source | FACEIT-first. Premier: the host pastes the console's `status` (M9), plus room members and post-match learning. |
 | Anthropic terms or plan usage change | Per-match budgets and member quotas. API-key mode on the same code path. |
 | Direct connection fails on strict networks | Same-LAN and most home networks connect directly. Fallbacks: the host forwards traffic when its router allows UPnP, or the squad runs open-source coturn. M2 measures the failure rate. |
 | Public Nostr relays go down or rate-limit | Several relays at once. Trystero can also signal over BitTorrent trackers or MQTT. Signaling is a handful of messages per join. |
@@ -759,5 +759,5 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
 - Anthropic support: [Use the Agent SDK with your Claude plan](https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan) (separate credit paused)
 - FACEIT: [Downloads API](https://docs.faceit.com/getting-started/Guides/download-api) · [FACEIT Anti-cheat](https://support.faceit.com/hc/en-us/articles/9394666828188)
 - Leetify public API: [Rust client docs](https://docs.rs/crate/leetify/0.1.1)
-- CS2 `status` command: [csdb.gg](https://csdb.gg/command/status/) (SteamID format unconfirmed, see spike 3)
+- CS2 `status` command: [csdb.gg](https://csdb.gg/command/status/) (the SteamID form today's CS2 prints is still to confirm, see spike 3)
 - CS2 economy summaries: [csdb.gg economy guide](https://csdb.gg/economy-guide) · [Refrag](https://refrag.gg/blog/cs2-economy-crash-course-what-are-kill-rewards-and-loss-bonus) (values to verify against demos)
