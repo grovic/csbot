@@ -2,7 +2,9 @@
 
 import { buildMapModel, type MapModel, type MapPlans } from '../forecast.ts';
 import type { MapGeo } from '../geometry.ts';
+import type { Lineup } from '@csbot/protocol';
 import { buildPlaybook, DEFAULT_SLOTS, type Playbook, type PlaybookDef, type SlotDef } from '../playbook.ts';
+import { buildLineups, STARTER_LINEUPS } from './lineups.ts';
 import { GEO_ANCIENT } from './geo/de_ancient.ts';
 import { GEO_ANUBIS } from './geo/de_anubis.ts';
 import { GEO_CACHE } from './geo/de_cache.ts';
@@ -43,6 +45,17 @@ export const PLAYBOOKS: Readonly<Record<string, Playbook>> = Object.fromEntries(
 );
 
 export const MAP_POOL: readonly string[] = ENTRIES.map(e => e.geo.id);
+
+/** Utility lineups per map: csbot's starter list, or the team's (see team.ts). */
+export const LINEUPS: Readonly<Record<string, readonly Lineup[]>> = Object.fromEntries(
+  ENTRIES.map(e => [e.geo.id, buildLineups(e.geo, STARTER_LINEUPS[e.geo.id] ?? [])]),
+);
+
+/** The lineups a setup uses (its call lists them). */
+export function lineupsFor(map: string | undefined, setup: string | undefined): readonly Lineup[] {
+  if (!map || !setup) return [];
+  return (LINEUPS[map] ?? []).filter(l => l.setups?.includes(setup));
+}
 
 export const MIRAGE: MapModel = MAPS.de_mirage!;
 export const MIRAGE_PLAYBOOK: Playbook = PLAYBOOKS.de_mirage!;

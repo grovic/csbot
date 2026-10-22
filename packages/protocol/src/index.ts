@@ -259,6 +259,8 @@ export interface CsbotBridge {
   onTeam?(cb: (t: TeamPlan) => void): () => void;
   /** Save the team plan (admin's own desktop). */
   setTeam?(t: TeamPlan): Promise<{ ok: boolean; error?: string }>;
+  /** Write the map's practice config (from the team's lineups) into CS2's cfg folder. */
+  installPractice?(map: string): Promise<{ ok: boolean; path?: string; error?: string }>;
   /** Review another kept match. */
   selectMatch?(id: string): Promise<void>;
   /** The 2D replay of a kept match (parsed from its demo), if there is one. */

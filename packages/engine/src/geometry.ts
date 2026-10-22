@@ -15,6 +15,8 @@ export interface GeoZone {
   path: string;
   /** 1 for a lower level drawn apart (Nuke). */
   level?: number;
+  /** Its usual floor height in world units (median of what's drawn), for practice-server teleports. */
+  z?: number;
 }
 
 export interface MapGeo {

@@ -37,6 +37,7 @@ Teammates who only want to watch and log intel don't need it: they open the room
   - Gather mode: with fewer than five of you in the room, the match's randoms take the free slots (the AWPer gets the AWP slot).
   - 2D round replay from the match demo on the Debrief page: movement, kills, smokes, molotovs and the plant, at 1×, 2× or 4×.
   - Playbook page: your own setups, calls, jobs and spots per map (drag them on the map), and anti-strats for an opponent: which plans they run more or never, your answer to each of their buys, and notes for the coach. The room admin's playbook goes to every member.
+  - Lineups (Playbook page): csbot's starter smokes, molotovs and flashes per map, editable by the team and listed on the call card. Export a practice config for a private server: one command per lineup puts you on the throw spot with the grenade.
   - Push-to-talk on the desktop app (off by default, Settings): press Num0 and say "three B apps", "palace clear", "rotating A" or "coach, should we save?". Windows recognizes the speech on your PC, offline.
 
 - **M8 (part):** if the host's PC drops, a desktop member takes over the room with one click. Members follow by themselves, and the old host rejoins as a member when it comes back. Rooms expire a day after their last match.

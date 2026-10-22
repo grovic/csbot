@@ -250,6 +250,15 @@ export class Session {
     return this.view.role === 'demo' || (!!this.bridge?.setTeam && (this.view.role === 'solo' || this.view.role === 'host'));
   }
 
+  /** The desktop app can put a practice config in CS2's cfg folder. */
+  get canInstallPractice(): boolean {
+    return !!this.bridge?.installPractice && (this.view.role === 'solo' || this.view.role === 'host');
+  }
+  async installPractice(map: string): Promise<{ ok: boolean; path?: string; error?: string }> {
+    if (!this.canInstallPractice) return { ok: false, error: 'This needs the csbot desktop app.' };
+    try { return await this.bridge!.installPractice!(map); } catch (e) { return { ok: false, error: String((e as Error)?.message ?? e) }; }
+  }
+
   /** Save the team plan; returns why not, if it wasn't saved. */
   async saveTeam(t: TeamPlan): Promise<string | undefined> {
     if (!this.canEditTeam) return 'Only the room admin edits the playbook.';

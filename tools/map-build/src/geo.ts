@@ -307,6 +307,10 @@ export function buildGeo(src: MapSource, cfg: MapConfig): { geo: MapGeo; report:
     if (id === 'asite') g.site = 'A';
     if (id === 'bsite') g.site = 'B';
     if (zl) g.level = zl;
+    // Its usual floor height (the median over its visible cells), for practice-server teleports.
+    const zs: number[] = [];
+    for (let c = 0; c < R * R; c++) if (cell[c] === z && cellArea[c]! >= 0) zs.push(cen[cellArea[c]!]![2]);
+    if (zs.length) { zs.sort((a, b) => a - b); g.z = Math.round(zs[zs.length >> 1]!); }
     return g;
   });
 

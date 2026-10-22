@@ -623,3 +623,16 @@ table.t td.callcell{max-width:260px;overflow:hidden;text-overflow:ellipsis}
 .as-weights li{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;flex-wrap:wrap}
 .as-preview{display:flex;flex-direction:column;gap:3px;margin-top:12px;padding:8px 10px;border-radius:8px;background:var(--panel2);font-size:12.5px;color:var(--ink2)}
 .as-preview b{color:var(--ink)}
+/* Lineups */
+.nade-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:0}
+.nade-dot.smoke{background:#c8cdd7}.nade-dot.molotov{background:#f06e28}.nade-dot.flash{background:#fff;box-shadow:0 0 0 1px #888}.nade-dot.he{background:#e5534b}
+.lu line{stroke:#7b8494;stroke-width:2;stroke-dasharray:6 5;opacity:.6}
+.lu circle.land{stroke:#0b0d10;stroke-width:2;opacity:.5}
+.lu.smoke circle.land{fill:#c8cdd7}.lu.molotov circle.land{fill:#f06e28}.lu.flash circle.land{fill:#fff}.lu.he circle.land{fill:#e5534b}
+.lu circle.throw{fill:#e6e9ee;stroke:#0b0d10;stroke-width:2;opacity:.7}
+.lu.on line{opacity:1;stroke:#e6e9ee}.lu.on circle{opacity:1}
+.lu.movable circle{cursor:grab}
+.lu text{fill:#e6e9ee;font-size:15px;font-weight:650;text-anchor:middle;paint-order:stroke;stroke:#0b0d10;stroke-width:4;pointer-events:none}
+.utilline{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px;font-size:12.5px}
+.utilline .ub{font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--muted)}
+.nade-chip{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;background:var(--panel2);border:1px solid var(--line2)}
