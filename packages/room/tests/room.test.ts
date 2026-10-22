@@ -10,9 +10,9 @@ import {
 const CODE = 'K7P2QX', KEY = 'abcdefghijklmnopqrstuv12';
 
 /** Host-side live snapshot at round 2 freeze time on Mirage CT (anti-eco call). */
-function hostLiveAtFreeze2(): LiveSnapshot {
+function hostLiveAtFreeze2(mode?: string): LiveSnapshot {
   const t = new MatchTracker();
-  const rec = syntheticMatch({ rounds: FIRST_HALF });
+  const rec = syntheticMatch({ rounds: FIRST_HALF, ...(mode ? { mode } : {}) });
   let snap: LiveSnapshot | undefined;
   for (const { t: at, p } of rec) {
     t.ingest(toGameState(p, at));
@@ -263,6 +263,14 @@ describe('scouting in a room', () => {
     await flush();
     expect(k.last().screen!.scout!.facts).toHaveLength(2); // survives later state messages
     expect(host.screen().scout!.facts).toHaveLength(2);
+  });
+
+  it('Wingman rooms have two positions', async () => {
+    const { host, join, flush } = await setup();
+    host.setLive(hostLiveAtFreeze2('scrimcomp2v2'));
+    const k = join('client-kairo', 'kairo'); await flush(); host.approve('client-kairo'); await flush();
+    expect(k.last().screen!.room!.slots.map(s => s.label)).toEqual(['Player 1', 'Player 2']);
+    expect(k.last().screen!.live.match!.halfLength).toBe(8);
   });
 
   it("the team plan reaches members (sanitized), joiners included, and survives state updates", async () => {

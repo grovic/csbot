@@ -204,7 +204,7 @@ export class Session {
     this.stops.push(src.subscribe(live => {
       const scout = this.view.scout?.status === 'ready' ? this.view.scout : undefined;
       const coach = this.view.coach;
-      const screen: ScreenState = which === 'demo' ? { live, room: demoRoom(live.match?.map), ...(scout ? { scout } : {}), ...(coach ? { coach } : {}) } : { live };
+      const screen: ScreenState = which === 'demo' ? { live, room: demoRoom(live.match?.map, live.match?.mode), ...(scout ? { scout } : {}), ...(coach ? { coach } : {}) } : { live };
       this.set({ screen, receivedAt: Date.now(), rate: src.rate() });
     }));
   }

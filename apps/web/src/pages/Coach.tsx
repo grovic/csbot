@@ -64,7 +64,7 @@ function Strip({ coach }: { coach: CoachView }) {
 function Reasoning({ live, room, coach }: { live?: LiveSnapshot; room?: RoomView; coach: CoachView }) {
   const c = live?.call;
   const map = live?.match?.map;
-  const slots = room?.slots ?? slotsFor(map, live?.match?.ourSide).map(s => ({ ...s }));
+  const slots = room?.slots ?? slotsFor(map, live?.match?.ourSide, live?.match?.mode).map(s => ({ ...s }));
   const nameOf = (slot: string) => room?.members.find(m => m.slot === slot)?.name;
   const setupName = c?.setup && map ? PLAYBOOKS[map]?.setups.find(s => s.id === c.setup)?.name : undefined;
   const entry = c ? claudeCallFor(coach, c.round) : undefined;

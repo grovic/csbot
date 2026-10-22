@@ -129,10 +129,10 @@ function HeatCanvas({ img, geo, view: v }: { img: ImageData; geo: MapGeo; view: 
 }
 
 /** Who plays each slot: the room member assigned to it, else the slot's label. */
-function slotNamer(room?: RoomView, map?: string, side?: 'CT' | 'T') {
+function slotNamer(room?: RoomView, map?: string, side?: 'CT' | 'T', mode?: string) {
   const byslot = new Map((room?.members ?? []).filter(m => m.slot).map(m => [m.slot!, m.name]));
   // Without a room (solo), the playbook's own position names.
-  const label = new Map((room?.slots ?? slotsFor(map, side)).map(s => [s.id, s.label]));
+  const label = new Map((room?.slots ?? slotsFor(map, side, mode)).map(s => [s.id, s.label]));
   return (slot: string) => byslot.get(slot) ?? label.get(slot) ?? slot;
 }
 
@@ -358,7 +358,7 @@ export function MapPanel({ snap, room, intelBlock, onIntel, receivedAt, rate = 1
 
   const view = viewOf(geo);
   const spots = snap.setupSpots ?? [];
-  const who = slotNamer(room, m.map, m.ourSide);
+  const who = slotNamer(room, m.map, m.ourSide, m.mode);
   const intel = snap.intel ?? [];
   const clockLeft = m.clock.phase === 'live' && m.clock.endsIn !== undefined ? m.clock.endsIn : undefined;
   return (
@@ -387,8 +387,8 @@ export function MapPanel({ snap, room, intelBlock, onIntel, receivedAt, rate = 1
         </div>
         {!f && (
           <div className="map-empty bottom"><div className="box" data-testid="map-note">
-            <b>{!base ? `No forecast for ${geo.name} yet` : 'Forecast arrives at freeze time'}</b>
-            {!base ? 'The map and intel work; enemy plans for it come in an update.' : m.ourSide === 'T' ? 'It starts from the enemy buy read: where their CTs likely hold.' : 'It starts from the enemy buy read.'}
+            <b>{m.mode === 'scrimcomp2v2' ? 'Wingman: one site, no forecast' : !base ? `No forecast for ${geo.name} yet` : 'Forecast arrives at freeze time'}</b>
+            {m.mode === 'scrimcomp2v2' ? 'Two players on one site: the map shows intel and your markers.' : !base ? 'The map and intel work; enemy plans for it come in an update.' : m.ourSide === 'T' ? 'It starts from the enemy buy read: where their CTs likely hold.' : 'It starts from the enemy buy read.'}
           </div></div>
         )}
       </div>

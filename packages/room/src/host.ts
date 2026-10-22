@@ -227,7 +227,7 @@ export class RoomHost {
 
   /** Assign a slot to a member (or the host with HOST_ID). A slot belongs to one player at a time. */
   setSlot(id: string, slot: string | null): void {
-    if (slot !== null && !slotsFor(this.live.match?.map).some(s => s.id === slot)) return;
+    if (slot !== null && !slotsFor(this.live.match?.map, undefined, this.live.match?.mode).some(s => s.id === slot)) return;
     for (const m of this.members.values()) if (slot && m.slot === slot && m.id !== id) m.slot = undefined;
     if (slot && this.saved.hostSlot === slot && id !== HOST_ID) this.saved.hostSlot = undefined;
     if (id === HOST_ID) this.saved.hostSlot = slot ?? undefined;
@@ -284,7 +284,7 @@ export class RoomHost {
       code: this.saved.code, hostName: this.hostName, members: [host, ...members],
       pending: forId === HOST_ID ? [...this.pending.values()].map(({ peer: _p, ...r }) => r) : [],
       permissions: { ...this.saved.permissions }, tournament: this.saved.tournament,
-      slots: slotsFor(this.live.match?.map, this.live.match?.ourSide).map(s => ({ ...s })), you: forId, createdAt: this.saved.createdAt,
+      slots: slotsFor(this.live.match?.map, this.live.match?.ourSide, this.live.match?.mode).map(s => ({ ...s })), you: forId, createdAt: this.saved.createdAt,
       ...(this.randoms.length ? { randoms: this.randoms.map(r => ({ ...r })) } : {}),
       epoch: this.saved.epoch ?? 0, expiresAt: roomExpiresAt(this.saved), ...(this.o.clientId ? { hostClientId: this.o.clientId } : {}),
     };
@@ -399,7 +399,7 @@ export class RoomHost {
 
   private freeSlot(): string | undefined {
     const taken = new Set([this.saved.hostSlot, ...[...this.members.values()].map(m => m.slot)]);
-    return slotsFor(this.live.match?.map).find(s => !taken.has(s.id))?.id;
+    return slotsFor(this.live.match?.map, undefined, this.live.match?.mode).find(s => !taken.has(s.id))?.id;
   }
 
   private save(): void {

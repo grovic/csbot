@@ -52,8 +52,10 @@ export interface SyntheticOptions {
    * (csbot's cfg doesn't request them). The tracker must work from transitions alone.
    */
   lean?: boolean;
-  /** Rounds per half (12 in competitive). */
+  /** Rounds per half (12 in competitive, 8 in Wingman). */
   halfLength?: number;
+  /** GSI map.mode ("scrimcomp2v2" = Wingman: 8-round halves unless halfLength says otherwise). */
+  mode?: string;
   /**
    * End rounds the way CS2 sent them to a player in a real match (2026-10-21): map.round already counts
    * the finished round during "over"; the half's last round ends with one payload already in
@@ -66,7 +68,7 @@ export interface SyntheticOptions {
 const other = (s: Side): Side => (s === 'CT' ? 'T' : 'CT');
 
 export function syntheticMatch(o: SyntheticOptions = {}): RecordedPayload[] {
-  const me = o.me ?? '76561198000000001', firstSide = o.ourSide ?? 'CT', half = o.halfLength ?? 12;
+  const me = o.me ?? '76561198000000001', firstSide = o.ourSide ?? 'CT', half = o.halfLength ?? (o.mode === 'scrimcomp2v2' ? 8 : 12);
   const rounds = o.rounds ?? FIRST_HALF, tick = o.tick ?? 2;
   let t = o.start ?? Date.UTC(2026, 9, 21, 20, 0, 0);
   const out: RecordedPayload[] = [];
@@ -100,7 +102,7 @@ export function syntheticMatch(o: SyntheticOptions = {}): RecordedPayload[] {
     }
     return {
       provider: { name: 'Counter-Strike: Global Offensive', appid: 730, version: 14100, steamid: me, timestamp: Math.floor(t / 1000) },
-      map: { mode: 'competitive', name: o.map ?? 'de_mirage', phase: x.mapPhase ?? 'live', round: r - 1,
+      map: { mode: o.mode ?? 'competitive', name: o.map ?? 'de_mirage', phase: x.mapPhase ?? 'live', round: r - 1,
         team_ct: { ...teamOf('CT'), timeouts_remaining: 1 }, team_t: { ...teamOf('T'), timeouts_remaining: 1 },
         ...(o.lean ? {} : { round_wins: { ...roundWins } }) },
       round: { phase: roundPhase, ...(x.bomb ? { bomb: x.bomb } : {}), ...(x.win ? { win_team: x.win } : {}) },

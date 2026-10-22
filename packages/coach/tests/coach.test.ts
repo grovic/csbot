@@ -45,6 +45,22 @@ describe('the team plan in what the coach is told', () => {
   });
 });
 
+describe('Wingman in what the coach is told', () => {
+  it('says Wingman, two positions, and no five-player setups', () => {
+    const t = new MatchTracker();
+    let snap: LiveSnapshot | undefined;
+    for (const { t: at, p } of syntheticMatch({ rounds: FIRST_HALF, mode: 'scrimcomp2v2' })) {
+      t.ingest(toGameState(p, at));
+      const s = t.snapshot(at);
+      if (s.match?.round === 2 && s.match.clock.phase === 'freezetime') { snap = s; break; }
+    }
+    const f = matchFacts(snap!, [{ name: 'rdx', slot: 'a' }, { name: 'nyx', slot: 'b' }]) as Record<string, any>;
+    expect(f.mode).toMatch(/^Wingman/);
+    expect(f.roster.map((r: { position: string }) => r.position)).toEqual(['Player 1', 'Player 2']);
+    expect(f.playbookSetups).toBeUndefined();
+  });
+});
+
 describe("reading Claude's output", () => {
   it('turns a call into a CallView with known slots and a real setup only', () => {
     const live = freeze2();
