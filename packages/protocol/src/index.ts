@@ -1,6 +1,7 @@
 import type { ScoutView } from './scout.ts';
 import type { CoachAsker, CoachConfig, CoachView } from './coach.ts';
 import type { DebriefView, DemoReplay } from './debrief.ts';
+import type { TeamPlan } from './team.ts';
 
 // Wire types shared by the host, the desktop renderer and (from M2) room members.
 // The host builds a LiveSnapshot from its GSI feed; every screen renders only from snapshots.
@@ -254,6 +255,10 @@ export interface CsbotBridge {
   onScout?(cb: (s: ScoutView) => void): () => void;
   /** The debrief: the match being reviewed and every match kept on this PC. */
   onDebrief?(cb: (d: DebriefView) => void): () => void;
+  /** Desktop: the team plan (playbook + anti-strats) kept on this PC, now and on every change. */
+  onTeam?(cb: (t: TeamPlan) => void): () => void;
+  /** Save the team plan (admin's own desktop). */
+  setTeam?(t: TeamPlan): Promise<{ ok: boolean; error?: string }>;
   /** Review another kept match. */
   selectMatch?(id: string): Promise<void>;
   /** The 2D replay of a kept match (parsed from its demo), if there is one. */
@@ -307,6 +312,7 @@ export * from './room.ts';
 export * from './scout.ts';
 export * from './coach.ts';
 export * from './debrief.ts';
+export * from './team.ts';
 
 /** What push-to-talk understood. */
 export type VoiceCommand =

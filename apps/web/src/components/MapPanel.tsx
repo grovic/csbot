@@ -12,10 +12,10 @@ const LABEL_MIN_CELLS = 260;
 
 interface ZoneInfo { zone: GeoZone; index: number; cells: number }
 /** The part of the 0..1000 map square the map occupies (map units), so the panel can crop to it. */
-interface View { x: number; y: number; w: number; h: number }
+export interface View { x: number; y: number; w: number; h: number }
 
 const viewCache = new WeakMap<MapGeo, View>();
-function viewOf(geo: MapGeo): View {
+export function viewOf(geo: MapGeo): View {
   let v = viewCache.get(geo);
   if (v) return v;
   const n = geo.grid.size, cells = gridCells(geo), k = 1000 / n;

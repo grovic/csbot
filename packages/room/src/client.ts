@@ -1,7 +1,7 @@
 // A member's side of the room (web app or desktop app in member mode): join, wait for approval,
 // render the host's personalized screen, survive the host going away, share own GSI (desktop).
 
-import { isHostMessage, ROOM_PROTOCOL, type CoachView, type DebriefView, type LinkStatus, type MemberMessage, type ScoutView, type ScreenState } from '@csbot/protocol';
+import { isHostMessage, ROOM_PROTOCOL, type CoachView, type DebriefView, type LinkStatus, type MemberMessage, type ScoutView, type ScreenState, sanitizeTeam, type TeamPlan } from '@csbot/protocol';
 import type { Transport } from './transport.ts';
 
 export interface RoomClientOptions {
@@ -36,6 +36,7 @@ export class RoomClient {
   private closed = false;
   private pendingScout?: ScoutView;
   private pendingCoach?: CoachView;
+  private pendingTeam?: TeamPlan;
   private pendingDebrief?: DebriefView;
   private askWaiter?: (r: { ok: boolean; error?: string }) => void;
   /** The newest hosting generation seen (handover): messages from an older host are refused. */
@@ -157,7 +158,8 @@ export class RoomClient {
         const scout = this.state.screen?.scout ?? this.pendingScout;
         const coach = this.state.screen?.coach ?? this.pendingCoach;
         const debrief = this.state.screen?.debrief ?? this.pendingDebrief;
-        this.state = { ...this.state, status: 'approved', screen: { live: m.live, room: m.room, ...(scout ? { scout } : {}), ...(coach ? { coach } : {}), ...(debrief ? { debrief } : {}) } };
+        const team = this.state.screen?.team ?? this.pendingTeam;
+        this.state = { ...this.state, status: 'approved', screen: { live: m.live, room: m.room, ...(scout ? { scout } : {}), ...(coach ? { coach } : {}), ...(debrief ? { debrief } : {}), ...(team ? { team } : {}) } };
         if (this.state.detail) delete this.state.detail;
         this.emit();
         break;
@@ -185,6 +187,13 @@ export class RoomClient {
         if (this.state.screen) { this.state = { ...this.state, screen: { ...this.state.screen, debrief: m.debrief } }; this.emit(); }
         else this.pendingDebrief = m.debrief;
         break;
+      case 'team': {
+        // Applied to this device's engine: never trust its shape.
+        const team = sanitizeTeam(m.team);
+        if (this.state.screen) { this.state = { ...this.state, screen: { ...this.state.screen, team } }; this.emit(); }
+        else this.pendingTeam = team;
+        break;
+      }
       case 'removed': this.set('removed', m.reason); break;
       case 'ended': this.set('ended', 'The admin closed the room.'); break;
     }

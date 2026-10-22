@@ -58,6 +58,7 @@ export function Header({ view, route }: { view: SessionView; route: Route }) {
       <div className="brand"><Logo />csbot</div>
       <nav className="nav" aria-label="Pages">
         <a href="#/scout" className={route === 'scout' ? 'on' : ''}>Scout</a>
+        <a href="#/playbook" className={route === 'playbook' ? 'on' : ''}>Playbook</a>
         <a href="#/live" className={route === 'live' ? 'on' : ''}>Live <i className={'live-dot' + (live ? '' : ' off')} /></a>
         <a href="#/debrief" className={route === 'debrief' ? 'on' : ''}>Debrief</a>
       </nav>

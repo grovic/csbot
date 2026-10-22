@@ -6,8 +6,8 @@ export function useSession(session: Session): SessionView {
 }
 
 /** 'join' is an invite link (#/r/CODE?k=KEY). */
-export type Route = 'live' | 'scout' | 'debrief' | 'coach' | 'settings' | 'room' | 'join';
-const ROUTES: readonly Route[] = ['live', 'scout', 'debrief', 'coach', 'settings', 'room'];
+export type Route = 'live' | 'scout' | 'playbook' | 'debrief' | 'coach' | 'settings' | 'room' | 'join';
+const ROUTES: readonly Route[] = ['live', 'scout', 'playbook', 'debrief', 'coach', 'settings', 'room'];
 
 function parse(hash: string): Route {
   const r = hash.replace(/^#\/?/, '').split(/[/?]/)[0] as Route | 'r';
