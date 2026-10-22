@@ -39,8 +39,17 @@ function Waiting({ kind, role, room }: { kind: SourceKind; role: Role; room?: Ro
   );
 }
 
+/** Between rounds the call is already the next round's: show that round's enemy estimate and forecast with it. */
+export function ahead(s: LiveSnapshot): LiveSnapshot {
+  const n = s.next;
+  if (!n || s.call?.round !== n.round) return s;
+  const { forecast: _f, ...rest } = s;
+  return { ...rest, enemy: n.enemy, ...(n.forecast ? { forecast: n.forecast } : {}) };
+}
+
 export function Live({ snap, receivedAt, rate, kind, role, room, scout, coach, session }: { snap: LiveSnapshot; receivedAt: number; rate: number; kind: SourceKind; role: Role; room?: RoomView; scout?: ScoutView; coach?: CoachView; session?: Session }) {
   if (snap.connection.gsi === 'waiting' || !snap.match) return <Waiting kind={kind} role={role} room={room} />;
+  const view = ahead(snap);
   return (
     <section data-testid="live">
       {snap.connection.gsi === 'stale' && (
@@ -49,17 +58,17 @@ export function Live({ snap, receivedAt, rate, kind, role, room, scout, coach, s
       <div className="live-main">
         <div className="now">
           <PhaseBanner snap={snap} receivedAt={receivedAt} rate={rate} />
-          <CallCard snap={snap} room={room} coach={coach} />
-          <Tiles snap={snap} webMember={role === 'member' && kind === 'member'} />
+          <CallCard snap={view} room={room} coach={coach} />
+          <Tiles snap={view} webMember={role === 'member' && kind === 'member'} />
           <Ticker snap={snap} />
         </div>
-        <MapPanel snap={snap} room={room} receivedAt={receivedAt} rate={rate}
+        <MapPanel snap={view} room={room} receivedAt={receivedAt} rate={rate}
           {...(session ? {
             onIntel: (z: string, n: number) => session.logIntel(z, n), ...(session.intelBlock() ? { intelBlock: session.intelBlock() } : {}),
             onCheckIn: (st: 'spot' | 'rotate', site?: 'A' | 'B') => session.checkIn(st, site), ...(session.checkInBlock() ? { checkInBlock: session.checkInBlock() } : {}),
           } : {})} />
       </div>
-      <Scoreboard snap={snap} inRoom={!!room && role !== 'demo'} scout={scout} />
+      <Scoreboard snap={view} inRoom={!!room && role !== 'demo'} scout={scout} />
     </section>
   );
 }

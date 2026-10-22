@@ -30,6 +30,7 @@ export function personalize(live: LiveSnapshot, rows: readonly PlayerRow[], p: P
   if (p.tournament) {
     delete out.call;
     delete out.forecast;
+    delete out.next;
     delete out.setupSpots;
     delete out.squad;
   }

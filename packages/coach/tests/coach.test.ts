@@ -2,7 +2,7 @@ import { applyTeam, MatchTracker } from '@csbot/engine';
 import { FIRST_HALF, syntheticMatch, toGameState } from '@csbot/gsi';
 import type { LiveSnapshot } from '@csbot/protocol';
 import { describe, expect, it } from 'vitest';
-import { COACH_SCHEMA, CoachLedger, eventMessage, matchFacts, parseCoachOutput, questionMessage } from '../src/index.ts';
+import { COACH_SCHEMA, CoachLedger, eventMessage, matchFacts, nextRoundView, parseCoachOutput, questionMessage } from '../src/index.ts';
 
 function freeze2(): LiveSnapshot {
   const t = new MatchTracker();
@@ -14,6 +14,35 @@ function freeze2(): LiveSnapshot {
   throw new Error('no freeze 2');
 }
 const ROSTER = [{ name: 'rdx', slot: 'a' }, { name: 'kairo', slot: 'short' }, { name: 'nyx', slot: 'b' }, { name: 'mbt', slot: 'rotator' }, { name: 'zeph', slot: 'awp', random: true }];
+
+/** The first snapshot after round 1 ends: the call is already round 2's. */
+function over1(): LiveSnapshot {
+  const t = new MatchTracker();
+  for (const { t: at, p } of syntheticMatch({ rounds: FIRST_HALF })) {
+    t.ingest(toGameState(p, at));
+    const s = t.snapshot(at);
+    if (s.match?.round === 1 && s.match.clock.phase === 'over') return s;
+  }
+  throw new Error('no round 1 end');
+}
+
+describe("the next round's call, asked at round end", () => {
+  it('describes round 2 as freeze time will: its number, enemy estimate and forecast', () => {
+    const live = over1();
+    expect(live.call).toMatchObject({ kind: 'pre', round: 2 });
+    const v = nextRoundView(live)!;
+    expect(v.match).toMatchObject({ round: 2, clock: { phase: 'over' } });
+    expect(v.enemy).toEqual(live.next!.enemy);
+    expect(v.forecast).toEqual(live.next!.forecast);
+    expect(v).not.toHaveProperty('next');
+    const f = matchFacts(v, ROSTER) as Record<string, any>;
+    // Same facts freeze time 2 gives, apart from the phase.
+    expect({ ...f, phase: 'freezetime' }).toEqual(matchFacts(freeze2(), ROSTER));
+    expect(eventMessage('freeze', v, ROSTER)).toMatch(/^Freeze time for round 2 starts in a few seconds \(round 1 just ended\)\. Write the team call for round 2\. /);
+    // Nothing to look ahead to: freeze time asks.
+    expect(nextRoundView(freeze2())).toBeUndefined();
+  });
+});
 
 describe('what the coach is told', () => {
   it('sends computed facts: economy, forecast, playbook setups, the roster with randoms', () => {

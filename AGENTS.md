@@ -21,8 +21,8 @@ Guidance for any coding agent working in this repository.
 csbot is a second-screen companion for Counter-Strike 2 squads. An admin's desktop app hosts a room, and teammates join from the web app (GitHub Pages) or the desktop app.
 
 - Source of truth: [docs/PROPOSAL.md](docs/PROPOSAL.md)
-- Clickable design demo, fictional data: [docs/prototype/index.html](docs/prototype/index.html)
-- When the UX changes, update the prototype and its screenshots in `docs/prototype/screens/`.
+- Live demo of the real web app, fictional data: https://grovic.github.io/csbot/ (Pages, updated on every merge)
+- [docs/prototype/index.html](docs/prototype/index.html) is the original clickable design, frozen as a record since 2026-10-22. Don't update it; UX changes show in the live demo and in the screenshots the e2e tests take (`apps/*/screens/`).
 
 ## Non-negotiable rules
 

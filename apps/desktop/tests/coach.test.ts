@@ -40,6 +40,8 @@ function answerFor(text: string): unknown {
 }
 
 const flush = () => new Promise(r => setImmediate(r));
+/** The round a pre-round request is for: asked at the previous round's end, or at freeze time after a half starts. */
+const freezeRound = (text: string) => Number(/^Freeze time(?:, round| for round) (\d+)/.exec(text)?.[1] ?? NaN);
 
 function setup(o: { config?: Partial<CoachConfig>; auto?: boolean; claude?: boolean; callTimeoutMs?: number } = {}) {
   const sessions: FakeSession[] = [];
@@ -98,7 +100,7 @@ describe('coach triggers over a match', () => {
     expect(session().count('The bomb')).toBe(0);
   });
 
-  it("puts Claude's call on screen for its round, then the next round starts with the engine's", async () => {
+  it("asks for the next round's call when a round ends, so it's on screen before freeze time", async () => {
     const { coach, applied, sessions } = setup({ auto: false });
     await coach.init();
     const t = new MatchTracker({ playbookHandle: 'a' });
@@ -114,17 +116,29 @@ describe('coach triggers over a match', () => {
         if (stop(live)) return;
       }
     };
-    await feed(s => s.match?.round === 2 && s.match.clock.phase === 'freezetime');
-    expect(live!.call!.source).toBe('engine'); // the engine call shows first
+    // Round 1 (a pistol round, a half start) is asked at its freeze time; round 2 as soon as round 1 ends.
+    await feed(s => s.match?.round === 1 && s.match.clock.phase === 'over');
     const s = sessions[0]!;
-    for (const r of s.reqs.filter(r => !r.text.startsWith('Freeze time, round 2'))) r.resolve({ structured: answerFor(r.text), ms: 50 });
-    s.reqs.find(r => r.text.startsWith('Freeze time, round 2'))!.resolve({ structured: answerFor('Freeze time, round 2'), ms: 3100 });
+    expect(s.reqs.map(r => freezeRound(r.text)).filter(Number.isFinite)).toEqual([1, 2]);
+    const r2 = s.reqs.find(r => freezeRound(r.text) === 2)!;
+    expect(r2.text).toMatch(/^Freeze time for round 2 starts in a few seconds \(round 1 just ended\)/);
+    // The facts are round 2's: its number and the enemy estimate for it.
+    const facts = JSON.parse(r2.text.slice(r2.text.indexOf('Facts: ') + 7)) as { round: number; phase: string; enemyEconomyEstimate: { read: string } };
+    expect(facts).toMatchObject({ round: 2, phase: 'over', enemyEconomyEstimate: { read: live!.next!.enemy.read } });
+    expect(live!.call).toMatchObject({ kind: 'pre', round: 2, source: 'engine' }); // the engine's call shows first
+    for (const r of s.reqs.filter(r => r !== r2)) r.resolve({ structured: answerFor(r.text), ms: 50 });
+    r2.resolve({ structured: answerFor(r2.text), ms: 3100 });
     await flush();
     expect(applied()).toMatchObject({ head: 'Claude R2', round: 2, kind: 'pre' });
+    // Still between rounds: Claude's round-2 call is already on screen.
+    await feed(() => true);
+    expect(live!.match).toMatchObject({ round: 1, clock: { phase: 'over' } });
+    expect(live!.call).toMatchObject({ head: 'Claude R2', source: 'claude', you: 'Hold A alone' });
     await feed(x => x.match?.round === 2 && x.match.clock.phase === 'live');
-    expect(live!.call).toMatchObject({ head: 'Claude R2', source: 'claude', you: 'Hold A alone' }); // still this round
-    await feed(x => x.match?.round === 3 && x.match.clock.phase === 'freezetime');
-    expect(live!.call!.source).toBe('engine'); // a new round: the engine call until Claude's lands
+    expect(live!.call).toMatchObject({ head: 'Claude R2', source: 'claude' }); // through the round
+    expect(s.reqs.filter(r => freezeRound(r.text) === 2)).toHaveLength(1); // not asked again at freeze time
+    await feed(x => x.match?.round === 2 && x.match.clock.phase === 'over');
+    expect(live!.call).toMatchObject({ round: 3, source: 'engine' }); // round 3's engine call until Claude's lands
     expect(coach.view.messages.filter(m => m.kind === 'call').map(m => m.text)).toContain('Claude R2 · Stack B');
   });
 });
@@ -231,9 +245,9 @@ describe('slow and late answers', () => {
     expect(coach.view.calls[0]).toMatchObject({ round: 1, status: 'late', head: 'Claude R1' });
     // Round 2: its answer only lands after round 3 began → logged late, not shown.
     await feed(x => x.match?.round === 2 && x.match.clock.phase === 'freezetime');
-    const r2 = s.reqs.find(r => r.text.startsWith('Freeze time, round 2'))!;
+    const r2 = s.reqs.find(r => freezeRound(r.text) === 2)!;
     await feed(x => x.match?.round === 3 && x.match.clock.phase === 'freezetime');
-    r2.resolve({ structured: answerFor('Freeze time, round 2'), ms: 4000 });
+    r2.resolve({ structured: answerFor(r2.text), ms: 4000 });
     await flush();
     expect(applied()?.round).toBe(1);
     expect(coach.view.calls.find(c => c.round === 2 && c.trigger === 'freeze')).toMatchObject({ status: 'late', head: 'Claude R2' });
@@ -384,6 +398,6 @@ describe('intel: the mid-round call', () => {
     const engineMid = { ...s!, call: { ...s!.call!, kind: 'mid' as const } };
     expect(withCoachCall(engineMid, claudeMid, 'a').call).toMatchObject({ head: 'Claude mid', you: 'Hold' });
     expect(withCoachCall({ ...engineMid, call: { ...engineMid.call, kind: 'post' } }, claudeMid, 'a').call!.source).toBe('engine');
-    expect(withCoachCall({ ...engineMid, match: { ...engineMid.match!, round: 3 } }, claudeMid, 'a').call!.source).toBe('engine');
+    expect(withCoachCall({ ...engineMid, match: { ...engineMid.match!, round: 3 }, call: { ...engineMid.call, round: 3 } }, claudeMid, 'a').call!.source).toBe('engine');
   });
 });

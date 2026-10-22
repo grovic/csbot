@@ -234,6 +234,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/engine
 
+  tools/real-match: {}
+
   tools/room-relay:
     dependencies:
       '@trystero-p2p/ws-relay':

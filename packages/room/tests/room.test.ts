@@ -1,6 +1,6 @@
 import { MatchTracker } from '@csbot/engine';
 import { FIRST_HALF, syntheticMatch, toGameState, type GsiPayload } from '@csbot/gsi';
-import { EMPTY_COACH, EMPTY_SCOUT, type LiveSnapshot } from '@csbot/protocol';
+import { EMPTY_COACH, EMPTY_SCOUT, parseMemberMessage, type LiveSnapshot, type RoomTrace } from '@csbot/protocol';
 import { describe, expect, it } from 'vitest';
 import {
   formatCode, HOST_ID, inviteUrl, isRoomCode, isRoomKey, MemoryNetwork, newRoomCode, newRoomKey, newSavedRoom, parseInvite,
@@ -210,6 +210,16 @@ describe('slots and permissions', () => {
       expect(live.call).toBeUndefined();
       expect(live.forecast).toBeUndefined();
       expect(live.enemy).toBeDefined(); // the economy estimate stays
+    }
+    // Between rounds too: the next round's call and forecast stay off.
+    const t = new MatchTracker();
+    let over: LiveSnapshot | undefined;
+    for (const { t: at, p } of syntheticMatch({ rounds: FIRST_HALF })) { t.ingest(toGameState(p, at)); const s = t.snapshot(at); if (s.match?.round === 2 && s.match.clock.phase === 'over') { over = s; break; } }
+    expect(over!.next?.forecast).toBeDefined();
+    host.setLive(over!); await flush();
+    for (const live of [k.last().screen!.live, host.screen().live]) {
+      expect(live.call).toBeUndefined();
+      expect(live.next).toBeUndefined();
     }
   });
 });
@@ -535,5 +545,33 @@ describe("parsing members' messages (the host trusts nothing a member sends)", (
     expect(parseMemberMessage({ t: 'stale', epoch: -1 })).toBeUndefined();
     expect(parseMemberMessage({ t: 'bye', extra: 1 })).toEqual({ t: 'bye' });
     for (const bad of [null, 'hello', [], { t: 'nope' }, { t: 'rename', name: '   ' }]) expect(parseMemberMessage(bad)).toBeUndefined();
+  });
+});
+
+describe('real-match timing (M9)', () => {
+  it('members report each new call on their screen; the host traces it, and members coming and going', async () => {
+    const net = new MemoryNetwork();
+    const traces: RoomTrace[] = [];
+    const host = new RoomHost({ transport: net.transport({ code: CODE, key: KEY, role: 'host' }), room: newSavedRoom(CODE, KEY, 1000), hostName: 'Host', throttleMs: 0, onTrace: e => traces.push(e) });
+    const flush = async () => { for (let i = 0; i < 6; i++) { await net.settle(); await new Promise(r => setTimeout(r, 1)); } };
+    const live = hostLiveAtFreeze2();
+    host.setLive(live);
+    const k = new RoomClient({ transport: net.transport({ code: CODE, key: KEY, role: 'member' }), clientId: 'client-kairo', name: 'kairo', device: 'web', gsiMinGapMs: 0 });
+    await flush(); host.approve('client-kairo'); await flush();
+    expect(traces).toContainEqual({ ev: 'online', id: 'client-kairo', name: 'kairo', device: 'web' });
+    const shown = () => traces.filter(t => t.ev === 'shown');
+    expect(shown()).toEqual([{ ev: 'shown', id: 'client-kairo', name: 'kairo', device: 'web', key: '2:pre:engine' }]);
+    // A state update with the same call: not reported again. Claude's call replacing it: reported.
+    host.setLive({ ...live, seq: live.seq + 1 }); await flush();
+    expect(shown()).toHaveLength(1);
+    host.setLive({ ...live, seq: live.seq + 2, call: { ...live.call!, source: 'claude' } }); await flush();
+    expect(shown().map(t => t.ev === 'shown' && t.key)).toEqual(['2:pre:engine', '2:pre:claude']);
+    k.leave(); await flush();
+    expect(traces[traces.length - 1]).toMatchObject({ ev: 'offline', id: 'client-kairo' });
+  });
+
+  it('only takes well-formed call keys from members', () => {
+    expect(parseMemberMessage({ t: 'shown', key: '12:post:claude', extra: 1 })).toEqual({ t: 'shown', key: '12:post:claude' });
+    for (const key of ['<b>', '2:pre', '2:pre:gpt', 2, '1234:pre:engine']) expect(parseMemberMessage({ t: 'shown', key })).toBeUndefined();
   });
 });

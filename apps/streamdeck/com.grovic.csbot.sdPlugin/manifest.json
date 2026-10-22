@@ -2,7 +2,7 @@
   "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
   "UUID": "com.grovic.csbot",
   "Name": "csbot",
-  "Version": "0.19.0.0",
+  "Version": "0.20.0.0",
   "Author": "grovic",
   "Description": "Keys for csbot, the CS2 squad companion: log intel, check in, push to talk, and see the team call. Needs the csbot desktop app with Stream Deck turned on in its Settings.",
   "URL": "https://github.com/grovic/csbot",

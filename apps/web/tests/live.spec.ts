@@ -72,11 +72,13 @@ test('bomb planted: red banner and post-plant call', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('round over: result call and history', async ({ page }) => {
+test("round over: the next round's call right away, the result in its reasons and the history", async ({ page }) => {
   const errors = await open(page, 'at=over-3&pause=1');
   await expect(page.getByTestId('banner')).toHaveAttribute('data-phase', 'over');
-  await expect(page.getByTestId('call')).toHaveAttribute('data-kind', 'over');
-  await expect(page.getByTestId('call-head')).toHaveText('Round lost');
+  await expect(page.getByTestId('call')).toHaveAttribute('data-kind', 'pre');
+  await expect(page.locator('.call .kick')).toHaveText('Next round · round 4');
+  await page.getByRole('button', { name: 'Why this call?' }).click();
+  await expect(page.getByTestId('why')).toContainText('Round 3 lost by');
   await expect(page.locator('.rc[data-round="3"]')).toHaveAttribute('data-winner', 'them');
   await shot(page, 'live-round-over');
   expect(errors).toEqual([]);

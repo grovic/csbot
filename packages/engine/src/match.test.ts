@@ -101,12 +101,16 @@ describe('calls and the YOU line', () => {
     expect(at(snaps, 2, 'freezetime').setupSpots).toHaveLength(5);
   });
 
-  it('switches to a post-plant call and then a round result', () => {
+  it('switches to a post-plant call, then to the next round\'s call as soon as the round ends', () => {
     expect(at(snaps, 3, 'bomb').call!.kind).toBe('post');
     const over = at(snaps, 3, 'over').call!;
-    expect(over.kind).toBe('over');
-    expect(over.head).toBe('Round lost');
+    expect(over).toMatchObject({ kind: 'pre', round: 4, source: 'engine' });
+    expect(over.why[0]).toMatch(/^Round 3 lost by /);
+    // Freeze time redoes it from the freeze payload: same call.
+    const fz = at(snaps, 4, 'freezetime').call!;
+    expect({ head: fz.head, setup: fz.setup, you: fz.you }).toEqual({ head: over.head, setup: over.setup, you: over.you });
   });
+
 
   it('on T side: our T playbook call, our job, planned spots, and the read on their CT setup', () => {
     const { snaps: t } = run(syntheticMatch({ rounds: FIRST_HALF, ourSide: 'T' }));
@@ -155,6 +159,74 @@ describe('calls and the YOU line', () => {
     expect(f.basis).toBe('prior');
     expect(f.site.B).toBeGreaterThan(f.site.A);
     expect(f.topPlan.id).toBe('bRush');
+  });
+});
+
+describe("the next round's call at round end (so the coach can start before freeze time)", () => {
+  for (const ourSide of ['CT', 'T'] as const) {
+    for (const lean of [false, true]) {
+      it(`${ourSide}${lean ? ', lean payloads' : ''}: the same call freeze time makes, the round's read and forecast untouched`, () => {
+        const { snaps, last } = run(syntheticMatch({ rounds: FULL_MATCH, lean, ourSide }));
+        let checked = 0;
+        for (let r = 1; r < FULL_MATCH.length; r++) {
+          const over = at(snaps, r, 'over');
+          if (!over) continue;
+          const live = snaps.filter(s => s.match?.round === r && s.match.clock.phase === 'live').pop()!;
+          // The debrief records these for round r: they stay the round's own.
+          expect(over.enemy!.read).toBe(live.enemy!.read);
+          expect(over.forecast?.plans).toEqual(live.forecast?.plans);
+          if (isHalfStart(r + 1, 12).start) {
+            expect(over.call).toMatchObject({ kind: 'over', round: r, sub: 'Half over · money resets' });
+            expect(over.next).toBeUndefined();
+            continue;
+          }
+          const fz = at(snaps, r + 1, 'freezetime');
+          const next = fz.call!;
+          // What the coach is told about the next round: what freeze time will show.
+          expect(over.next).toEqual({ round: r + 1, enemy: fz.enemy, ...(fz.forecast ? { forecast: fz.forecast } : {}) });
+          expect(over.call).toMatchObject({ kind: 'pre', round: r + 1, head: next.head, sub: next.sub, setup: next.setup });
+          expect(over.call!.why[0]).toMatch(new RegExp(`^Round ${r} (won|lost) by `));
+          checked++;
+        }
+        expect(checked).toBeGreaterThan(15);
+        expect(last.call).toMatchObject({ kind: 'over', head: 'Match won 13–8' });
+      });
+    }
+  }
+
+  it('none once the match is decided (no call for a round that never comes)', () => {
+    // Stop at the last round's end, before the game-over payload.
+    const rec = syntheticMatch({ rounds: FULL_MATCH });
+    const t = new MatchTracker({ playbookHandle: 'a' });
+    let over: LiveSnapshot | undefined;
+    for (const { t: ts, p } of rec) {
+      t.ingest(toGameState(p, ts));
+      const s = t.snapshot(ts);
+      if (s.match?.round === FULL_MATCH.length && s.match.clock.phase === 'over') { over = s; break; }
+    }
+    expect(over).toBeDefined();
+    expect(over!.call).toMatchObject({ kind: 'over', round: FULL_MATCH.length });
+  });
+
+  it('a dead player watching a teammate: their own money plus what the round paid', () => {
+    const t = new MatchTracker({ playbookHandle: 'a' });
+    const T = (round: number, phase: string, money: number, extra: Record<string, unknown> = {}) => ({
+      provider: { steamid: '76561190000000001' },
+      map: { name: 'de_mirage', mode: 'competitive', phase: 'live', round, team_ct: { score: 0, consecutive_round_losses: 1 }, team_t: { score: round, consecutive_round_losses: 1 } },
+      round: { phase },
+      player: { steamid: '76561190000000001', name: 'me', team: 'T', state: { health: 100, armor: 0, money }, match_stats: { kills: 0, assists: 0, deaths: 0 } },
+      ...extra,
+    });
+    let ts = 1_000_000;
+    const feed = (p: Record<string, unknown>) => { ts += 1000; t.ingest(toGameState(p as never, ts)); return t.snapshot(ts); };
+    feed(T(1, 'freezetime', 4000));
+    feed(T(1, 'live', 600));
+    // Dead, watching a teammate: the player block is theirs.
+    feed({ ...T(1, 'live', 600), player: { steamid: '76561190000000002', name: 'mate', team: 'T', observer_slot: 2, state: { health: 100, money: 9000 }, match_stats: { kills: 0, assists: 0, deaths: 0 } } });
+    const s = feed({ ...T(2, 'over', 600), round: { phase: 'over', win_team: 'T' }, player: { steamid: '76561190000000002', name: 'mate', team: 'T', observer_slot: 2, state: { health: 100, money: 9000 }, match_stats: { kills: 0, assists: 0, deaths: 0 } } });
+    expect(s.call).toMatchObject({ kind: 'pre', round: 3 });
+    // $600 + $3,250 (a T win by elimination) = $3,850: a full buy for us on T.
+    expect(s.call!.why.join(' ')).toMatch(/\$3,850/);
   });
 });
 

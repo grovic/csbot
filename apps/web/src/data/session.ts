@@ -12,7 +12,7 @@ import {
 } from '@csbot/room';
 import { trysteroTransport } from '@csbot/room/trystero';
 import {
-  EMPTY_COACH, EMPTY_DEBRIEF, EMPTY_SCOUT, type CoachConfig, type CoachView, type CsbotBridge, type DebriefView, type DemoReplay, type VoiceEvent, type LinkStatus, type LiveSnapshot, type RoomPermissions,
+  callKey, EMPTY_COACH, EMPTY_DEBRIEF, EMPTY_SCOUT, type CoachConfig, type CoachView, type CsbotBridge, type DebriefView, type DemoReplay, type VoiceEvent, type LinkStatus, type LiveSnapshot, type RoomPermissions,
   type ScoutView, type ScreenState, EMPTY_TEAM, sanitizeTeam, type TeamPlan,
 } from '@csbot/protocol';
 import { applyTeam } from '@csbot/engine';
@@ -121,6 +121,8 @@ export class Session {
   private host?: RoomHost;
   private client?: RoomClient;
   private lastLive?: LiveSnapshot;
+  /** The last call this desktop screen reported (real-match timing). */
+  private ownShown?: string;
   /** Leaves the room network. Cleared when the room closes itself (end/leave send a goodbye first). */
   private leaveNet?: () => void;
   private readonly bridge?: CsbotBridge;
@@ -218,9 +220,18 @@ export class Session {
     this.watchOwnTeam();
     this.stops.push(b.onSnapshot(live => {
       this.lastLive = live;
+      this.traceOwn(live);
       const { scout, coach } = this.view;
       this.set({ screen: { live, ...(scout ? { scout } : {}), ...(coach ? { coach } : {}) }, receivedAt: Date.now(), rate: 1 });
     }));
+  }
+
+  /** Real-match timing: this desktop screen shows a new call (logged by the app in measurement runs). */
+  private traceOwn(live: LiveSnapshot): void {
+    const key = callKey(live.call);
+    if (!key || key === this.ownShown || !this.bridge?.trace) return;
+    this.ownShown = key;
+    this.bridge.trace({ ev: 'shown', id: 'host', name: live.me?.name || 'host', device: 'host', key });
   }
 
   /** Desktop solo/host: the live coach, from the main process. */
@@ -520,6 +531,8 @@ export class Session {
       onAsk: (from, text) => (b.askCoach ? b.askCoach(text, from) : Promise.resolve({ ok: false, error: "The host's coach isn't available." })),
       // Members' intel goes into this PC's tracker with who saw it.
       onIntel: (from, zone, count) => (b.logIntel ? b.logIntel(zone, count, from) : Promise.resolve({ ok: false, error: "The host can't take intel right now." })),
+      // Real-match timing: members' screens showing calls, members coming and going.
+      onTrace: e => b.trace?.(e),
     });
     this.host = host;
     // Scouting and the coach go to every member on each update (and to joiners on approval).
@@ -527,7 +540,7 @@ export class Session {
     this.watchOwnDebrief(d => host.setDebrief(d));
     this.watchOwnTeam(t => host.setTeam(t));
     this.watchOwnCoach(c => host.setCoach(c));
-    this.stops.push(b.onSnapshot(live => { this.lastLive = live; host.setLive(live); }));
+    this.stops.push(b.onSnapshot(live => { this.lastLive = live; this.traceOwn(live); host.setLive(live); }));
     // Tell the host process who's in the room, so scouting labels members vs randoms.
     // And the slots (plus tournament mode), so the coach names players in calls and stops in tournaments.
     let roster = '', slots = '';

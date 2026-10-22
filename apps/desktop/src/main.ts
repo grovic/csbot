@@ -10,6 +10,7 @@ import { CoachService } from './coach/service.ts';
 import { ClaudeCoachSession } from './coach/session.ts';
 import { detectCs2, installCfg } from './cs2.ts';
 import { Host, sessionFileName } from './host.ts';
+import { MatchLog, parseTrace } from './diagnostics.ts';
 import crypto from 'node:crypto';
 import { fakeShortcuts, HOTKEY_ZONES, IntelHotkeys } from './hotkeys.ts';
 import { startControl, type ControlCommand, type ControlServer } from './control.ts';
@@ -132,6 +133,19 @@ function run(): void {
       log(`GSI port ${port} is busy; listening on ${actual} instead (saved for next launch).`);
     }
     log(`GSI endpoint ${host.gsiUrl}`);
+    // Measurement runs (`--metrics`, the playtest shortcut): process metrics every second, plus the
+    // match's events (round ends, calls on every screen, room members) for tools/real-match.
+    const metricsFile = env.metricsFile ?? (process.argv.includes('--metrics') ? path.join(app.getPath('userData'), 'metrics', sessionFileName()) : undefined);
+    const matchLog = metricsFile ? new MatchLog(MatchLog.fileFor(metricsFile)) : null;
+    if (matchLog) {
+      matchLog.note({ ev: 'start', version: app.getVersion(), lowMemory, packaged: app.isPackaged });
+      host.onSnapshot(s => matchLog.snapshot(s));
+    }
+    ipcMain.on('csbot:trace', (e, raw: unknown) => {
+      if (!matchLog || !isOurs(e.senderFrame?.url ?? '')) return;
+      const t = parseTrace(raw);
+      if (t) matchLog.trace(t);
+    });
     host.onSnapshot(s => {
       for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('csbot:snapshot', s);
     });
@@ -160,6 +174,7 @@ function run(): void {
       for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('csbot:scout', v);
     };
     scout.onChange(sendScout);
+    if (matchLog) scout.onChange(v => matchLog.scout(v));
 
     // The team plan (M7): the squad's playbook and anti-strats, kept on this PC. The engine runs on it
     // (calls, jobs, spots, plan odds), and the room shares it read-only.
@@ -219,6 +234,7 @@ function run(): void {
       for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('csbot:coach', v);
     };
     coach.onChange(sendCoach);
+    if (matchLog) coach.onChange(v => matchLog.coach(v));
     void coach.init();
     host.onSnapshot(s => coach?.observe(s));
 
@@ -496,9 +512,14 @@ function run(): void {
     });
 
     win = createWindow();
-    // `--metrics` (used for real-match measurements) logs process metrics into userData/metrics.
-    const metricsFile = env.metricsFile ?? (process.argv.includes('--metrics') ? path.join(app.getPath('userData'), 'metrics', sessionFileName()) : undefined);
     if (metricsFile) startMetrics(metricsFile);
+    if (matchLog) {
+      // Whether the window was on screen while the numbers were taken (the V1 check needs a visible one).
+      const w = win;
+      const state = (what: string) => { if (!w.isDestroyed()) matchLog.note({ ev: 'window', what, visible: w.isVisible(), minimized: w.isMinimized(), focused: w.isFocused() }); };
+      for (const what of ['show', 'hide', 'minimize', 'restore'] as const) w.on(what as 'show', () => state(what));
+      w.once('ready-to-show', () => setTimeout(() => state('ready'), 500));
+    }
   });
 
   function createWindow(): BrowserWindow {

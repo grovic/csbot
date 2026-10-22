@@ -52,13 +52,13 @@ function ownSide(p: GsiPayload): Side | undefined {
 
 /**
  * Put the coach's (Claude's) call on a snapshot. It only applies to the round and call kind it was
- * written for (pre-round from freeze time until a plant, post-plant after); otherwise the engine call
- * stays. Keeps the tracker's YOU line when it's the "you're dead" line, else uses our slot's job, and
+ * written for (pre-round from the previous round's end until a plant, post-plant after); otherwise the
+ * engine call stays. Keeps the tracker's YOU line when it's the "you're dead" line, else uses our slot's job, and
  * moves the map's planned spots when Claude chose another playbook setup.
  */
 export function withCoachCall(s: LiveSnapshot, coach: CallView | undefined, ourSlot?: string): LiveSnapshot {
   const engine = s.call;
-  if (!coach || !engine || !s.match || coach.round !== s.match.round || coach.kind !== engine.kind) return s;
+  if (!coach || !engine || !s.match || coach.round !== engine.round || coach.kind !== engine.kind) return s;
   const dead = engine.you?.startsWith("You're dead") ? engine.you : undefined;
   const you = dead ?? (ourSlot ? coach.jobs[ourSlot] : undefined);
   const { you: _y, ...rest } = coach;

@@ -1,0 +1,15 @@
+{
+  "name": "@csbot/real-match",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Turns a real match's measurement files (csbot started with --metrics) into the V1 numbers.",
+  "bin": {
+    "csbot-real-match": "src/report.ts"
+  },
+  "scripts": {
+    "report": "node src/report.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

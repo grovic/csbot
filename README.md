@@ -16,7 +16,7 @@ Teammates who only want to watch and log intel don't need it: they open the room
 
 ## Status
 
-**M1 (core host), M2 (rooms), M3 (Scout), M4a (live intel), M4b (real maps), M4c (T-side forecast), M4d (T playbook), M4e (squad markers), M5 (live coach), M6 (debrief) and M7 (extras) are built. M8 (hardening) is built except code signing.**
+**M1 (core host), M2 (rooms), M3 (Scout), M4a (live intel), M4b (real maps), M4c (T-side forecast), M4d (T playbook), M4e (squad markers), M5 (live coach), M6 (debrief), M7 (extras), M8 (hardening) and M9 (real-match kit) are built.**
 - **M1:** the Electron host reads GSI, runs the economy engine, and shows the Live page.
 - **M2:** the admin creates a room in the desktop app and shares an invite link. Teammates open it in a browser, or paste it into their own csbot, and see the same calls with their own job. Rooms are peer-to-peer: no account, no server.
 
@@ -46,15 +46,19 @@ Teammates who only want to watch and log intel don't need it: they open the room
   - If the host's PC drops, a desktop member takes over the room with one click. Members follow by themselves, and the old host rejoins as a member when it comes back. Rooms expire a day after their last match.
   - Performance: about 160 MB and 0.2% CPU while hosting, flat over a 30-minute match. That's low-memory mode, on by default; csbot draws without the graphics card. The web app's first download is smaller.
   - Auto-updating installer.
-  - Code signing isn't done: the installer is unsigned during the beta.
+  - The installer stays unsigned during the beta (decided 2026-10-22).
+
+- **M9:**
+  - The next round's call shows as soon as a round ends, and the host's Claude Code starts on it then, so its call is usually on screen before freeze time.
+  - Measurement runs (the playtest build starts with `--metrics`) log memory, CPU, round ends and when each screen in the room shows each call. `tools/real-match` turns a run into the V1 numbers.
 
 - **M4e:** squad markers in a room: each player's marker is planned, on spot, rotating to a site with a countdown, or dead. Players check in with buttons under the map, or Num5 / Num4 / Num6 on the desktop app. Positions are only what players report; the game never sends teammates' positions.
 
 - **M4d:** a T playbook for every map: a default, an A and a B exec, an eco and a force play, each with planned spots and a job for every player. The call picks by your money and their likely-light site, and switches to the right exec when intel comes in.
 
-- **M5:** the host's own Claude Code writes the team call at every freeze time and after a plant, about 3 s after the engine's instant call. The squad asks it questions from the Coach page (per-member quota, per-match budget). Voice callouts read your job. Tournament mode turns it all off.
+- **M5:** the host's own Claude Code writes the team call for every round and after a plant, a few seconds after the engine's instant call. The squad asks it questions from the Coach page (per-member quota, per-match budget). Voice callouts read your job. Tournament mode turns it all off.
 
-What's left for V1 needs real matches: accuracy on the squad's own demos, and footprint and reconnects measured during real games. Code signing is a decision for the owner ([roadmap](docs/PROPOSAL.md#12-roadmap-v1-in-milestones)).
+What's left for V1 needs real matches: accuracy on the squad's own demos, and footprint, call timing and reconnects measured during real games ([roadmap](docs/PROPOSAL.md#12-roadmap-v1-in-milestones)).
 
 | Piece | Where | Run it |
 |---|---|---|
@@ -70,6 +74,7 @@ What's left for V1 needs real matches: accuracy on the squad's own demos, and fo
 | Scouting: FACEIT/Steam clients, sample match, scouting math, AI report contract | `packages/scout` | `pnpm test` |
 | Live coach: prompts, output schema, parsing, budget and quotas | `packages/coach` | `pnpm test` |
 | Optional self-hosted signaling (tests, or squads that want their own) | `tools/room-relay` | see the file header |
+| The V1 numbers from a real match played with `--metrics` | `tools/real-match` | `node tools/real-match/src/report.ts` |
 | Spikes (M0) | `tools/spikes`, `tools/gsi-probe` | see each README |
 
 **Checks:**
@@ -85,7 +90,9 @@ What's left for V1 needs real matches: accuracy on the squad's own demos, and fo
 
 **First test to run:** [tools/gsi-probe](tools/gsi-probe/README.md) is a 10-minute check that decides how teammates' positions work on the room map.
 
-**Design demo:** open [docs/prototype/index.html](docs/prototype/index.html) in a browser. It's a single file with no dependencies, driven by a simulated GSI feed, and all players are fictional.
+**Live demo:** [grovic.github.io/csbot](https://grovic.github.io/csbot/) runs the real web app on a fictional match. Add `?speed=4` to play it faster, `?map=de_dust2` for another map, or `?mode=wingman`.
+
+**Design prototype (frozen):** [docs/prototype/index.html](docs/prototype/index.html) is the original clickable design, kept as a record since 2026-10-22; the live demo shows the app as it is. It's a single file with no dependencies, driven by a simulated GSI feed, and all players are fictional.
 - **Pages:** Scout, Live, Debrief, plus header controls:
   - the room chip (room page)
   - speaker (voice callouts)

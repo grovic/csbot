@@ -7,7 +7,7 @@ import type {
   BuyRead, CallView, ConnectionView, EnemyView, ForecastView, IntelView, LiveSnapshot, MeView, Phase, PlayerRow,
   RoundRecord, SetupSpot, Side, TickerItem, YouTile,
 } from '@csbot/protocol';
-import { applyRoundResult, argmax, buyProbs, FULL_BUY_CT, lossBonus, PISTOL_SPEND, startOfHalf, type BuyProbs, type EnemyEconomy, type RoundReason } from './economy.ts';
+import { applyRoundResult, argmax, buyProbs, FULL_BUY_CT, lossBonus, PISTOL_SPEND, RULES_V1, startOfHalf, winReward, type BuyProbs, type EnemyEconomy, type RoundReason } from './economy.ts';
 import { planPosterior, planPrior, siteForecast, topPlan, type Intel, type MapModel, type Site } from './forecast.ts';
 import { MAPS, PLAYBOOKS } from './maps/index.ts';
 import { engineRoundCall, engineTCall, ourBuyType, type Playbook, type Setup } from './playbook.ts';
@@ -142,6 +142,10 @@ export class MatchTracker {
   /** When the plant was first seen (round.bomb isn't reported as "exploded": it's just cleared). */
   private plantedAt?: number;
   private pistol = false;
+  /** The round that just ended (the next round's call is worked out from it). */
+  private lastResult?: { round: number; won: boolean; reason: RoundReason; inferred: boolean };
+  /** The next round's enemy estimate and forecast, worked out with its call at round end. */
+  private nextView?: LiveSnapshot['next'];
 
   private me?: MeView;
   private freezeMoney?: number;
@@ -294,6 +298,7 @@ export class MatchTracker {
     const fc = this.forecast(now);
     if (fc) snap.forecast = fc;
     if (this.call) snap.call = { ...this.call };
+    if (this.nextView && this.phase === 'over' && this.call?.kind === 'pre' && this.call.round === this.nextView.round) snap.next = structuredClone(this.nextView);
     if (this.setupSpots) snap.setupSpots = this.setupSpots.map(s => ({ ...s }));
     if (this.o.playbookHandle) snap.youHandle = this.o.playbookHandle;
     if (this.intel.length) {
@@ -318,7 +323,7 @@ export class MatchTracker {
     this.history.clear(); this.settled.clear(); this.spectated.clear();
     this.enemy = startOfHalf(); this.enemyBuy = undefined; this.enemyRead = undefined;
     this.myDamageTotal = 0; this.myRoundDamage = 0; this.myRoundsCounted = 0;
-    this.call = undefined; this.setupSpots = undefined; this.freezeLearned = undefined; this.gsiCountdown = undefined;
+    this.call = undefined; this.setupSpots = undefined; this.freezeLearned = undefined; this.gsiCountdown = undefined; this.lastResult = undefined; this.nextView = undefined;
     this.push(s.at, 'MATCH', `New match on ${s.mapName ?? 'a new map'}`);
   }
 
@@ -359,6 +364,7 @@ export class MatchTracker {
 
   private onFreeze(round: number, s: GameState): void {
     this.round = round;
+    this.nextView = undefined;
     this.intel = [];
     this.baseCall = undefined;
     this.plantedThisRound = false;
@@ -383,12 +389,14 @@ export class MatchTracker {
   }
 
   /**
-   * The team plan changed (playbook, anti-strat): during freeze time, redo this round's engine call so
+   * The team plan changed (playbook, anti-strat): during freeze time (or between rounds), redo the engine call so
    * the new setup, words and spots show now. Later in the round the call stays (players already moved).
    */
   replan(): void {
-    if (this.phase !== 'freezetime' || this.call?.kind !== 'pre' || this.call.source !== 'engine' || !this.enemyBuy) return;
-    this.call = this.preRoundCall(this.call.round);
+    if (this.call?.kind !== 'pre' || this.call.source !== 'engine' || !this.enemyBuy) return;
+    if (this.phase === 'freezetime') this.call = this.preRoundCall(this.call.round);
+    // Between rounds the call is already the next round's: redo it the same way.
+    else if (this.phase === 'over' && this.call.round === this.round + 1 && this.prev) this.call = this.nextRoundCall(this.prev) ?? this.call;
   }
 
   private preRoundCall(round: number): CallView {
@@ -400,7 +408,7 @@ export class MatchTracker {
       this.setupSpots = undefined;
       const call = genericCall(round, read, buy, enemy, this.ourSide);
       // On T, the setup read says which site their buy leaves lighter, when it leans one way.
-      const fc = this.ourSide === 'T' ? this.forecast(this.lastAt ?? 0) : undefined;
+      const fc = this.ourSide === 'T' ? this.forecast(this.lastAt ?? 0, true) : undefined;
       if (fc) {
         const site: Site = fc.site.B > fc.site.A ? 'B' : 'A';
         call.why = [...call.why, `Their likely setup: ${fc.topPlan.name} · ${site} lighter ${pct(fc.site[site])} (estimate)`];
@@ -411,7 +419,7 @@ export class MatchTracker {
     let c;
     if (this.ourSide === 'T') {
       // Our buy picks eco/force plays; with money, the exec toward the site their setup leaves light.
-      const fc = this.forecast(this.lastAt ?? 0);
+      const fc = this.forecast(this.lastAt ?? 0, true);
       const lighter = fc ? (fc.site.A >= fc.site.B ? { site: 'A' as const, p: fc.site.A } : { site: 'B' as const, p: fc.site.B }) : undefined;
       c = engineTCall(pb, ourBuyType(this.me?.money), lighter, this.me?.money);
       c = { ...c, why: [...c.why, `Enemy est. ${fmt$(enemy.lo)}–${fmt$(enemy.hi)} each → ${READ_WORD[read]}`].slice(0, 3) };
@@ -496,6 +504,60 @@ export class MatchTracker {
       jobs: this.call?.jobs ?? {}, steps: [], why: [`Round ${r}: ${won ? 'won' : 'lost'} by ${reason}${inferred ? ' (inferred)' : ''}`], source: 'engine',
     };
     this.push(s.at, `ROUND ${r}`, `${won ? 'Won' : 'Lost'} · ${reason}${inferred ? '' : ''} · ${this.score.us}–${this.score.them}`);
+    // The next round's call right away (the coach starts on it now, so its call is ready by freeze time).
+    this.lastResult = { round: r, won, reason, inferred };
+    const next = this.nextRoundCall(s);
+    if (next) this.call = next;
+  }
+
+  /**
+   * At round end: round N+1's pre-round call, worked out from what's known now (the enemy's new money
+   * band, our money). Freeze time redoes it with the freeze payload. None when the next round starts a
+   * half (sides swap, money resets) or the match is decided. Leaves the round's enemy read and forecast
+   * as they are: the debrief records them for the round that just ended.
+   */
+  private nextRoundCall(s: GameState): CallView | undefined {
+    const res = this.lastResult;
+    if (!res || res.round !== this.round || !this.ourSide) return undefined;
+    const round = res.round + 1;
+    const half = halfLengthFor(this.mode);
+    if (isHalfStart(round, half).start || this.decided(res.round, half)) return undefined;
+    const keep = { enemy: this.enemy, enemyBuy: this.enemyBuy, enemyRead: this.enemyRead, pistol: this.pistol, me: this.me };
+    try {
+      const theirs = this.ourSide === 'CT' ? s.t : s.ct;
+      if (theirs) this.enemy = { ...this.enemy, streak: theirs.lossStreak };
+      this.pistol = false;
+      this.enemyBuy = buyProbs(this.enemy, { saved: this.enemy.saved });
+      this.enemyRead = argmax(this.enemyBuy);
+      // Watching a teammate, our own money isn't sent: add what this round paid us.
+      if (this.me?.observing) this.me = { ...this.me, money: Math.min(RULES_V1.maxMoney, this.me.money + this.roundPay(res.won, res.reason)) };
+      const c = this.preRoundCall(round);
+      const fc = this.forecast(this.lastAt ?? 0, true);
+      if (fc) delete fc.liveT; // the round that ended is still "live" while its last payload is read
+      this.nextView = {
+        round,
+        enemy: { lo: this.enemy.lo, hi: this.enemy.hi, streak: this.enemy.streak, saved: this.enemy.saved, buy: { ...this.enemyBuy }, read: this.enemyRead },
+        ...(fc ? { forecast: fc } : {}),
+      };
+      const result = `Round ${res.round} ${res.won ? 'won' : 'lost'} by ${res.reason}${res.inferred ? ' (inferred)' : ''}`;
+      return { ...c, why: [result, ...c.why].slice(0, 3) };
+    } finally {
+      this.enemy = keep.enemy; this.enemyBuy = keep.enemyBuy; this.enemyRead = keep.enemyRead; this.pistol = keep.pistol; this.me = keep.me;
+    }
+  }
+
+  /** What one of our players earned for the round that just ended. */
+  private roundPay(won: boolean, reason: RoundReason): number {
+    if (won) return winReward(reason);
+    return lossBonus(this.ourLossStreak) + (this.ourSide === 'T' && this.plantedThisRound ? RULES_V1.plantBonus : 0);
+  }
+
+  /** One team has won after `round` (regulation: half + 1 wins; MR3 overtime: 4 of the block's 6). */
+  private decided(round: number, half: number): boolean {
+    const top = Math.max(this.score.us, this.score.them);
+    if (round <= 2 * half) return top >= half + 1;
+    const block = Math.floor((round - 2 * half - 1) / (2 * OT_HALF));
+    return top >= half + OT_HALF * block + OT_HALF + 1;
   }
 
   private clock(now: number): { endsIn?: number; source?: 'gsi' | 'derived' } {
@@ -528,18 +590,20 @@ export class MatchTracker {
     return this.ourSide === 'CT' ? model : this.ourSide === 'T' ? model?.ct : undefined;
   }
 
-  private forecast(now: number): ForecastView | undefined {
+  /** The enemy plan forecast; `priorOnly` leaves this round's intel out (a pre-round call is made before any). */
+  private forecast(now: number, priorOnly = false): ForecastView | undefined {
     const model = this.sideModel();
     if (!model || !this.enemyBuy) return undefined;
     const buy = this.enemyRead === 'pistol' ? { eco: 1, force: 0, half: 0, full: 0 } : this.enemyBuy;
     const prior = planPrior(model, buy);
-    const plans = this.intel.length ? planPosterior(model, prior, this.intel.map(({ zone, count, t }) => ({ zone, count, t }))) : prior;
+    const intel = priorOnly ? [] : this.intel;
+    const plans = intel.length ? planPosterior(model, prior, intel.map(({ zone, count, t }) => ({ zone, count, t }))) : prior;
     const top = topPlan(plans);
     const liveT = this.liveStartedAt !== undefined && (this.phase === 'live' || this.phase === 'bomb') ? (now - this.liveStartedAt) / 1000 : undefined;
     return {
       map: model.id, plans, site: siteForecast(model, plans),
       topPlan: { id: top, name: model.plans.find(p => p.id === top)?.name ?? top, p: plans[top] ?? 0 },
-      ...(liveT !== undefined ? { liveT } : {}), basis: this.intel.length ? 'intel' : 'prior',
+      ...(liveT !== undefined ? { liveT } : {}), basis: intel.length ? 'intel' : 'prior',
       ...(this.ourSide === 'T' ? { enemy: 'CT' as const } : {}),
     };
   }
