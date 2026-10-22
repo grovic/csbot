@@ -659,6 +659,12 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
    - *Built:*
      - **Gather mode** (section 3.6).
      - **2D round replay** on the Debrief page, from the match demo. Everyone's movement at 4 frames a second, kills, smokes, molotovs, flashes and the plant, on csbot's own map outline. It plays at 1×, 2× or 4× and scrubs with a slider. The replay is kept gzipped next to the match record, on that PC only. The browser demo shows a fictional one, labeled as such.
+     - **Push-to-talk** (desktop, off by default): press the key (Num0 by default), then say one thing. "three B apps" logs intel and "palace clear" logs a clear. "on my spot" and "rotating A" check you in, and "coach, should we save this round" asks the coach.
+       - Windows' own recognizer (System.Speech, run by Windows PowerShell) does the recognition offline. It listens only after the key, for one sentence, and nothing is recorded.
+       - It listens for a fixed list of phrases built from the map's callouts, plus free speech after "coach".
+       - A tone plays when it listens and another when it understood. The command is read back if voice callouts are on.
+       - What it hears goes the same way as a click, so a member's intel and questions reach the room's host. Tournament mode refuses them the same way.
+       - English only for now.
 8. **M8 · Hardening:** host handover, signing, auto-update, performance, closed beta with a few squads → **V1 release**.
    - *Done:*
      - The installer and auto-update: an unsigned per-user NSIS installer on GitHub Releases. v0.5.0 is published; pushing a `v*` tag releases.

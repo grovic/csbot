@@ -11,6 +11,8 @@ import { ClaudeCoachSession } from './coach/session.ts';
 import { detectCs2, installCfg } from './cs2.ts';
 import { Host, sessionFileName } from './host.ts';
 import { fakeShortcuts, IntelHotkeys } from './hotkeys.ts';
+import { PushToTalk } from './voice/ptt.ts';
+import { FakeRecognizer, SpeechHelper } from './voice/recognizer.ts';
 import { loadSettings, readEnv, saveSettings, type Settings } from './settings.ts';
 import { rendererUrlFor, samePage, webIndexFor } from './urls.ts';
 import { Updater } from './updater.ts';
@@ -40,6 +42,7 @@ function run(): void {
   let debrief: DebriefService | null = null;
   let coach: CoachService | null = null;
   let hotkeys: IntelHotkeys | null = null;
+  let voice: PushToTalk | null = null;
   /** Names of the members in this host's room (set by the renderer that runs the room). */
   let roomRoster: string[] = [];
   let scoutCache: FileStore | null = null;
@@ -85,6 +88,7 @@ function run(): void {
     scoutCache?.flush();
     coach?.stop();
     hotkeys?.dispose();
+    voice?.dispose();
     if (!host) return;
     e.preventDefault();
     const h = host;
@@ -204,6 +208,31 @@ function run(): void {
     });
     host.onSnapshot(s => hotkeys?.setMap(s.match?.map));
     hotkeys.setEnabled(!!settings.intelHotkeys);
+
+    // Push-to-talk (M7): what's heard goes to the renderer, which logs it like a click (so a member's
+    // intel reaches the room's host) or asks the coach. Hidden runs never open the microphone.
+    const fakeVoiceKeys = fakeShortcuts();
+    voice = new PushToTalk({
+      shortcuts: env.fakeHotkeys ? fakeVoiceKeys : globalShortcut,
+      recognizer: () => (env.fakeVoice ? new FakeRecognizer(env.fakeVoice) : new SpeechHelper({ dir: userData, log })),
+      onEvent: ev => { if (win && !win.isDestroyed()) win.webContents.send('csbot:voice', ev); },
+      log,
+    });
+    // Tests press the stand-in key from the main process.
+    if (env.fakeHotkeys) (globalThis as { csbotPressVoice?: () => void }).csbotPressVoice = () => { for (const cb of fakeVoiceKeys.registered.values()) cb(); };
+    host.onSnapshot(s => voice?.setMap(s.match?.map));
+    if (settings.voice?.enabled) void voice.setEnabled(true, settings.voice.key).then(r => { if (!r.ok) log(`push-to-talk: ${r.error}`); });
+    ipcMain.handle('csbot:setVoice', async (e, o: unknown) => {
+      guard(e);
+      const req = (o && typeof o === 'object' ? o : {}) as { enabled?: unknown; key?: unknown };
+      if (typeof req.enabled !== 'boolean' || (req.key !== undefined && typeof req.key !== 'string')) return { ok: false, error: 'Invalid request.' };
+      if (!voice) return { ok: false, error: 'csbot is shutting down' };
+      const r = await voice.setEnabled(req.enabled, req.key as string | undefined);
+      const st = voice.status();
+      settings = { ...settings, voice: { enabled: req.enabled && r.ok, key: st.key } };
+      saveSettings(userData, settings);
+      return r;
+    });
     ipcMain.handle('csbot:logIntel', (e, zone: unknown, count: unknown, from: unknown) => {
       guard(e);
       if (typeof zone !== 'string' || !/^[a-z0-9_]{1,32}$/.test(zone) || typeof count !== 'number' || !Number.isInteger(count) || count < 0 || count > 5) {
@@ -328,7 +357,7 @@ function run(): void {
     ipcMain.handle('csbot:latest', e => { guard(e); return host?.latest(); });
     ipcMain.handle('csbot:getInfo', e => {
       guard(e);
-      return host ? { ...host.info(), update: updater.status, ...(hotkeys ? { intelHotkeys: hotkeys.status() } : {}) } : undefined;
+      return host ? { ...host.info(), update: updater.status, ...(hotkeys ? { intelHotkeys: hotkeys.status() } : {}), ...(voice ? { voice: voice.status() } : {}) } : undefined;
     });
     ipcMain.handle('csbot:installCfg', (e): CfgInstallResult => {
       guard(e);

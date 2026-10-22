@@ -20,6 +20,8 @@ export interface Settings {
   coach?: CoachConfig;
   /** Numpad intel hotkeys (M4a). Off unless the user turns them on: they take the keys from the game. */
   intelHotkeys?: boolean;
+  /** Push-to-talk (M7). Off unless turned on; the key it uses. */
+  voice?: { enabled: boolean; key: string };
   /** This PC's player, remembered from CS2's own data (matches demos to "us" when CS2 is closed). */
   steamId?: string;
 }
@@ -61,6 +63,7 @@ export function loadSettings(dir: string): Settings {
     ...(typeof raw.faceitNickname === 'string' && raw.faceitNickname.trim() ? { faceitNickname: raw.faceitNickname.trim().slice(0, 32) } : {}),
     ...(raw.coach !== undefined ? { coach: coachConfigFrom(raw.coach) } : {}),
     ...(raw.intelHotkeys === true ? { intelHotkeys: true } : {}),
+    ...(raw.voice && typeof raw.voice === 'object' && typeof raw.voice.key === 'string' ? { voice: { enabled: raw.voice.enabled === true, key: raw.voice.key.slice(0, 8) } } : {}),
     ...(typeof raw.steamId === 'string' && /^7656\d{13}$/.test(raw.steamId) ? { steamId: raw.steamId } : {}),
   };
   if (JSON.stringify(s) !== JSON.stringify(raw)) {
@@ -100,6 +103,11 @@ export interface EnvConfig {
    * Electron's globalShortcut, so tests never take the numpad from the owner's game.
    */
   fakeHotkeys: boolean;
+  /**
+   * CSBOT_FAKE_VOICE="three B apps|coach should we save": push-to-talk hears these, one per press,
+   * instead of the microphone. Hidden runs never use the microphone (they hear nothing).
+   */
+  fakeVoice?: string[];
 }
 
 /** Only wss:// anywhere, or ws:// on this machine (tests, a relay on the LAN host itself). */
@@ -125,5 +133,6 @@ export function readEnv(env: NodeJS.ProcessEnv = process.env): EnvConfig {
     signal: validSignal(env.CSBOT_SIGNAL),
     coachOff: env.CSBOT_COACH === 'off',
     fakeHotkeys: env.CSBOT_FAKE_HOTKEYS === '1' || env.CSBOT_HIDDEN === '1',
+    ...(env.CSBOT_FAKE_VOICE !== undefined || env.CSBOT_HIDDEN === '1' ? { fakeVoice: (env.CSBOT_FAKE_VOICE ?? '').split('|').map(s => s.trim()).filter(Boolean) } : {}),
   };
 }
