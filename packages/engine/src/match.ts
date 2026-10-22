@@ -54,10 +54,16 @@ export function phaseOf(s: GameState): Phase {
   }
 }
 
+/** Wingman (2v2, GSI map.mode "scrimcomp2v2"). */
+export const isWingman = (mode?: string): boolean => mode === 'scrimcomp2v2';
+
 /** Rounds per half for a GSI map.mode. */
 export function halfLengthFor(mode?: string): number {
-  return mode === 'scrimcomp2v2' ? 8 : 12;
+  return isWingman(mode) ? 8 : 12;
 }
+
+/** Wingman's timings: 10 s freeze, 1:30 rounds (the bomb and the round end are the same). */
+export const WINGMAN_PHASES: Partial<PhaseLengths> = { freezetime: 10, live: 90 };
 
 /** First round of a half (regulation or MR3 overtime): money resets, pistol round in regulation. */
 export function isHalfStart(round: number, half: number): { start: boolean; overtime: boolean } {
@@ -153,7 +159,10 @@ export class MatchTracker {
   private baseCall?: CallView;
   private ticker: TickerItem[] = [];
 
+  private readonly customPhases: boolean;
+
   constructor(opts: TrackerOptions = {}) {
+    this.customPhases = !!opts.phases;
     this.o = {
       source: opts.source ?? 'game',
       maps: opts.maps ?? MAPS,
@@ -385,7 +394,8 @@ export class MatchTracker {
   private preRoundCall(round: number): CallView {
     const pb = this.map ? this.o.playbooks[this.map] : undefined;
     const enemy = this.enemy, buy = this.enemyBuy!, read = this.enemyRead!;
-    const usable = pb && pb.setups.some(s => s.side === this.ourSide);
+    // Wingman: the playbook's setups are for five; the call is about money and the one site.
+    const usable = pb && !isWingman(this.mode) && pb.setups.some(s => s.side === this.ourSide);
     if (!usable || read === 'pistol') {
       this.setupSpots = undefined;
       const call = genericCall(round, read, buy, enemy, this.ourSide);
@@ -455,7 +465,7 @@ export class MatchTracker {
       const sincePlant = this.plantedAt !== undefined ? (s.at - this.plantedAt) / 1000 : 0;
       reason = s.bomb === 'exploded' || (winSide === 'T' && this.plantedThisRound && sincePlant >= BOMB_TIMER - 4) ? 'bomb'
         : s.bomb === 'defused' ? 'defuse'
-        : winSide === 'CT' && !this.plantedThisRound && liveFor >= this.o.phases.live - 3 ? 'time' : 'elimination';
+        : winSide === 'CT' && !this.plantedThisRound && liveFor >= this.phases().live - 3 ? 'time' : 'elimination';
     }
     const won = winSide === ourSide;
     this.history.set(r, { round: r, winner: won ? 'us' : 'them', reason, ourSide, ...(inferred ? { inferred } : {}) });
@@ -493,8 +503,9 @@ export class MatchTracker {
     if (cd && this.lastAt !== undefined && cd.at === this.lastAt) {
       return { endsIn: Math.max(0, cd.endsIn - (now - cd.at) / 1000), source: 'gsi' };
     }
+    const ph = this.phases();
     const lens: Partial<Record<Phase, number>> = {
-      freezetime: this.freezeLearned ?? this.o.phases.freezetime, live: this.o.phases.live, bomb: this.o.phases.bomb, over: this.o.phases.over,
+      freezetime: this.freezeLearned ?? ph.freezetime, live: ph.live, bomb: ph.bomb, over: ph.over,
     };
     const len = lens[this.phase];
     if (len === undefined || !this.phaseStartSeen || this.phaseStartedAt === undefined) return {};
@@ -502,8 +513,17 @@ export class MatchTracker {
     return { endsIn: Math.max(0, len - (now - since) / 1000), source: 'derived' };
   }
 
-  /** The plan model for the enemy we face: their attack on our CT halves, their setups on our T halves. */
+  /** Phase lengths for this mode (Wingman's are shorter), unless the tests set their own. */
+  private phases(): PhaseLengths {
+    return isWingman(this.mode) && !this.customPhases ? { ...this.o.phases, ...WINGMAN_PHASES } : this.o.phases;
+  }
+
+  /**
+   * The plan model for the enemy we face: their attack on our CT halves, their setups on our T halves.
+   * None in Wingman: the plans are for five players and two sites, Wingman is two players on one site.
+   */
   private sideModel(): MapModel | undefined {
+    if (isWingman(this.mode)) return undefined;
     const model = this.map ? this.o.maps[this.map] : undefined;
     return this.ourSide === 'CT' ? model : this.ourSide === 'T' ? model?.ct : undefined;
   }

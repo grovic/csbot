@@ -1,7 +1,8 @@
 import { FIRST_HALF, FULL_MATCH, syntheticMatch, toGameState, type RecordedPayload } from '@csbot/gsi';
 import type { LiveSnapshot } from '@csbot/protocol';
 import { describe, expect, it } from 'vitest';
-import { isHalfStart, MatchTracker, phaseOf, youTile } from './match.ts';
+import { isHalfStart, isWingman, MatchTracker, phaseOf, youTile } from './match.ts';
+import { slotsFor } from './maps/index.ts';
 
 /** Feed a recording; return the snapshot taken right after each payload. */
 function run(rec: RecordedPayload[], t = new MatchTracker({ playbookHandle: 'a' })) {
@@ -221,6 +222,38 @@ describe('connection and match lifecycle', () => {
     const t = new MatchTracker();
     t.noteGuardDrops(2);
     expect(t.snapshot().connection.guardDropped).toBe(2);
+  });
+});
+
+describe('Wingman (2v2)', () => {
+  const rec = syntheticMatch({ rounds: FULL_MATCH.slice(0, 16), lean: true, mode: 'scrimcomp2v2', map: 'de_inferno' });
+  const { snaps, last } = run(rec);
+
+  it('8-round halves: sides swap after round 8', () => {
+    expect(isWingman(last.match!.mode)).toBe(true);
+    expect(last.match!.halfLength).toBe(8);
+    const h = last.match!.history;
+    expect(h).toHaveLength(16);
+    expect(h[7]!.ourSide).toBe('CT');
+    expect(h[8]!.ourSide).toBe('T');
+    expect(at(snaps, 9, 'freezetime').call!.head).toMatch(/pistol/i); // round 9 is the second half's pistol
+  });
+
+  it("no five-player site forecast or setup; money calls; Wingman's 1:30 rounds", () => {
+    const live3 = at(snaps, 3, 'live');
+    expect(live3.forecast).toBeUndefined();
+    expect(live3.setupSpots).toBeUndefined();
+    const pre = at(snaps, 3, 'freezetime').call!;
+    expect(pre.kind).toBe('pre');
+    expect(pre.setup).toBeFalsy();
+    // Lean payloads have no countdown: the clock comes from Wingman's round time.
+    expect(live3.match!.clock.endsIn).toBeGreaterThan(80);
+    expect(live3.match!.clock.endsIn).toBeLessThanOrEqual(90);
+  });
+
+  it('two positions', () => {
+    expect(slotsFor('de_inferno', 'CT', 'scrimcomp2v2').map(s => s.id)).toEqual(['a', 'b']);
+    expect(slotsFor('de_inferno', 'CT', 'competitive')).toHaveLength(5);
   });
 });
 

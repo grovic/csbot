@@ -33,10 +33,15 @@ export interface DemoOptions {
   pause?: boolean;
   /** Play the demo on this map (any map csbot has), Mirage by default. */
   map?: string;
+  /** "scrimcomp2v2": a Wingman match (2v2, 8-round halves). */
+  mode?: string;
 }
 
-export function demoRecording(map = 'de_mirage'): RecordedPayload[] {
-  return syntheticMatch({ rounds: FULL_MATCH, lean: true, map });
+export function demoRecording(map = 'de_mirage', mode?: string): RecordedPayload[] {
+  // Wingman is first to 9: two halves of 8 at most.
+  return mode === 'scrimcomp2v2'
+    ? syntheticMatch({ rounds: FULL_MATCH.slice(0, 16), lean: true, map, mode })
+    : syntheticMatch({ rounds: FULL_MATCH, lean: true, map });
 }
 
 /**
@@ -74,11 +79,12 @@ export function readDemoOptions(search: string): DemoOptions {
     at: at === null ? undefined : /^\d+$/.test(at) ? Number(at) : at,
     pause: q.get('pause') === '1',
     ...(q.get('map') && GEOS[q.get('map')!] ? { map: q.get('map')! } : {}),
+    ...(q.get('mode') === 'wingman' ? { mode: 'scrimcomp2v2' } : {}),
   };
 }
 
 export function demoSource(opts: DemoOptions = {}): SnapshotSource {
-  const rec = demoRecording(opts.map);
+  const rec = demoRecording(opts.map, opts.mode);
   const speed = opts.speed ?? 1;
   const first = rec[0]!.t, end = rec[rec.length - 1]!.t + 6000;
   let tracker = new MatchTracker({ source: 'demo', playbookHandle: 'a' });

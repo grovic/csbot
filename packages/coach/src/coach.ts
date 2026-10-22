@@ -7,7 +7,7 @@
 // already on screen, so Claude's only has to be better, not first.
 
 import { z } from 'zod';
-import { activeAntiStrat, activeOpponent, currentTeam, GEOS, lossBonus, PLAYBOOKS, slotsFor } from '@csbot/engine';
+import { activeAntiStrat, activeOpponent, currentTeam, GEOS, isWingman, lossBonus, PLAYBOOKS, slotsFor } from '@csbot/engine';
 import type { CallView, CoachAsker, CoachConfig, LiveSnapshot, ScoutView } from '@csbot/protocol';
 
 export const COACH_SYSTEM = `You are the live coach inside csbot, a second-screen companion for a Counter-Strike 2 squad.
@@ -50,9 +50,10 @@ const pct = (p: number) => `${Math.round(p * 100)}%`;
 /** Compact facts for one moment of the match. Everything here was computed by csbot. */
 export function matchFacts(live: LiveSnapshot, roster: readonly RosterEntry[], scout?: ScoutView): Record<string, unknown> {
   const m = live.match;
-  const slots = slotsFor(m?.map, m?.ourSide);
+  const slots = slotsFor(m?.map, m?.ourSide, m?.mode);
   const bySlot = new Map(roster.filter(r => r.slot).map(r => [r.slot!, r]));
-  const pb = m?.map ? PLAYBOOKS[m.map] : undefined;
+  // Wingman: two players on one site; the playbook's five-player setups don't apply.
+  const pb = m?.map && !isWingman(m.mode) ? PLAYBOOKS[m.map] : undefined;
   const setups = pb?.setups.filter(s => s.side === m?.ourSide).map(s => ({
     id: s.id, name: s.name,
     spots: Object.fromEntries(s.spots.map(sp => [sp.player, sp.label])),
@@ -60,7 +61,7 @@ export function matchFacts(live: LiveSnapshot, roster: readonly RosterEntry[], s
   })) ?? [];
   const last = m?.history.slice(-3).map(h => `R${h.round} ${h.winner === 'us' ? 'won' : 'lost'} (${h.reason}${h.inferred ? ', inferred' : ''})`);
   const facts: Record<string, unknown> = {
-    map: mapName(m?.map), round: m?.round, phase: m?.clock.phase, ourSide: m?.ourSide,
+    map: mapName(m?.map), ...(isWingman(m?.mode) ? { mode: 'Wingman (2v2, one bomb site, first to 9)' } : {}), round: m?.round, phase: m?.clock.phase, ourSide: m?.ourSide,
     score: m ? `${m.score.us}-${m.score.them}` : undefined, lastRounds: last, ourLossStreak: m?.ourLossStreak,
     roster: slots.map(s => ({ slot: s.id, position: s.label, player: bySlot.get(s.id)?.name ?? 'unassigned', ...(bySlot.get(s.id)?.random ? { random: true } : {}) })),
   };

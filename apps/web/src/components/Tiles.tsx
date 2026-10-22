@@ -5,6 +5,7 @@ import { fmtK, mapName, pct, READ_BIG } from '../format.ts';
 function noForecastReason(s: LiveSnapshot): string {
   const m = s.match;
   if (!m) return 'Arrives with the first round';
+  if (m.mode === 'scrimcomp2v2') return 'Wingman: one site, no site forecast';
   if (!m.map || !MAPS[m.map]) return `No forecast for ${mapName(m.map)} yet`;
   if (m.ourSide === 'T' && !MAPS[m.map]!.ct) return `No read on ${mapName(m.map)} CT setups yet`;
   if (!s.enemy) return 'Arrives at freeze time';

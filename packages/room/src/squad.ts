@@ -29,7 +29,7 @@ export function composeSquad(live: LiveSnapshot, bySlot: ReadonlyMap<string, Slo
   const map = live.match?.map;
   const geo = map ? GEOS[map] : undefined;
   if (!spots?.length || !geo) return undefined;
-  const labels = new Map(slotsFor(map, live.match?.ourSide).map(s => [s.id, s.label]));
+  const labels = new Map(slotsFor(map, live.match?.ourSide, live.match?.mode).map(s => [s.id, s.label]));
   const phase = live.match?.clock.phase;
   const live_ = phase === 'live' || phase === 'bomb';
   return spots.map((sp): SquadMarker => {

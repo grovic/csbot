@@ -679,6 +679,13 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
        - The team edits the list: drag either end, rename, pick the grenade and the setups, add or delete lineups. An exact spot can be pasted from their own practice server: they type `getpos` there themselves, and csbot never reads the console.
        - **Practice config:** a `csbot_<map>.cfg` for a private server. It sets up grenade practice (sv_cheats, infinite grenades, trajectory preview, buy anywhere) and adds one `lineupN` command per lineup. The command teleports you to the throw spot facing the landing spot, with the grenade in hand. Without an exact spot, the teleport uses the callout's floor height (now part of the map build) and says "near".
        - In the browser it's a download. The desktop app can also put it in CS2's cfg folder when you click.
+     - **Wingman** (GSI mode `scrimcomp2v2`):
+       - 8-round halves, 1:30 rounds and a 10 s freeze.
+       - Two positions, Player 1 and Player 2, in the room and on the map.
+       - Calls are about money. There's no site forecast: csbot's plans are for five players and two sites, and Wingman is two players on one site.
+       - The coach is told it's Wingman.
+       - Wingman maps csbot has no geometry for (Vertigo, Overpass…) show no map. Intel and markers work on the maps it has.
+       - The browser demo plays one with `?mode=wingman`.
 8. **M8 · Hardening:** host handover, signing, auto-update, performance, closed beta with a few squads → **V1 release**.
    - *Done:*
      - The installer and auto-update: an unsigned per-user NSIS installer on GitHub Releases. v0.5.0 is published; pushing a `v*` tag releases.

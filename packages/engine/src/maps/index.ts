@@ -60,8 +60,12 @@ export function lineupsFor(map: string | undefined, setup: string | undefined): 
 export const MIRAGE: MapModel = MAPS.de_mirage!;
 export const MIRAGE_PLAYBOOK: Playbook = PLAYBOOKS.de_mirage!;
 
-/** The map's position names for our side (T roles on T halves). */
-export function slotsFor(map?: string, side?: 'CT' | 'T'): readonly SlotDef[] {
+/** Wingman's two positions (the ids stay playbook slot ids, so room assignments carry over). */
+export const WINGMAN_SLOTS: readonly SlotDef[] = [{ id: 'a', label: 'Player 1' }, { id: 'b', label: 'Player 2' }];
+
+/** The map's position names for our side (T roles on T halves); Wingman has two. */
+export function slotsFor(map?: string, side?: 'CT' | 'T', mode?: string): readonly SlotDef[] {
+  if (mode === 'scrimcomp2v2') return WINGMAN_SLOTS;
   const pb = map ? PLAYBOOKS[map] : undefined;
   return (side === 'T' ? pb?.tSlots ?? pb?.slots : pb?.slots) ?? DEFAULT_SLOTS;
 }
