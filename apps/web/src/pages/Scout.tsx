@@ -43,7 +43,52 @@ function ScoutForm({ session, compact = false }: { session: Session; compact?: b
   );
 }
 
-/** The host's recent FACEIT matches: one click scouts any of them; a live one is marked. */
+/** Premier and other Valve matches: the players come from the console's `status`, pasted by the host. */
+function StatusForm({ session, compact = false }: { session: Session; compact?: boolean }) {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string>();
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!text.trim()) { setErr('Paste what status printed in the console.'); return; }
+    setBusy(true); setErr(undefined);
+    const error = await session.scoutStatus(text);
+    setBusy(false);
+    if (error) setErr(error); else setText('');
+  };
+  return (
+    <form className={'scoutform status-form' + (compact ? ' compact' : '')} onSubmit={submit} data-testid="status-form">
+      <div className="muted small">Premier or another Valve match: in CS2, open the console, type <code>status</code>, select what it prints, copy it (Ctrl+C) and paste it here.</div>
+      <textarea className="inp" rows={compact ? 3 : 4} value={text} onChange={e => setText(e.target.value)} placeholder="# userid name uniqueid … (the output of status)" aria-label="Output of the status command" data-testid="status-input" spellCheck={false} />
+      <div><button className="btn" type="submit" disabled={busy} data-testid="status-submit">{busy ? 'Looking them up…' : 'Read the players'}</button></div>
+      {err && <div className="result err" data-testid="status-error">{err}</div>}
+    </form>
+  );
+}
+
+/** Premier: players csbot can't place yet. The host marks them; once a team has five, the rest are sorted. */
+function Unsorted({ scout, session, host }: { scout: ScoutView; session: Session; host: boolean }) {
+  const list = scout.unsorted ?? [];
+  if (!list.length) return null;
+  return (
+    <div className="card unsorted" data-testid="unsorted">
+      <div className="card-h"><h3>Who's on your team?</h3><span className="muted small">{scout.us.players.length} of 5 known</span></div>
+      <p className="muted small" style={{ margin: '0 0 8px' }}>Valve's matchmaking doesn't say who's on which team. csbot knows you, teammates you've watched after dying and room members{host ? '; mark the others. Once a team has five, the rest go to the other side.' : '. The host sorts the others.'}</p>
+      {list.map(p => (
+        <div className="unsorted-row" key={p.id} data-testid="unsorted-row" data-nick={p.nickname}>
+          <Avatar name={p.nickname} />
+          <span className="pc-name">{p.nickname}</span>
+          <span className="muted small">{p.level ? `lvl ${p.level} · ${elo(p.elo)}` : scout.sources.faceit === 'live' ? 'no FACEIT account' : 'FACEIT not checked'}{p.steam?.cs2Hours !== undefined ? ` · ${p.steam.cs2Hours.toLocaleString('en-US')} h` : ''}</span>
+          {host && <span className="unsorted-btns">
+            <button className="btn small" type="button" onClick={() => void session.setPremierSide(p.steamid ?? p.id, 'us')} data-testid="mark-us">My team</button>
+            <button className="btn small" type="button" onClick={() => void session.setPremierSide(p.steamid ?? p.id, 'them')} data-testid="mark-them">Opponent</button>
+          </span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** Shown when csbot couldn't tell which team is the host's (or the host swapped it): a way to fix it. */
 function SideNote({ scout, session }: { scout: ScoutView; session: Session }) {
   const [busy, setBusy] = useState(false);
@@ -115,7 +160,9 @@ function Empty({ view, session, scout }: { view: SessionView; session: Session; 
       <RecentList scout={scout} session={session} />
       {!noKey && !scout.account && <p className="note">Add your FACEIT nickname in <a href="#/settings">Settings</a> to list your recent matches here; a live match then gets scouted by itself.</p>}
       {noKey && <p className="note">Real matches need your FACEIT API key: <a href="#/settings">Settings → Data sources</a>. The sample match works without one.</p>}
-      <p className="note">Premier doesn't publish rosters; csbot learns opponents from the demo after the match.</p>
+      {session.canScoutStatus
+        ? <><div className="or-line"><span>or</span></div><StatusForm session={session} /></>
+        : <p className="note">Premier doesn't publish rosters: paste the console's status in the desktop app, or csbot learns opponents from the demo after the match.</p>}
     </div>
   );
 }
@@ -149,7 +196,7 @@ function Versus({ scout }: { scout: ScoutView }) {
   const inRoom = scout.us.players.filter(p => p.room && p.room !== 'random').length;
   const randoms = scout.us.players.filter(p => p.room === 'random').length;
   const wc = scout.winChance;
-  const kicker = scout.platform === 'sample' ? 'Sample match · FACEIT 5v5' : scout.platform === 'faceit' ? 'FACEIT 5v5' : 'Match';
+  const kicker = scout.platform === 'sample' ? 'Sample match · FACEIT 5v5' : scout.platform === 'faceit' ? 'FACEIT 5v5' : scout.platform === 'premier' ? 'Premier · from status' : 'Match';
   return (
     <div className="card vs" data-testid="versus">
       <div className="vs-side">
@@ -165,7 +212,7 @@ function Versus({ scout }: { scout: ScoutView }) {
             <div className="wc-bar"><i style={{ width: `${wc.value * 100}%` }} /><i style={{ width: `${(1 - wc.value) * 100}%` }} /></div>
             <div className="wc-lbl"><span>Win chance <b>{Math.round(wc.value * 100)}%</b></span><span>{wc.basis}</span></div>
           </div>
-        ) : <div className="muted small">Win chance needs both teams' ELO</div>}
+        ) : <div className="muted small">{scout.unsorted?.length ? 'Win chance once the teams are sorted' : "Win chance needs both teams' ELO"}</div>}
       </div>
       <div className="vs-side r">
         <div className="vs-name">{scout.them.name}<i className="key t" /></div>
@@ -243,13 +290,13 @@ function EnemyCard({ p, sel, onSelect }: { p: ScoutPlayer; sel: boolean; onSelec
   );
 }
 
-function EnemyDetail({ p, map }: { p: ScoutPlayer; map?: string }) {
+function EnemyDetail({ p, map, onMove }: { p: ScoutPlayer; map?: string; onMove?: () => void }) {
   const maps = Object.entries(p.maps).sort((a, b) => b[1].matches - a[1].matches);
   const s = p.steam;
   return (
     <div className="card pdetail" data-testid="enemy-detail" data-nick={p.nickname}>
       <div>
-        <div className="card-h" style={{ marginBottom: 6 }}><h3>{p.nickname} · profile</h3>{roleText(p) && <span className="role">{roleText(p)}</span>}</div>
+        <div className="card-h" style={{ marginBottom: 6 }}><h3>{p.nickname} · profile</h3>{roleText(p) && <span className="role">{roleText(p)}</span>}{onMove && <button className="btn small" type="button" onClick={onMove} data-testid="move-us">On my team</button>}</div>
         <div className="cfg">
           <span className="k">FACEIT</span><span className="v">lvl {p.level ?? '–'} · {elo(p.elo)} ELO · {p.stats.matches?.toLocaleString('en-US') ?? '–'} matches</span>
           <span className="k">Overall</span><span className="v">{pct(p.stats.winRate)} wins · {kd(p.stats.kd)} K/D · {pct(p.stats.hs)} HS{p.stats.adr !== undefined ? ` · ${Math.round(p.stats.adr)} ADR` : ''}</span>
@@ -317,7 +364,7 @@ function Veto({ scout }: { scout: ScoutView }) {
   );
 }
 
-function OurCard({ p, me }: { p: ScoutPlayer; me: boolean }) {
+function OurCard({ p, me, onMove }: { p: ScoutPlayer; me: boolean; onMove?: () => void }) {
   const room = p.room ?? 'random';
   return (
     <div className="oc" data-testid="our-card" data-nick={p.nickname}>
@@ -332,6 +379,7 @@ function OurCard({ p, me }: { p: ScoutPlayer; me: boolean }) {
       <div className="sug"><span className="sl">Role</span>{roleText(p) ?? 'not enough data yet'}</div>
       <div className="sug"><span className="sl">Form</span>{p.stats.recent ? <Form recent={p.stats.recent} /> : '–'}</div>
       {!!p.flags.length && <div className="flags" style={{ marginTop: 6 }}>{p.flags.map(f => <span key={f} className="flag">{f}</span>)}</div>}
+      {onMove && <button className="lnk small" type="button" onClick={onMove} data-testid="move-them">Not on my team</button>}
     </div>
   );
 }
@@ -342,7 +390,10 @@ export function Scout({ view, session }: { view: SessionView; session: Session }
   const scout = scoutOf(view);
   const [selected, setSelected] = useState<string>();
   const host = session.canScout;
-  const ready = scout.them.players.length > 0;
+  const ready = scout.them.players.length > 0 || !!scout.unsorted?.length;
+  // Premier: the host moves players between teams (Valve doesn't say who's on which).
+  const sortable = host && scout.platform === 'premier' && session.canScoutStatus;
+  const move = (p: ScoutPlayer, side: 'us' | 'them') => { if (p.steamid) void session.setPremierSide(p.steamid, side); };
   // The demo's live match and its sample scout use different fictional ids: the demo host is rdx.
   const meId = view.role === 'demo' ? DEMO_ME : view.screen?.live.me?.steamid;
 
@@ -350,7 +401,7 @@ export function Scout({ view, session }: { view: SessionView; session: Session }
   if (!ready && scout.status === 'loading') body = <Skeleton />;
   else if (!ready) body = <Empty view={view} session={session} scout={scout} />;
   else {
-    const sel = scout.them.players.find(p => p.nickname === selected) ?? scout.them.players[0]!;
+    const sel = scout.them.players.find(p => p.nickname === selected) ?? scout.them.players[0];
     body = (
       <>
         <div className="scout-top">
@@ -364,6 +415,7 @@ export function Scout({ view, session }: { view: SessionView; session: Session }
               <summary>Scout another match</summary>
               <ScoutForm session={session} compact />
               <RecentList scout={scout} session={session} compact />
+              {session.canScoutStatus && <StatusForm session={session} compact />}
             </details>
           )}
         </div>
@@ -371,12 +423,15 @@ export function Scout({ view, session }: { view: SessionView; session: Session }
         {host && scout.platform === 'faceit' && (scout.sideBy === 'guess' || scout.sideBy === 'manual') && <SideNote scout={scout} session={session} />}
         <Versus scout={scout} />
         <Things scout={scout} />
-        <Briefing scout={scout} session={session} host={host} />
-        <div className="sec-h"><h2>Their players</h2><span className="muted small">sorted by threat · click a card for the details</span></div>
-        <div className="pcards">
-          {scout.them.players.map(p => <EnemyCard key={p.id} p={p} sel={p === sel} onSelect={() => setSelected(p.nickname)} />)}
-        </div>
-        <EnemyDetail p={sel} map={scout.map} />
+        <Unsorted scout={scout} session={session} host={!!sortable} />
+        {!scout.unsorted?.length && <Briefing scout={scout} session={session} host={host} />}
+        {sel && <>
+          <div className="sec-h"><h2>Their players</h2><span className="muted small">sorted by threat · click a card for the details</span></div>
+          <div className="pcards">
+            {scout.them.players.map(p => <EnemyCard key={p.id} p={p} sel={p === sel} onSelect={() => setSelected(p.nickname)} />)}
+          </div>
+          <EnemyDetail p={sel} map={scout.map} {...(sortable ? { onMove: () => move(sel, 'us') } : {})} />
+        </>}
         <div className="grid2 mt veto-row">
           <Veto scout={scout} />
           <div className="card">
@@ -385,7 +440,7 @@ export function Scout({ view, session }: { view: SessionView; session: Session }
           </div>
         </div>
         <div className="sec-h"><h2>Your team</h2><span className="muted small">room status · roles · form</span></div>
-        <div className="ours">{scout.us.players.map(p => <OurCard key={p.id} p={p} me={!!meId && p.steamid === meId} />)}</div>
+        <div className="ours">{scout.us.players.map(p => { const me = !!meId && p.steamid === meId; return <OurCard key={p.id} p={p} me={me} {...(sortable && !me ? { onMove: () => move(p, 'them') } : {})} />; })}</div>
       </>
     );
   }

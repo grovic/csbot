@@ -113,6 +113,11 @@ export interface ScoutView {
   account?: { nickname: string; status: 'ok' | 'not-found' | 'error'; level?: number; elo?: number; error?: string };
   /** The host's recent matches, newest first. A live one gets scouted automatically. */
   recent?: RecentMatch[];
+  /**
+   * Premier and other Valve matches: players from the pasted status whose team csbot doesn't know yet.
+   * The host marks them; once a team has five, the rest go to the other side.
+   */
+  unsorted?: ScoutPlayer[];
 }
 
 export const EMPTY_SCOUT: ScoutView = {

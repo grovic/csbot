@@ -289,6 +289,10 @@ export interface CsbotBridge {
   scoutSample?(): Promise<void>;
   /** Scout the current FACEIT match again from the other side (csbot guessed the host's team wrong). */
   scoutSwap?(): Promise<{ ok: boolean; error?: string }>;
+  /** Premier and other Valve matches: scout the players in a pasted console `status`. */
+  scoutStatus?(text: string): Promise<{ ok: boolean; error?: string }>;
+  /** Premier: put a player on our team or theirs (null: unsorted). */
+  setPremierSide?(steamid: string, side: 'us' | 'them' | null): Promise<{ ok: boolean; error?: string }>;
   /** Run (or re-run) the AI scouting report on the host's Claude Code. Refusals (budget, no Claude) come back as errors. */
   runScoutReport?(): Promise<{ ok: boolean; error?: string }>;
   /**

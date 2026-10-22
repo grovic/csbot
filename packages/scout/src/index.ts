@@ -7,4 +7,6 @@ export * from './steam.ts';
 export * from './derive.ts';
 export * from './scout.ts';
 export * from './sample.ts';
+export * from './status.ts';
+export * from './premier.ts';
 export * from './analyst.ts';

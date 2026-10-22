@@ -73,4 +73,13 @@ export class MatchLog {
   }
 
   trace(e: RoomTrace): void { this.note({ ...e }); }
+
+  /** Keep a pasted text next to the run (`<session>.<what>-<n>.txt`), e.g. a Premier status. */
+  keep(what: string, text: string): void {
+    const base = this.file.replace(/\.events\.ndjson$/, '');
+    let n = 1;
+    while (fs.existsSync(`${base}.${what}-${n}.txt`)) n++;
+    try { fs.writeFileSync(`${base}.${what}-${n}.txt`, text.slice(0, 50_000)); } catch { /* measurement only */ }
+    this.note({ ev: 'kept', what, n });
+  }
 }

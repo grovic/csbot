@@ -204,7 +204,8 @@ export function winChance(us: ScoutTeam, them: ScoutTeam, faceitProbability?: nu
 export function factsOf(v: Pick<ScoutView, 'them' | 'maps' | 'map'>): string[] {
   const out: string[] = [];
   const top = [...v.them.players].sort((a, b) => (b.threat?.score ?? 0) - (a.threat?.score ?? 0))[0];
-  if (top) {
+  // Only with something to rank them by (a Premier lobby pasted without keys has nothing).
+  if (top && (top.threat?.score ?? 0) > 0) {
     const bits = [top.role?.label, top.elo ? `${top.elo.toLocaleString('en-US')} ELO` : undefined].filter(Boolean).join(' · ');
     out.push(`${top.nickname}${bits ? ` (${bits})` : ''} is their biggest threat${top.keyStat ? `: ${top.keyStat}` : ''}.`);
   }

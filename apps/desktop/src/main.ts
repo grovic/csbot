@@ -164,6 +164,8 @@ function run(): void {
       cache: scoutCache,
       analyst: { detect: async () => (await detectClaude(claude)).found, run: v => runAnalyst(v, claude) },
       ourSteamId: () => host?.latest().me?.steamid,
+      // Premier: our team as csbot has seen it (our GSI, teammates watched after dying, members' GSI).
+      ourTeam: () => (host?.latest().scoreboard ?? []).map(r => r.steamid),
       // The host is the admin; room members are matched by FACEIT nickname (they join under it).
       roomSteamIds: () => {
         const me = host?.latest().me?.steamid;
@@ -437,6 +439,24 @@ function run(): void {
     });
     ipcMain.handle('csbot:scoutSample', async e => { guard(e); await scout?.scoutSample(); });
     ipcMain.handle('csbot:scoutSwap', async e => { guard(e); return scout ? scout.swapSides() : { ok: false, error: 'csbot is shutting down' }; });
+    ipcMain.handle('csbot:scoutStatus', async (e, text: unknown) => {
+      guard(e);
+      if (typeof text !== 'string' || text.length > 50_000) return { ok: false, error: 'Paste the output of status (it is too long or not text).' };
+      // Measurement runs keep the paste (spike 3: what today's CS2 prints), on this PC only.
+      matchLog?.keep('status', text);
+      return scout ? scout.scoutStatus(text) : { ok: false, error: 'csbot is shutting down' };
+    });
+    ipcMain.handle('csbot:premierSide', (e, steamid: unknown, side: unknown) => {
+      guard(e);
+      if (typeof steamid !== 'string' || !/^\d{17}$/.test(steamid) || (side !== 'us' && side !== 'them' && side !== null)) return { ok: false, error: 'Invalid request.' };
+      return scout ? scout.setPremierSide(steamid, side) : { ok: false, error: 'csbot is shutting down' };
+    });
+    // Premier: a teammate seen for the first time (watched after dying, or a member's GSI) sorts them.
+    let teamKey = '';
+    host.onSnapshot(s => {
+      const k = s.scoreboard.map(r => r.steamid).sort().join(',');
+      if (k !== teamKey) { teamKey = k; if (scout?.current.platform === 'premier') scout.relabelRoom(); }
+    });
     ipcMain.handle('csbot:runScoutReport', async e => { guard(e); return scout ? scout.runReport() : { ok: false, error: 'csbot is shutting down' }; });
     ipcMain.on('csbot:setRoomRoster', (e, members: unknown) => {
       if (!isOurs(e.senderFrame?.url ?? '')) return;
