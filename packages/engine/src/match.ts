@@ -373,6 +373,15 @@ export class MatchTracker {
     this.push(s.at, tag, this.pistol ? 'Pistol round.' : `Enemy est. ${fmt$(this.enemy.lo)}–${fmt$(this.enemy.hi)} each → ${READ_WORD[this.enemyRead]} ${pct(this.enemyBuy[this.enemyRead as keyof BuyProbs])}${firstSeen && !hs.start ? ' (joined mid-half: wide estimate)' : ''}`);
   }
 
+  /**
+   * The team plan changed (playbook, anti-strat): during freeze time, redo this round's engine call so
+   * the new setup, words and spots show now. Later in the round the call stays (players already moved).
+   */
+  replan(): void {
+    if (this.phase !== 'freezetime' || this.call?.kind !== 'pre' || this.call.source !== 'engine' || !this.enemyBuy) return;
+    this.call = this.preRoundCall(this.call.round);
+  }
+
   private preRoundCall(round: number): CallView {
     const pb = this.map ? this.o.playbooks[this.map] : undefined;
     const enemy = this.enemy, buy = this.enemyBuy!, read = this.enemyRead!;

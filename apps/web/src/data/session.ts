@@ -13,8 +13,9 @@ import {
 import { trysteroTransport } from '@csbot/room/trystero';
 import {
   EMPTY_COACH, EMPTY_DEBRIEF, EMPTY_SCOUT, type CoachConfig, type CoachView, type CsbotBridge, type DebriefView, type DemoReplay, type VoiceEvent, type LinkStatus, type LiveSnapshot, type RoomPermissions,
-  type ScoutView, type ScreenState,
+  type ScoutView, type ScreenState, EMPTY_TEAM, sanitizeTeam, type TeamPlan,
 } from '@csbot/protocol';
+import { applyTeam } from '@csbot/engine';
 import { demoCoach } from './demoCoach.ts';
 import { demoRoom } from './demoRoom.ts';
 import { demoScout } from './demoScout.ts';
@@ -60,6 +61,13 @@ export interface SessionView {
   coach?: CoachView;
   /** The debrief from this PC's own source (demo, or the desktop app). Read through `debriefOf(view)`. */
   debrief?: DebriefView;
+  /** The team plan from this PC's own source (demo, or the desktop app). Read through `teamOf(view)`. */
+  team?: TeamPlan;
+}
+
+/** The team plan this screen runs on: the room host's when joined, else this PC's own. */
+export function teamOf(v: SessionView): TeamPlan {
+  return v.screen?.team ?? v.team ?? EMPTY_TEAM;
 }
 
 /** The scouting this screen shows: from the room when joined, else this PC's own. */
@@ -83,6 +91,8 @@ const LS = {
   hostRoom: 'csbot.hostRoom',
   hostName: 'csbot.hostName',
   memberRoom: 'csbot.memberRoom',
+  /** The browser demo's own team plan (the desktop app keeps the real one). */
+  demoTeam: 'csbot.demoTeam',
 } as const;
 /** Web member: the joined link, per tab (survives reloads, not new tabs). */
 const SS_MEMBER = 'csbot.memberRoom';
@@ -180,6 +190,7 @@ export class Session {
   private startSource(which: 'demo' | 'none'): void {
     const src = which === 'demo' ? demoSource(readDemoOptions(this.win.location.search)) : noneSource();
     this.reset({ role: which, kind: which, ...(which === 'demo' ? { scout: { ...EMPTY_SCOUT, status: 'loading' as const }, coach: demoCoach() } : {}) });
+    if (which === 'demo') this.set({ team: sanitizeTeam(read(localStorage, LS.demoTeam)) });
     if (which === 'demo') void import('./demoDebrief.ts').then(m => { if (this.view.role === 'demo') this.set({ debrief: m.demoDebrief(readDemoOptions(this.win.location.search).map) }); });
     this.demo = which === 'demo' ? src : undefined;
     let alive = true;
@@ -204,6 +215,7 @@ export class Session {
     this.watchOwnScout();
     this.watchOwnCoach();
     this.watchOwnDebrief();
+    this.watchOwnTeam();
     this.stops.push(b.onSnapshot(live => {
       this.lastLive = live;
       const { scout, coach } = this.view;
@@ -219,6 +231,38 @@ export class Session {
       onCoach?.(c);
       this.set({ coach: c, ...(this.view.screen ? { screen: { ...this.view.screen, coach: c } } : {}) });
     }));
+  }
+
+  /** Desktop solo/host: this PC's team plan, from the main process. */
+  private watchOwnTeam(onTeam?: (t: TeamPlan) => void): void {
+    const b = this.bridge;
+    if (!b?.onTeam) return;
+    this.stops.push(b.onTeam(t => {
+      onTeam?.(t);
+      this.set({ team: t });
+    }));
+  }
+
+  // ---------------------------------------------------------------- team plan
+
+  /** This screen edits the team plan: the desktop app (solo or hosting), or the browser demo (kept in this browser). */
+  get canEditTeam(): boolean {
+    return this.view.role === 'demo' || (!!this.bridge?.setTeam && (this.view.role === 'solo' || this.view.role === 'host'));
+  }
+
+  /** Save the team plan; returns why not, if it wasn't saved. */
+  async saveTeam(t: TeamPlan): Promise<string | undefined> {
+    if (!this.canEditTeam) return 'Only the room admin edits the playbook.';
+    if (this.view.role === 'demo') {
+      const team = sanitizeTeam(t);
+      write(localStorage, LS.demoTeam, team);
+      this.set({ team });
+      return undefined;
+    }
+    try {
+      const r = await this.bridge!.setTeam!(t);
+      return r.ok ? undefined : r.error ?? 'Not saved.';
+    } catch (e) { return String((e as Error)?.message ?? e); }
   }
 
   /** Desktop solo/host: this PC's scouting, from the main process. */
@@ -472,6 +516,7 @@ export class Session {
     // Scouting and the coach go to every member on each update (and to joiners on approval).
     this.watchOwnScout(s => host.setScout(s));
     this.watchOwnDebrief(d => host.setDebrief(d));
+    this.watchOwnTeam(t => host.setTeam(t));
     this.watchOwnCoach(c => host.setCoach(c));
     this.stops.push(b.onSnapshot(live => { this.lastLive = live; host.setLive(live); }));
     // Tell the host process who's in the room, so scouting labels members vs randoms.
@@ -660,7 +705,13 @@ export class Session {
     this.notify();
   }
 
-  private notify(): void { for (const cb of this.subs) cb(); }
+  private notify(): void {
+    // Every screen runs its engine on the team plan it shows (calls, spots and odds agree with the host's).
+    const team = teamOf(this.view);
+    if (team !== this.appliedTeam) { this.appliedTeam = team; applyTeam(team); }
+    for (const cb of this.subs) cb();
+  }
+  private appliedTeam?: TeamPlan;
 }
 
 export { HOST_ID };

@@ -1,4 +1,4 @@
-import { MatchTracker } from '@csbot/engine';
+import { applyTeam, MatchTracker } from '@csbot/engine';
 import { FIRST_HALF, syntheticMatch, toGameState } from '@csbot/gsi';
 import type { LiveSnapshot } from '@csbot/protocol';
 import { describe, expect, it } from 'vitest';
@@ -31,6 +31,17 @@ describe('what the coach is told', () => {
     expect(COACH_SCHEMA.required).toEqual(['type']);
     const withIntel = { ...freeze2(), intel: [{ zone: 'bapps', zoneName: 'B Apps', count: 3, t: 15, by: ['kairo'] }] };
     expect(eventMessage('intel', withIntel, ROSTER)).toMatch(/^Intel in round 2: kairo: 3 at B Apps \(15s into the round\)\. /);
+  });
+});
+
+describe('the team plan in what the coach is told', () => {
+  it("adds the active anti-strat's notes, and the team's own setups", () => {
+    applyTeam({ playbooks: {}, antistrats: [{ id: 'holo', name: 'Team Holo', updatedAt: 1, maps: { de_mirage: { notes: 'They rush B apps on every buy.' } } }], active: 'holo' });
+    try {
+      const f = matchFacts(freeze2(), ROSTER) as Record<string, any>;
+      expect(f.antiStrat).toEqual({ opponent: 'Team Holo', notes: 'They rush B apps on every buy.' });
+    } finally { applyTeam(undefined); }
+    expect((matchFacts(freeze2(), ROSTER) as Record<string, any>).antiStrat).toBeUndefined();
   });
 });
 

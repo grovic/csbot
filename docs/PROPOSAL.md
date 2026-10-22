@@ -665,6 +665,15 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
        - A tone plays when it listens and another when it understood. The command is read back if voice callouts are on.
        - What it hears goes the same way as a click, so a member's intel and questions reach the room's host. Tournament mode refuses them the same way.
        - English only for now.
+     - **Team playbook and anti-strats** (Playbook page). The room admin edits them in the desktop app, and they stay on that PC. The room shares them read-only, and every screen's engine runs on them.
+       - *Our plays:* per map and side, rename setups and positions, choose which buys a setup answers (and the site a T exec hits), write the call and each position's job, and drag the planned spots on the map. Duplicate or delete setups, or reset the map to csbot's.
+       - *Anti-strat* for a named opponent (by default the scouted one), per map:
+         - how often they run each T plan and CT setup: never, less, usual, more or mostly
+         - our CT setup against their eco, force and full buy
+         - notes the coach also reads
+         - a preview of how their site odds move
+       - The anti-strat applies only while it's "in use". It scales csbot's own plan odds, so they stay estimates.
+       - Saving updates the current freeze-time call right away.
 8. **M8 · Hardening:** host handover, signing, auto-update, performance, closed beta with a few squads → **V1 release**.
    - *Done:*
      - The installer and auto-update: an unsigned per-user NSIS installer on GitHub Releases. v0.5.0 is published; pushing a `v*` tag releases.

@@ -2,7 +2,7 @@
 // modules are available here, so this file imports nothing at runtime except 'electron'.
 
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron';
-import type { CfgInstallResult, CoachView, CsbotBridge, DebriefView, DemoReplay, HostInfo, LiveSnapshot, ScoutView, VoiceEvent } from '@csbot/protocol';
+import type { CfgInstallResult, CoachView, CsbotBridge, DebriefView, DemoReplay, HostInfo, LiveSnapshot, ScoutView, TeamPlan, VoiceEvent } from '@csbot/protocol';
 
 const bridge: CsbotBridge = {
   onSnapshot(cb) {
@@ -43,6 +43,14 @@ const bridge: CsbotBridge = {
     void ipcRenderer.invoke('csbot:debriefLatest').then((v: DebriefView | undefined) => { if (v && !pushed) cb(v); }, () => undefined);
     return () => { ipcRenderer.removeListener('csbot:debrief', handler); };
   },
+  onTeam(cb) {
+    let pushed = false;
+    const handler = (_e: IpcRendererEvent, t: TeamPlan) => { pushed = true; cb(t); };
+    ipcRenderer.on('csbot:team', handler);
+    void ipcRenderer.invoke('csbot:teamLatest').then((t: TeamPlan | undefined) => { if (t && !pushed) cb(t); }, () => undefined);
+    return () => { ipcRenderer.removeListener('csbot:team', handler); };
+  },
+  setTeam: t => ipcRenderer.invoke('csbot:setTeam', t) as Promise<{ ok: boolean; error?: string }>,
   selectMatch: id => ipcRenderer.invoke('csbot:selectMatch', id) as Promise<void>,
   getReplay: id => ipcRenderer.invoke('csbot:getReplay', id) as Promise<DemoReplay | undefined>,
   ingestDemo: file => ipcRenderer.invoke('csbot:ingestDemo', file) as Promise<{ ok: boolean; error?: string }>,

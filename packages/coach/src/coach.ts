@@ -7,7 +7,7 @@
 // already on screen, so Claude's only has to be better, not first.
 
 import { z } from 'zod';
-import { GEOS, lossBonus, PLAYBOOKS, slotsFor } from '@csbot/engine';
+import { activeAntiStrat, activeOpponent, currentTeam, GEOS, lossBonus, PLAYBOOKS, slotsFor } from '@csbot/engine';
 import type { CallView, CoachAsker, CoachConfig, LiveSnapshot, ScoutView } from '@csbot/protocol';
 
 export const COACH_SYSTEM = `You are the live coach inside csbot, a second-screen companion for a Counter-Strike 2 squad.
@@ -78,6 +78,9 @@ export function matchFacts(live: LiveSnapshot, roster: readonly RosterEntry[], s
   }
   if (live.call) facts.engineCall = { head: live.call.head, setup: live.call.setup };
   if (setups.length) facts.playbookSetups = setups;
+  // The squad's anti-strat for this opponent (their own words).
+  const anti = activeAntiStrat(currentTeam(), m?.map);
+  if (anti?.notes) facts.antiStrat = { opponent: activeOpponent(currentTeam()), notes: anti.notes };
   else facts.playbook = `No playbook for ${mapName(m?.map)} on ${m?.ourSide ?? 'this'} side yet: give general jobs per position.`;
   if (scout?.status === 'ready') {
     facts.opponents = scout.them.players.slice(0, 5).map(p => ({ nick: p.nickname, ...(p.role ? { role: `${p.role.label}${p.role.source === 'stats' ? ' (likely)' : ''}` } : {}), ...(p.tip ? { tip: p.tip } : {}) }));

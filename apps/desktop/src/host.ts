@@ -179,6 +179,12 @@ export class Host {
     return r;
   }
 
+  /** The team plan changed (already applied to the engine): redo the freeze-time call and show it now. */
+  replan(): void {
+    this.tracker.replan();
+    this.emit();
+  }
+
   /** The live coach's call (undefined = engine calls only). Shown right away. */
   setCoachCall(call: CallView | undefined): void {
     this.coachCall = call;

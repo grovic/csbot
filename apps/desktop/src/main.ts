@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, globalShortcut, ipcMain, Menu, safeStorage, screen, session, shell, type IpcMainInvokeEvent } from 'electron';
-import type { CfgInstallResult, CoachAsker, CoachConfig, CoachView, DebriefView, ScoutView } from '@csbot/protocol';
+import type { CfgInstallResult, CoachAsker, CoachConfig, CoachView, DebriefView, ScoutView, TeamPlan } from '@csbot/protocol';
 import { COACH_SCHEMA, COACH_SYSTEM } from '@csbot/coach';
 import { CoachService } from './coach/service.ts';
 import { ClaudeCoachSession } from './coach/session.ts';
@@ -19,6 +19,8 @@ import { Updater } from './updater.ts';
 import { loadWindowState, restorableBounds, saveWindowState } from './window-state.ts';
 import { claudeCommand, detectClaude, runAnalyst, runClaudeJson } from './scout/claude.ts';
 import { DebriefService } from './debrief/service.ts';
+import { loadTeam, saveTeam } from './team.ts';
+import { applyTeam } from '@csbot/engine';
 import { parseDemoFile } from './debrief/demo.ts';
 import { FileStore } from './scout/file-cache.ts';
 import { KEY_SERVICES, Secrets, type KeyService } from './scout/secrets.ts';
@@ -145,6 +147,22 @@ function run(): void {
       for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('csbot:scout', v);
     };
     scout.onChange(sendScout);
+
+    // The team plan (M7): the squad's playbook and anti-strats, kept on this PC. The engine runs on it
+    // (calls, jobs, spots, plan odds), and the room shares it read-only.
+    let team: TeamPlan = loadTeam(userData);
+    applyTeam(team);
+    ipcMain.handle('csbot:teamLatest', e => { guard(e); return team; });
+    ipcMain.handle('csbot:setTeam', (e, raw: unknown) => {
+      guard(e);
+      const r = saveTeam(userData, raw);
+      if (!r.ok) return r;
+      team = r.team;
+      applyTeam(team);
+      host?.replan(); // the call and the forecast change now, not at the next game update
+      for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('csbot:team', team);
+      return { ok: true };
+    });
 
     // Debrief (M6): every match this PC sees is recorded; demos add the truth; Claude writes "work on next".
     // The installed app keeps the demo parser's native module unpacked under resources (see stage.mjs).

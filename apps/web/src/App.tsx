@@ -7,6 +7,7 @@ import { CoachPage } from './pages/Coach.tsx';
 import { Join } from './pages/Join.tsx';
 import { Live } from './pages/Live.tsx';
 import { Debrief } from './pages/Debrief.tsx';
+import { PlaybookPage } from './pages/Playbook.tsx';
 import { RoomPage } from './pages/Room.tsx';
 import { Scout } from './pages/Scout.tsx';
 import { Settings } from './pages/Settings.tsx';
@@ -45,6 +46,7 @@ export function App() {
   else if (route === 'settings') page = <Settings snap={live} kind={v.kind} scout={scoutOf(v)} session={session} />;
   else if (route === 'scout') page = <Scout view={v} session={session} />;
   else if (route === 'debrief') page = <Debrief view={v} session={session} />;
+  else if (route === 'playbook') page = <PlaybookPage view={v} session={session} />;
   else if (route === 'coach') page = <CoachPage view={v} session={session} />;
   else if (live) page = <Live snap={live} receivedAt={v.receivedAt} rate={v.rate} kind={v.kind} role={v.role} room={v.screen?.room} scout={scoutOf(v)} coach={coachOf(v)} session={session} />;
 

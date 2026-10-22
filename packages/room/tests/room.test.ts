@@ -264,6 +264,21 @@ describe('scouting in a room', () => {
     expect(k.last().screen!.scout!.facts).toHaveLength(2); // survives later state messages
     expect(host.screen().scout!.facts).toHaveLength(2);
   });
+
+  it("the team plan reaches members (sanitized), joiners included, and survives state updates", async () => {
+    const { host, join, flush } = await setup();
+    host.setLive(hostLiveAtFreeze2());
+    const team = { playbooks: {}, antistrats: [{ id: 'holo', name: 'Team Holo', updatedAt: 1, maps: { de_mirage: { tWeights: { bRush: 4 }, notes: 'Rush B on buys' } } }], active: 'holo' };
+    host.setTeam(team);
+    const k = join('client-kairo', 'kairo'); await flush(); host.approve('client-kairo'); await flush();
+    expect(k.last().screen!.team).toEqual(team);
+    host.setTeam({ ...team, active: 'nope' } as typeof team);
+    host.setLive({ ...hostLiveAtFreeze2(), seq: 999 });
+    await flush();
+    expect(k.last().screen!.team!.active).toBeUndefined(); // an unknown anti-strat id is dropped
+    expect(k.last().screen!.team!.antistrats[0]!.name).toBe('Team Holo');
+    expect(host.screen().team!.antistrats).toHaveLength(1);
+  });
 });
 
 describe('asking the coach from a room', () => {
