@@ -171,8 +171,13 @@ test('room: join, approve, personal YOU, slots, tournament, host offline and bac
   await shot(mem, 'host-offline');
 
   // The admin reopens csbot: the room comes back by itself and the member is let straight back in.
+  // V1 criterion: the room reconnects in under 5 s (here over the test's local signaling relay).
+  const reopened = Date.now();
   const host2 = await openHost(hostCtx, false);
   await expect(status(mem)).toHaveAttribute('data-status', 'approved', { timeout: 45_000 });
+  const reconnectMs = Date.now() - reopened;
+  console.log(`room reconnect after the host came back: ${reconnectMs} ms`);
+  expect(reconnectMs).toBeLessThan(5_000);
   await expect(host2.page.getByTestId('pending-row')).toHaveCount(0);
   await expect(memberRow(host2.page, 'kairo')).toContainText('online');
   expect(host2.invite).toBe(host.invite);

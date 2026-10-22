@@ -210,6 +210,29 @@ function StreamDeckCard({ bridge }: { bridge: CsbotBridge }) {
   );
 }
 
+/** Low-memory mode: draw without the graphics card (applies after a restart). */
+function MemoryCard({ bridge }: { bridge: CsbotBridge }) {
+  const [st, setSt] = useState<HostInfo['lowMemory']>();
+  const refresh = useCallback(() => bridge.getInfo().then(i => setSt(i?.lowMemory), () => undefined), [bridge]);
+  useEffect(() => { void refresh(); }, [refresh]);
+  const toggle = async (on: boolean) => {
+    setSt(s => (s ? { ...s, enabled: on } : s));
+    await bridge.setLowMemory!(on);
+    await refresh();
+  };
+  const pending = !!st && st.enabled !== st.active;
+  return (
+    <div className="card" data-testid="mem-card">
+      <div className="card-h"><h3>Low-memory mode</h3><span className="muted small">this PC</span></div>
+      <label className="toggle-row">
+        <input type="checkbox" checked={!!st?.enabled} disabled={!st} onChange={e => void toggle(e.target.checked)} data-testid="mem-toggle" />
+        <span><b>{st?.enabled ? 'On' : 'Off'}</b> · On by default. csbot draws without the graphics card and uses about 160 MB while a match plays, for the same CPU. Off, it draws with the graphics card: about 330 MB, growing over a long match.</span>
+      </label>
+      {pending && <p style={{ margin: '8px 0 0' }} data-testid="mem-restart"><span className="muted">Applies after a restart.</span> <button type="button" className="btn small" onClick={() => void bridge.restart?.()}>Restart csbot</button></p>}
+    </div>
+  );
+}
+
 function BrowserCard({ member }: { member: boolean }) {
   return (
     <div className="card" data-testid="browser-card">
@@ -351,6 +374,7 @@ export function Settings({ snap, kind, scout, session }: { snap?: LiveSnapshot; 
       <GsiStatus snap={snap} />
       {bridge?.setIntelHotkeys && session.isHostSide && <div style={{ gridColumn: '1/-1' }}><HotkeysCard bridge={bridge} /></div>}
       {bridge?.setStreamDeck && <div style={{ gridColumn: '1/-1' }}><StreamDeckCard bridge={bridge} /></div>}
+      {bridge?.setLowMemory && <div style={{ gridColumn: '1/-1' }}><MemoryCard bridge={bridge} /></div>}
       {bridge?.setVoice && <div style={{ gridColumn: '1/-1' }}><VoiceCard bridge={bridge} {...(snap?.match?.map ? { map: snap.match.map } : {})} /></div>}
       <div style={{ gridColumn: '1/-1' }}><DataSources scout={scout} session={session} host={session.canScout} /></div>
       <div className="card" style={{ gridColumn: '1/-1' }}>

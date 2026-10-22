@@ -2,7 +2,6 @@
 // over WebRTC. Every message is JSON on one data channel. Anything a peer sends is validated here
 // before use: peers are squad members, but a malformed message must never crash the host.
 
-import { z } from 'zod';
 import type { LiveSnapshot } from './index.ts';
 import type { DebriefView } from './debrief.ts';
 import type { ScoutView } from './scout.ts';
@@ -90,28 +89,29 @@ export interface ScreenState {
 
 // ------------------------------------------------------------------ messages
 
-const id = z.string().min(4).max(64).regex(/^[A-Za-z0-9_-]+$/);
-const name = z.string().trim().min(1).max(24);
-
-/** Member → host. */
-export const MemberMessage = z.discriminatedUnion('t', [
-  z.object({ t: z.literal('hello'), v: z.number().int(), clientId: id, name, device: z.enum(['desktop', 'web']) }),
+/** Member → host. The host checks every one with parseMemberMessage (members aren't trusted). */
+export type MemberMessage =
+  | { t: 'hello'; v: number; clientId: string; name: string; device: 'desktop' | 'web' }
   /** The member's own GSI payload (desktop members). The host runs the spectator guard on it. */
-  z.object({ t: z.literal('gsi'), payload: z.record(z.string(), z.unknown()) }),
+  | { t: 'gsi'; payload: Record<string, unknown> }
   /** The member picks their own slot (when permitted). */
-  z.object({ t: z.literal('slot'), slot: z.string().max(24).nullable() }),
-  z.object({ t: z.literal('rename'), name }),
+  | { t: 'slot'; slot: string | null }
+  | { t: 'rename'; name: string }
   /** Intel: a zone and how many enemies were seen there (0 = clear). The host checks the intel permission. */
-  z.object({ t: z.literal('intel'), zone: z.string().min(1).max(32).regex(/^[a-z0-9_]+$/), count: z.number().int().min(0).max(5) }),
+  | { t: 'intel'; zone: string; count: number }
   /** Squad check-in for the member's own slot: on my spot, or rotating to a site. */
-  z.object({ t: z.literal('checkin'), state: z.enum(['spot', 'rotate']), site: z.enum(['A', 'B']).optional() }),
+  | { t: 'checkin'; state: 'spot' | 'rotate'; site?: 'A' | 'B' }
   /** A host with an older epoch is still sending: hosting moved (handover), so it should step down. */
-  z.object({ t: z.literal('stale'), epoch: z.number().int().min(0).max(1_000_000) }),
+  | { t: 'stale'; epoch: number }
   /** A question for the coach (the host checks the ask permission and the member's quota). */
-  z.object({ t: z.literal('ask'), text: z.string().trim().min(2).max(300) }),
-  z.object({ t: z.literal('bye') }),
-]);
-export type MemberMessage = z.infer<typeof MemberMessage>;
+  | { t: 'ask'; text: string }
+  | { t: 'bye' };
+
+const isInt = (v: unknown, lo = -Infinity, hi = Infinity): v is number => typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi;
+const CLIENT_ID = /^[A-Za-z0-9_-]{4,64}$/;
+const ZONE = /^[a-z0-9_]{1,32}$/;
+/** A display name: trimmed, 1 to 24 characters. */
+const nameOf = (v: unknown): string | undefined => { if (typeof v !== 'string') return undefined; const n = v.trim(); return n.length >= 1 && n.length <= 24 ? n : undefined; };
 
 /** Host → member. Not schema-validated in depth (the host is trusted by its members), only by type. */
 export type HostMessage =
@@ -136,7 +136,39 @@ export function isHostMessage(m: unknown): m is HostMessage {
   return !!m && typeof m === 'object' && HOST_TYPES.has((m as { t?: unknown }).t as string);
 }
 
+/** A member's message, rebuilt from known fields only (anything else is dropped), or undefined. */
 export function parseMemberMessage(m: unknown): MemberMessage | undefined {
-  const r = MemberMessage.safeParse(m);
-  return r.success ? r.data : undefined;
+  if (!m || typeof m !== 'object' || Array.isArray(m)) return undefined;
+  const o = m as Record<string, unknown>;
+  switch (o.t) {
+    case 'hello': {
+      const name = nameOf(o.name);
+      if (!isInt(o.v) || typeof o.clientId !== 'string' || !CLIENT_ID.test(o.clientId) || !name || (o.device !== 'desktop' && o.device !== 'web')) return undefined;
+      return { t: 'hello', v: o.v, clientId: o.clientId, name, device: o.device };
+    }
+    case 'gsi':
+      return o.payload && typeof o.payload === 'object' && !Array.isArray(o.payload) ? { t: 'gsi', payload: o.payload as Record<string, unknown> } : undefined;
+    case 'slot':
+      return o.slot === null || (typeof o.slot === 'string' && o.slot.length <= 24) ? { t: 'slot', slot: o.slot } : undefined;
+    case 'rename': {
+      const name = nameOf(o.name);
+      return name ? { t: 'rename', name } : undefined;
+    }
+    case 'intel':
+      return typeof o.zone === 'string' && ZONE.test(o.zone) && isInt(o.count, 0, 5) ? { t: 'intel', zone: o.zone, count: o.count } : undefined;
+    case 'checkin':
+      if (o.state !== 'spot' && o.state !== 'rotate') return undefined;
+      if (o.site !== undefined && o.site !== 'A' && o.site !== 'B') return undefined;
+      return { t: 'checkin', state: o.state, ...(o.site ? { site: o.site } : {}) };
+    case 'stale':
+      return isInt(o.epoch, 0, 1_000_000) ? { t: 'stale', epoch: o.epoch } : undefined;
+    case 'ask': {
+      const text = typeof o.text === 'string' ? o.text.trim() : '';
+      return text.length >= 2 && text.length <= 300 ? { t: 'ask', text } : undefined;
+    }
+    case 'bye':
+      return { t: 'bye' };
+    default:
+      return undefined;
+  }
 }

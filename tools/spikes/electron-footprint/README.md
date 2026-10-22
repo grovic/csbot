@@ -62,3 +62,27 @@ The rooms e2e measures the host with a room open and one browser member connecte
 
 - **The room costs about 12 MB.** The renderer grows from about 40 to 48 MB with WebRTC and the room host, and the GPU process stays the largest at 156 MB.
 - **Both criteria still pass.** The caveats above still apply: the window is hidden and the feed is synthetic.
+
+## Long matches and low-memory mode (M8, 2026-10-22)
+
+`measure.mjs` now prints private memory per minute. A 30-minute soak (`--duration 1800`) found that drawing with the graphics card makes memory grow while the Live page updates. Settings stays flat.
+
+| 30-minute soak, hosting | Graphics card | Low-memory mode (now the default) |
+|---|---|---|
+| Private memory, avg / peak | 383 / **412 MB** | **167 / 176 MB** |
+| GPU process, private | 190 → about 270 MB, growing | 21 MB, flat |
+| Renderer (Tab), private | about 50 MB | 51 → 59 MB |
+| CPU, machine-wide avg | 0.2 % | 0.2 % |
+
+What was tried with the graphics card (7-10 minute runs, GPU process private MB from the first to the last minute):
+
+| Variant | GPU process |
+|---|---|
+| As shipped in 0.18 | 196 → 241 |
+| Heat canvases drawn on the CPU | 227 → 283 (worse) |
+| Heat map off | 207 → 274 (not the cause) |
+| `force-gpu-mem-*` caps | 195 → 236 (no change) |
+| Map drawing and markers on their own layers (`will-change`) | 170 → 191 (kept) |
+| Settings page instead of Live | 104 → 110 |
+
+Low-memory mode is on by default and can be turned off in Settings (it applies after a restart). `CSBOT_GPU=on` measures with the graphics card. The window is still hidden in these runs; a visible window during a real match is still to measure.

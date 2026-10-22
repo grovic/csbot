@@ -512,3 +512,28 @@ describe('gather mode', () => {
     expect(s.live.squad!.find(m => m.slot === 'a')).toMatchObject({ name: 'rdx' });
   });
 });
+
+describe("parsing members' messages (the host trusts nothing a member sends)", () => {
+  it('keeps known fields only, trims names, and refuses anything out of shape', async () => {
+    const { parseMemberMessage } = await import('@csbot/protocol');
+    expect(parseMemberMessage({ t: 'hello', v: 3, clientId: 'client-kairo', name: '  kairo  ', device: 'web', admin: true })).toEqual({ t: 'hello', v: 3, clientId: 'client-kairo', name: 'kairo', device: 'web' });
+    expect(parseMemberMessage({ t: 'hello', v: 3, clientId: 'x', name: 'kairo', device: 'web' })).toBeUndefined();
+    expect(parseMemberMessage({ t: 'hello', v: 3, clientId: 'client-kairo', name: 'x'.repeat(25), device: 'web' })).toBeUndefined();
+    expect(parseMemberMessage({ t: 'hello', v: 3, clientId: 'client-kairo', name: 'kairo', device: 'phone' })).toBeUndefined();
+    expect(parseMemberMessage({ t: 'intel', zone: 'bapps', count: 3, by: 'someone else' })).toEqual({ t: 'intel', zone: 'bapps', count: 3 });
+    expect(parseMemberMessage({ t: 'intel', zone: 'B Apps', count: 3 })).toBeUndefined();
+    expect(parseMemberMessage({ t: 'intel', zone: 'bapps', count: 6 })).toBeUndefined();
+    expect(parseMemberMessage({ t: 'intel', zone: 'bapps', count: 2.5 })).toBeUndefined();
+    expect(parseMemberMessage({ t: 'checkin', state: 'rotate', site: 'A' })).toEqual({ t: 'checkin', state: 'rotate', site: 'A' });
+    expect(parseMemberMessage({ t: 'checkin', state: 'rotate', site: 'C' })).toBeUndefined();
+    expect(parseMemberMessage({ t: 'slot', slot: null })).toEqual({ t: 'slot', slot: null });
+    expect(parseMemberMessage({ t: 'slot', slot: 7 })).toBeUndefined();
+    expect(parseMemberMessage({ t: 'ask', text: '  where do they go?  ' })).toEqual({ t: 'ask', text: 'where do they go?' });
+    expect(parseMemberMessage({ t: 'ask', text: 'x' })).toBeUndefined();
+    expect(parseMemberMessage({ t: 'gsi', payload: [] })).toBeUndefined();
+    expect(parseMemberMessage({ t: 'gsi', payload: { map: {} } })).toEqual({ t: 'gsi', payload: { map: {} } });
+    expect(parseMemberMessage({ t: 'stale', epoch: -1 })).toBeUndefined();
+    expect(parseMemberMessage({ t: 'bye', extra: 1 })).toEqual({ t: 'bye' });
+    for (const bad of [null, 'hello', [], { t: 'nope' }, { t: 'rename', name: '   ' }]) expect(parseMemberMessage(bad)).toBeUndefined();
+  });
+});

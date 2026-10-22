@@ -33,6 +33,14 @@ import { faceitClient, steamClient } from '@csbot/scout';
 const env = readEnv();
 if (env.userData) app.setPath('userData', path.resolve(env.userData));
 app.setAppUserModelId('app.csbot');
+// Low-memory mode (Settings, on by default): draw without the graphics card. Measured while hosting a
+// match: flat at about 160 MB for 30 minutes, against 320-410 MB and growing with GPU drawing, for the
+// same CPU. It has to be chosen before the app is ready, so it's read from settings.json here.
+// CSBOT_GPU=on / =off overrides the setting (measurements).
+const lowMemory = process.env.CSBOT_GPU === 'off' || (process.env.CSBOT_GPU !== 'on' && (() => {
+  try { return JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'settings.json'), 'utf8')).lowMemory !== false; } catch { return true; }
+})());
+if (lowMemory) app.disableHardwareAcceleration();
 
 const log = (...a: unknown[]) => console.log('[csbot]', ...a);
 
@@ -217,10 +225,20 @@ function run(): void {
     // Intel (M4a): from this PC (map clicks, numpad hotkeys) and from room members (the web host
     // passes their name). It moves the forecast; a changed read changes the call.
     const ownName = () => host?.latest().me?.name || 'host';
+    // Hidden runs and tests never take real global keys (the owner may be playing); tests press the
+    // stand-in keys from the main process.
+    const fakeIntelKeys = fakeShortcuts();
+    if (env.fakeHotkeys) (globalThis as { csbotPressKey?: (acc: string) => void }).csbotPressKey = acc => fakeIntelKeys.registered.get(acc)?.();
     hotkeys = new IntelHotkeys({
-      // Hidden runs and tests never take real global keys (the owner may be playing).
-      shortcuts: env.fakeHotkeys ? fakeShortcuts() : globalShortcut,
+      shortcuts: env.fakeHotkeys ? fakeIntelKeys : globalShortcut,
       log: (zone, count) => {
+        // Through the page, like a click: a member's intel goes to the room's host (not this PC's own
+        // tracker), the host's own goes to this PC, and the toast confirms it or says why not.
+        if (win && !win.isDestroyed()) {
+          const cmd: VoiceCommand = { kind: 'intel', zone, count };
+          win.webContents.send('csbot:voice', { state: 'heard', command: cmd, said: describeCommand(cmd, host?.latest().match?.map) } satisfies VoiceEvent);
+          return;
+        }
         // Tournament mode hides the forecast for the whole room: intel isn't taken either.
         if (coach?.inTournament) { log('hotkey intel ignored: tournament mode'); return; }
         const r = host?.addIntel(zone, count, ownName());
@@ -431,7 +449,7 @@ function run(): void {
     ipcMain.handle('csbot:latest', e => { guard(e); return host?.latest(); });
     ipcMain.handle('csbot:getInfo', e => {
       guard(e);
-      return host ? { ...host.info(), update: updater.status, ...(hotkeys ? { intelHotkeys: hotkeys.status() } : {}), ...(voice ? { voice: voice.status() } : {}), streamDeck: { enabled: !!control } } : undefined;
+      return host ? { ...host.info(), update: updater.status, ...(hotkeys ? { intelHotkeys: hotkeys.status() } : {}), ...(voice ? { voice: voice.status() } : {}), streamDeck: { enabled: !!control }, lowMemory: { enabled: settings.lowMemory !== false, active: lowMemory } } : undefined;
     });
     // Practice config (M7): the map's lineups (the team's, else csbot's) as a .cfg in CS2's cfg folder,
     // on the user's click. Generated here from the saved plan, never from text the page sends.
@@ -462,6 +480,14 @@ function run(): void {
         return { ok: false, error: (err as Error).message };
       }
     });
+    ipcMain.handle('csbot:setLowMemory', (e, on: unknown) => {
+      guard(e);
+      if (typeof on !== 'boolean') return { ok: false, error: 'Invalid request.' };
+      settings = { ...settings, lowMemory: on };
+      saveSettings(userData, settings);
+      return { ok: true };
+    });
+    ipcMain.handle('csbot:restart', e => { guard(e); app.relaunch(); app.quit(); });
     ipcMain.handle('csbot:openRecordings', async e => {
       guard(e);
       if (!host) return;
@@ -522,7 +548,8 @@ function run(): void {
         if (input.type === 'keyDown' && input.key === 'F12') w.webContents.toggleDevTools();
       });
     }
-    if (env.webUrl || fs.existsSync(webIndex)) void w.loadURL(rendererUrl);
+    // CSBOT_ROUTE=settings opens another page first (footprint measurements per page).
+    if (env.webUrl || fs.existsSync(webIndex)) void w.loadURL(process.env.CSBOT_ROUTE && /^[a-z]+$/.test(process.env.CSBOT_ROUTE) ? `${rendererUrl.split('#')[0]}#/${process.env.CSBOT_ROUTE}` : rendererUrl);
     else {
       const html = `<body style="background:#0b0f14;color:#cfd8e3;font:15px system-ui;padding:40px">
         <h2>csbot</h2><p>The web app isn't built yet. Run <code>pnpm --filter @csbot/web build</code>.</p></body>`;

@@ -1,16 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Header } from './components/Header.tsx';
 import { LinkStatusView, isBlocking } from './components/LinkStatus.tsx';
 import { coachOf, scoutOf, Session } from './data/session.ts';
 import { useHashRoute, useSession } from './hooks.ts';
-import { CoachPage } from './pages/Coach.tsx';
 import { Join } from './pages/Join.tsx';
 import { Live } from './pages/Live.tsx';
-import { Debrief } from './pages/Debrief.tsx';
-import { PlaybookPage } from './pages/Playbook.tsx';
-import { RoomPage } from './pages/Room.tsx';
-import { Scout } from './pages/Scout.tsx';
-import { Settings } from './pages/Settings.tsx';
+
+// The Live page loads with the app; the others load the first time they're opened (a smaller first
+// download, which matters for members joining from a phone).
+const CoachPage = lazy(() => import('./pages/Coach.tsx').then(m => ({ default: m.CoachPage })));
+const Debrief = lazy(() => import('./pages/Debrief.tsx').then(m => ({ default: m.Debrief })));
+const PlaybookPage = lazy(() => import('./pages/Playbook.tsx').then(m => ({ default: m.PlaybookPage })));
+const RoomPage = lazy(() => import('./pages/Room.tsx').then(m => ({ default: m.RoomPage })));
+const Scout = lazy(() => import('./pages/Scout.tsx').then(m => ({ default: m.Scout })));
+const Settings = lazy(() => import('./pages/Settings.tsx').then(m => ({ default: m.Settings })));
 import { usePushToTalkCues, useVoiceCallouts } from './voice.ts';
 import type { SessionView } from './data/session.ts';
 
@@ -60,7 +63,7 @@ export function App() {
           </div>
         )}
         {v.role === 'member' && !v.join && <LinkStatusView view={v} session={session} />}
-        {page}
+        <Suspense fallback={<p className="muted" style={{ padding: 20 }}>Loading…</p>}>{page}</Suspense>
       </main>
       <VoiceToast v={v.voice} />
     </div>
