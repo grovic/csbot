@@ -89,6 +89,7 @@ const bridge: CsbotBridge = {
   setStreamDeck: on => ipcRenderer.invoke('csbot:setStreamDeck', on) as Promise<{ ok: boolean; error?: string }>,
   setLowMemory: on => ipcRenderer.invoke('csbot:setLowMemory', on) as Promise<{ ok: boolean; error?: string }>,
   restart: () => ipcRenderer.invoke('csbot:restart') as Promise<void>,
+  trace: e => ipcRenderer.send('csbot:trace', e),
 };
 
 contextBridge.exposeInMainWorld('csbot', bridge);

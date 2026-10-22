@@ -69,7 +69,9 @@ export function CallCard({ snap, room, coach }: { snap: LiveSnapshot; room?: Roo
     );
   }
   const left = m?.clock.phase === 'live' ? m.clock.endsIn : undefined;
-  const kick = { pre: `Team call · round ${c.round}`, mid: `Update · ${left !== undefined ? clockStr(left) : `round ${c.round}`}`, post: `Post-plant · round ${c.round}`, over: `Round ${c.round} result` }[c.kind];
+  // Between rounds the call is already the next round's.
+  const next = c.kind === 'pre' && !!m && c.round > m.round;
+  const kick = { pre: `${next ? 'Next round' : 'Team call'} · round ${c.round}`, mid: `Update · ${left !== undefined ? clockStr(left) : `round ${c.round}`}`, post: `Post-plant · round ${c.round}`, over: `Round ${c.round} result` }[c.kind];
   const fmap = snap.forecast && MAPS[snap.forecast.map] ? snap.forecast.map : undefined;
   // The utility the call's setup uses (the team's lineups, else csbot's starter list).
   const util = c.kind === 'pre' || c.kind === 'mid' ? lineupsFor(m?.map, c.setup) : [];

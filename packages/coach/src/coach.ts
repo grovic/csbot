@@ -89,14 +89,29 @@ export function matchFacts(live: LiveSnapshot, roster: readonly RosterEntry[], s
   return facts;
 }
 
+/**
+ * Between rounds the engine's call is already the next round's (M9): the snapshot as that round will
+ * start (its number, the enemy estimate and forecast for it), so Claude's call is ready by freeze time.
+ */
+export function nextRoundView(live: LiveSnapshot): LiveSnapshot | undefined {
+  const n = live.next, m = live.match;
+  if (!n || !m || live.call?.round !== n.round) return undefined;
+  const { next: _n, forecast: _f, ...rest } = live;
+  return { ...rest, match: { ...m, round: n.round }, enemy: n.enemy, ...(n.forecast ? { forecast: n.forecast } : {}) };
+}
+
 /** The message for one event. */
 export function eventMessage(trigger: Exclude<Trigger, 'question'>, live: LiveSnapshot, roster: readonly RosterEntry[], scout?: ScoutView): string {
   const facts = JSON.stringify(matchFacts(live, roster, scout));
+  const r = live.match?.round ?? 0;
   switch (trigger) {
     case 'warmup':
       return `Match starting on ${mapName(live.match?.map)}. Get ready; calls come at each freeze time. Reply with type "answer" and answer "ready". Facts: ${facts}`;
     case 'freeze':
-      return `Freeze time, round ${live.match?.round}. Write the team call for this round. Facts: ${facts}`;
+      // Asked at the previous round's end (most rounds), or at freeze time when a half starts.
+      return live.match?.clock.phase === 'over'
+        ? `Freeze time for round ${r} starts in a few seconds (round ${r - 1} just ended). Write the team call for round ${r}. Facts: ${facts}`
+        : `Freeze time, round ${r}. Write the team call for this round. Facts: ${facts}`;
     case 'intel': {
       const seen = (live.intel ?? []).map(i => `${i.by.join(' + ')}: ${i.count ? `${i.count} at ${i.zoneName}` : `${i.zoneName} clear`} (${i.t}s into the round)`).join('; ');
       const ask = live.match?.ourSide === 'T'

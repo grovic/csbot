@@ -2,7 +2,7 @@
 // over WebRTC. Every message is JSON on one data channel. Anything a peer sends is validated here
 // before use: peers are squad members, but a malformed message must never crash the host.
 
-import type { LiveSnapshot } from './index.ts';
+import type { CallView, LiveSnapshot } from './index.ts';
 import type { DebriefView } from './debrief.ts';
 import type { ScoutView } from './scout.ts';
 import type { CoachView } from './coach.ts';
@@ -87,6 +87,20 @@ export interface ScreenState {
   link?: { status: LinkStatus; since: number; detail?: string };
 }
 
+/** One call as screens see it: round, kind and who wrote it ("4:pre:claude"). Screens report each new one (M9 timing). */
+export function callKey(c: Pick<CallView, 'round' | 'kind' | 'source'> | undefined): string | undefined {
+  return c ? `${c.round}:${c.kind}:${c.source}` : undefined;
+}
+export const CALL_KEY = /^\d{1,3}:(pre|mid|post|over):(engine|claude)$/;
+
+/**
+ * Real-match timing (M9): a screen showed a call, or a room member came or went. The room's host page
+ * reports these to the desktop app, which logs them only in measurement runs (`--metrics`).
+ */
+export type RoomTrace =
+  | { ev: 'shown'; id: string; name: string; device: DeviceKind; key: string }
+  | { ev: 'online' | 'offline'; id: string; name: string; device: DeviceKind };
+
 // ------------------------------------------------------------------ messages
 
 /** Member → host. The host checks every one with parseMemberMessage (members aren't trusted). */
@@ -105,6 +119,8 @@ export type MemberMessage =
   | { t: 'stale'; epoch: number }
   /** A question for the coach (the host checks the ask permission and the member's quota). */
   | { t: 'ask'; text: string }
+  /** This screen now shows that call (callKey): the host times how fast calls reach every screen. */
+  | { t: 'shown'; key: string }
   | { t: 'bye' };
 
 const isInt = (v: unknown, lo = -Infinity, hi = Infinity): v is number => typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi;
@@ -166,6 +182,8 @@ export function parseMemberMessage(m: unknown): MemberMessage | undefined {
       const text = typeof o.text === 'string' ? o.text.trim() : '';
       return text.length >= 2 && text.length <= 300 ? { t: 'ask', text } : undefined;
     }
+    case 'shown':
+      return typeof o.key === 'string' && CALL_KEY.test(o.key) ? { t: 'shown', key: o.key } : undefined;
     case 'bye':
       return { t: 'bye' };
     default:

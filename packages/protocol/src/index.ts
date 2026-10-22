@@ -2,6 +2,7 @@ import type { ScoutView } from './scout.ts';
 import type { CoachAsker, CoachConfig, CoachView } from './coach.ts';
 import type { DebriefView, DemoReplay } from './debrief.ts';
 import type { TeamPlan } from './team.ts';
+import type { RoomTrace } from './room.ts';
 
 // Wire types shared by the host, the desktop renderer and (from M2) room members.
 // The host builds a LiveSnapshot from its GSI feed; every screen renders only from snapshots.
@@ -166,6 +167,11 @@ export interface LiveSnapshot {
   enemy?: EnemyView;
   forecast?: ForecastView;
   call?: CallView;
+  /**
+   * Between rounds, once the call is already the next round's: that round's enemy estimate and plan
+   * forecast (`enemy` and `forecast` above stay the round that just ended, which the debrief records).
+   */
+  next?: { round: number; enemy: EnemyView; forecast?: ForecastView };
   setupSpots?: SetupSpot[];
   /** Our handle in the playbook/room (matches SetupSpot.player and CallView.jobs keys), when known. */
   youHandle?: string;
@@ -312,6 +318,8 @@ export interface CsbotBridge {
   setLowMemory?(on: boolean): Promise<{ ok: boolean; error?: string }>;
   /** Restart the desktop app. */
   restart?(): Promise<void>;
+  /** Real-match timing: what this screen and the room's members showed (logged only in measurement runs). */
+  trace?(e: RoomTrace): void;
   /**
    * Room roster with slots, so the coach can name players in calls ("rdx rotates to B") and knows
    * who's a random. Superset of setRoomRoster's names.

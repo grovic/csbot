@@ -7,7 +7,7 @@
 // The engine's call is always on screen first. A Claude call replaces it only for the round and phase
 // it was written for; anything else (slow, failed, over budget, tournament) leaves the engine call.
 
-import { CoachLedger, eventMessage, parseCoachOutput, questionMessage, type RosterEntry, type Trigger } from '@csbot/coach';
+import { CoachLedger, eventMessage, nextRoundView, parseCoachOutput, questionMessage, type RosterEntry, type Trigger } from '@csbot/coach';
 import {
   DEFAULT_COACH_CONFIG, EMPTY_COACH,
   type CallLogEntry, type CallView, type CoachAsker, type CoachConfig, type CoachMessage, type CoachStatus, type CoachView,
@@ -163,13 +163,15 @@ export class CoachService {
       this.system(`New match on ${prettyMap(m.map)}.`);
       void this.event('warmup', live);
     }
-    if (phase === 'freezetime' && m.round !== this.frozeRound) {
-      this.frozeRound = m.round;
-      void this.event('freeze', live);
+    // The pre-round call: asked as soon as the engine has the round's call, which is at the previous
+    // round's end for most rounds (so Claude's is on screen by freeze time), at freeze time after a half.
+    const engine = this.engineNow();
+    if ((phase === 'freezetime' || phase === 'over') && engine?.kind === 'pre' && engine.round !== this.frozeRound) {
+      this.frozeRound = engine.round;
+      void this.event('freeze', nextRoundView(live) ?? live);
     }
     // Intel changed the plan: the engine switched to a "plan changed" call (or flipped it to the other
     // site). Ask Claude for the mid-round call once per change; a stale Claude mid call goes away.
-    const engine = this.engineNow();
     if (phase === 'live' && engine?.kind === 'mid' && engine.round === m.round) {
       const key = midKeyOf(engine);
       if (key !== this.midKey) {
@@ -247,9 +249,12 @@ export class CoachService {
     const text = eventMessage(trigger, live, this.rosterNow(), this.scoutNow());
     const midKey = this.midKey;
     const relevant = () => {
+      const engine = this.engineNow();
+      // A pre-round call fits while the engine's call is still that round's pre-round call: from the
+      // previous round's end, through freeze time, until a plant or intel changes the plan.
+      if (trigger === 'freeze') return engine?.kind === 'pre' && engine.round === round;
       if (this.live.match?.round !== round) return false;
       if (trigger === 'plant') return this.live.match?.clock.phase === 'bomb';
-      const engine = this.engineNow();
       // A mid call only fits while the engine still calls the same site, in the live phase.
       if (trigger === 'intel') return this.live.match?.clock.phase === 'live' && engine?.kind === 'mid' && midKeyOf(engine) === midKey;
       return engine?.kind === 'pre';

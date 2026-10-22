@@ -1,7 +1,7 @@
 // A member's side of the room (web app or desktop app in member mode): join, wait for approval,
 // render the host's personalized screen, survive the host going away, share own GSI (desktop).
 
-import { isHostMessage, ROOM_PROTOCOL, type CoachView, type DebriefView, type LinkStatus, type MemberMessage, type ScoutView, type ScreenState, sanitizeTeam, type TeamPlan } from '@csbot/protocol';
+import { callKey, isHostMessage, ROOM_PROTOCOL, type CoachView, type DebriefView, type LinkStatus, type MemberMessage, type ScoutView, type ScreenState, sanitizeTeam, type TeamPlan } from '@csbot/protocol';
 import type { Transport } from './transport.ts';
 
 export interface RoomClientOptions {
@@ -42,6 +42,8 @@ export class RoomClient {
   /** The newest hosting generation seen (handover): messages from an older host are refused. */
   private hostEpoch = -1;
   private intelWaiters: ((r: { ok: boolean; error?: string }) => void)[] = [];
+  /** The last call this screen told the host it shows (M9 timing). */
+  private shownKey?: string;
 
   constructor(o: RoomClientOptions) {
     this.o = { now: Date.now, gsiMinGapMs: 100, ...o };
@@ -162,6 +164,9 @@ export class RoomClient {
         this.state = { ...this.state, status: 'approved', screen: { live: m.live, room: m.room, ...(scout ? { scout } : {}), ...(coach ? { coach } : {}), ...(debrief ? { debrief } : {}), ...(team ? { team } : {}) } };
         if (this.state.detail) delete this.state.detail;
         this.emit();
+        // Tell the host when a new call is on this screen: it times how fast calls reach everyone.
+        const key = callKey(m.live.call);
+        if (key && key !== this.shownKey) { this.shownKey = key; this.sendMsg({ t: 'shown', key }); }
         break;
       }
       case 'coach':

@@ -6,7 +6,7 @@ import { spectatorGuard, toGameState, type GsiPayload } from '@csbot/gsi';
 import {
   DEFAULT_PERMISSIONS, parseMemberMessage, ROOM_PROTOCOL,
   type DeviceKind, type HostMessage, type JoinRequest, type LiveSnapshot, type MemberMessage, type PlayerRow,
-  type CoachAsker, type CoachView, type DebriefView, type RoomMember, type RoomPermissions, type RoomView, type ScoutView, type ScreenState, type TeamPlan,
+  type CoachAsker, type CoachView, type DebriefView, type RoomMember, type RoomPermissions, type RoomView, type ScoutView, type RoomTrace, type ScreenState, type TeamPlan,
 } from '@csbot/protocol';
 import { mergeRows, personalize } from './compose.ts';
 import { composeSquad, type CheckIn, type SlotInfo } from './squad.ts';
@@ -80,6 +80,8 @@ export interface RoomHostOptions {
   clientId?: string;
   /** Another member took over hosting (a newer epoch): this host stepped down without closing the room. */
   onSuperseded?: (epoch: number) => void;
+  /** Real-match timing (M9): a member's screen showed a call, or a member came or went. */
+  onTrace?: (e: RoomTrace) => void;
 }
 
 interface Peer { id: string; memberId?: string; device?: DeviceKind; times: number[] }
@@ -91,7 +93,7 @@ const EMPTY_LIVE: LiveSnapshot = {
 };
 
 export class RoomHost {
-  private readonly o: Required<Omit<RoomHostOptions, 'onSave' | 'onAsk' | 'onIntel' | 'clientId' | 'onSuperseded'>> & Pick<RoomHostOptions, 'onSave' | 'onAsk' | 'onIntel' | 'clientId' | 'onSuperseded'>;
+  private readonly o: Required<Omit<RoomHostOptions, 'onSave' | 'onAsk' | 'onIntel' | 'clientId' | 'onSuperseded' | 'onTrace'>> & Pick<RoomHostOptions, 'onSave' | 'onAsk' | 'onIntel' | 'clientId' | 'onSuperseded' | 'onTrace'>;
   private saved: SavedRoom;
   private peers = new Map<string, Peer>();
   private members = new Map<string, Member>();
@@ -193,6 +195,7 @@ export class RoomHost {
     this.pending.delete(id);
     const m: Member = { id, name: req.name, device: req.device, peer: req.peer, slot: this.freeSlot() };
     this.members.set(id, m);
+    this.trace({ ev: 'online', id, name: m.name, device: req.device });
     const p = this.peers.get(req.peer);
     if (p) p.memberId = id;
     this.save();
@@ -320,6 +323,7 @@ export class RoomHost {
       case 'ask': void this.ask(member, m.text, peerId); break;
       case 'intel': void this.intel(member, m.zone, m.count, peerId); break;
       case 'checkin': this.checkIn(member.id, m.state, m.site); break;
+      case 'shown': this.trace({ ev: 'shown', id: member.id, name: member.name, device: member.device, key: m.key }); break;
     }
   }
 
@@ -341,6 +345,7 @@ export class RoomHost {
       known.device = m.device;
       known.name = m.name;
       peer.memberId = known.id;
+      this.trace({ ev: 'online', id: known.id, name: known.name, device: m.device });
       this.send(peer.id, { t: 'welcome', v: ROOM_PROTOCOL, status: 'approved' });
       if (this.scout) this.send(peer.id, { t: 'scout', scout: this.scout });
       if (this.coach) this.send(peer.id, { t: 'coach', coach: this.coach });
@@ -392,9 +397,13 @@ export class RoomHost {
     for (const [id, r] of this.pending) if (r.peer === peerId) this.pending.delete(id);
     if (p?.memberId) {
       const m = this.members.get(p.memberId);
-      if (m && m.peer === peerId) m.peer = undefined;
+      if (m && m.peer === peerId) { m.peer = undefined; this.trace({ ev: 'offline', id: m.id, name: m.name, device: m.device }); }
     }
     this.schedule(true);
+  }
+
+  private trace(e: RoomTrace): void {
+    try { this.o.onTrace?.(e); } catch { /* measurement only */ }
   }
 
   private freeSlot(): string | undefined {

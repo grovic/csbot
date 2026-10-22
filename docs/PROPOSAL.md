@@ -1,6 +1,6 @@
 # csbot: V1 proposal
 
-> Status: M1–M7 are built, and M8 is built except code signing, with real maps for the whole pool (section 12 has the details). What's left for V1 needs real matches and demos (section 12, V1 exit criteria). The clickable design demo (`docs/prototype/index.html`, screenshots in `docs/prototype/screens/`) is the original design reference; its map is a hand-drawn sketch, while the app uses the real maps.
+> Status: M1–M9 are built, with real maps for the whole pool (section 12 has the details). The beta installer stays unsigned (decided 2026-10-22). What's left for V1 needs real matches and demos (section 12, V1 exit criteria). The live demo at https://grovic.github.io/csbot/ runs the real web app on a fictional match. The clickable design prototype (`docs/prototype/index.html`, screenshots in `docs/prototype/screens/`) is the original design reference, frozen on 2026-10-22; its map is a hand-drawn sketch, while the app uses the real maps.
 > Every player, stat, and demo in the prototype is fictional.
 
 csbot is a second-screen companion for Counter-Strike 2, built for squads (5-stacks and gathers).
@@ -326,7 +326,7 @@ Randoms show their planned spot and a "random" tag, unless a dead room member is
 | Role | Model (alias) | Effort | Process | Trigger | Budget |
 |---|---|---|---|---|---|
 | Analyst (scouting report) | `opus` | high | one-shot, facts in the prompt, `--json-schema` (no tools) | match scouted | ≤ 60 s (measured 16.9 s) |
-| Live coach | `sonnet` (or `haiku`) | low | **one long-lived stream-json process per match**, `--json-schema` on every turn (no MCP server needed) | match start (warm-up), freeze time, bomb planted | ≤ 4 s (measured 3.1 s warm) |
+| Live coach | `sonnet` (or `haiku`) | low | **one long-lived stream-json process per match**, `--json-schema` on every turn (no MCP server needed) | match start (warm-up), round end (the next round's call; freeze time after a half starts), bomb planted | ≤ 4 s (measured 3.1 s warm) |
 | Member questions | same live session | low | — | question from any room member, within quota | ≤ 4 s |
 | Debrief | `opus` | high | one-shot | demo parsed | ≤ 2 min |
 
@@ -378,6 +378,8 @@ claude -p --input-format stream-json --output-format stream-json --verbose \
 ### 6.4 Latency budget per round
 
 Target: **the call is on every screen ≤ 8 s after the round ends (p95)**. The pipeline: engine (<50 ms) → delta prompt (~1–2k tokens) → model → `publish_call` → direct WebRTC to every member (~20–80 ms). Freeze time length is **to verify** (about 15–20 s); the tracker learns it from the first full freeze it sees.
+
+**Asked at round end (M9, 2026-10-22).** CS2 waits about 7 s between the end of a round and the next freeze time, so asking Claude only at freeze time would put its call on screen 10–12 s after the round ended. Now the engine works out the next round's call as soon as a round ends (from the enemy's new money band and our money; a dead player's money plus what the round paid). Every screen shows it right away, and the coach asks Claude then, with the next round's facts. Claude's call usually lands before freeze time starts. Two exceptions: before a half's first round (sides swap, money resets) and once the match is decided, the round-over card stays and freeze time asks as before. Freeze time redoes the engine's call from the freeze payload; in the synthetic matches it's the same call every time. Measured end to end with the fake `claude` (`apps/desktop/e2e/realmatch.spec.ts`); the real timing comes from the first real match (`tools/real-match`).
 
 **Measured (M0 spike 5, `tools/spikes/claude-latency`):** on a warm `claude -p` session, the call reached the screen in **3.1–5.4 s with Sonnet** and 2.6–3.3 s with Haiku. Haiku's calls had tactical mistakes, so Sonnet at low effort is the default. The spike also set four rules:
 - the tool schema has no length limits (trim server-side; a rejection costs a retry)
@@ -711,7 +713,14 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
      - Room reconnect after the host comes back is now tested against the 5 s criterion, over the tests' local signaling relay.
      - **The demo reader runs in its own process** (Electron's utility process). In a worker thread, the native parser crashed now and then under load, about 3 runs in 10 of the parallel test suite, and a crash there takes the whole app down. Now a crash only fails that try, which is retried once. 0 crashes in 10 runs after the change; checked in the packaged app too.
      - Numpad hotkey intel now goes through the page like a click. A member's hotkey intel used to land in their own PC's tracker; now it reaches the room's host.
-   - *Pending:* code signing (Azure Trusted Signing), and measurements that need the owner: a visible window during a real match, and the reconnect over real networks.
+   - *Decided:* the beta installer stays unsigned (2026-10-22). Azure Trusted Signing (about $10 a month) stays the option for later.
+   - *Pending:* measurements that need the owner: a visible window during a real match, and the reconnect over real networks.
+9. **M9 · Real-match kit (2026-10-22):** everything the first real match needs to settle the V1 criteria.
+   - *Built:*
+     - **The next round's call at round end**, with Claude asked then (section 6.4). The call card says "Next round", and the enemy buy and likely-hit tiles show the next round's estimate. Tournament mode hides it like the rest of the forecast.
+     - **Measurement runs.** The playtest shortcut starts csbot with `--metrics`. Besides the per-second process metrics, it then logs the match's events: phase changes (a round ends when "over" starts), each new call on the host, Claude's time per call, the host's recent FACEIT matches, and the window's state. Each screen in the room reports each new call it shows (the room message `shown`), and the host notes members coming and going. All of it stays on the PC, next to the metrics in `%APPDATA%\csbot\metrics`.
+     - **`tools/real-match`** turns one run into the V1 numbers: private memory and CPU while the match is on (and how long the window was on screen), the time from round end to the next round's call on every screen (the engine's and Claude's, p50/p95), Claude's own time and plan usage, room reconnects, and whether FACEIT listed the match while it was played.
+   - *Next:* the Premier roster from a pasted `status` (spike 3).
 
 **V1 exit criteria:**
 - buy-read accuracy ≥ 80% and money-band coverage ≥ 85% on 50 held-out demos
@@ -738,7 +747,7 @@ Everything above ships in V1. The milestones exist so the squad can dogfood earl
 
 **Decisions needed:**
 1. **Repo and hosting owner:** GitHub org or account for Pages and Releases (e.g. `csbot-app`), and whether the repo is public from day one.
-2. **Code signing:** buy a certificate (Azure Trusted Signing is the cheapest route), or ship unsigned during the beta.
+2. ~~**Code signing:** buy a certificate (Azure Trusted Signing is the cheapest route), or ship unsigned during the beta.~~ Decided 2026-10-22: unsigned during the beta.
 3. **Member question quota** default (5 per match?), and whether randoms can get a read-only invite.
 
 ---
